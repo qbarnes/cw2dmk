@@ -1,7 +1,7 @@
 /*
  * dmk2cw: Write a .dmk to a real floppy disk using the Catweasel.
  * Copyright (C) 2001 Timothy Mann
- * $Id: dmk2cw.c,v 1.13 2005/04/06 06:12:18 mann Exp $
+ * $Id: dmk2cw.c,v 1.14 2005/04/24 04:16:45 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -148,12 +148,13 @@ cw_measure_rpm(catweasel_drive *d)
 #define CW_BIT_INIT -1
 #define CW_BIT_FLUSH -2
 /* !!Could also dither to get more exact average clock rate */
-void
+int
 cw_bit(int bit, double mult)
 {
   static int len, nextlen;
   static double prevadj, adj;
   int val;
+  int res;
 
 #if DEBUG7
   if (len > 4) {
@@ -186,7 +187,8 @@ cw_bit(int bit, double mult)
 	printf("/%d:%d", len, val);
       }
       if (val >= 0 && val <= 127) {
-	catweasel_put_byte(&c, val);
+	res = catweasel_put_byte(&c, val);
+	if (res < 0) return res;
       }
       prevadj = adj;
     }
@@ -199,11 +201,13 @@ cw_bit(int bit, double mult)
       printf("/%d:%d", nextlen, val);
     }
     if (val >= 0 && val <= 127) {
-      catweasel_put_byte(&c, val);
+      res = catweasel_put_byte(&c, val);
+      if (res < 0) return res;
     }
     cw_bit(CW_BIT_INIT, mult);
     break;
   }
+  return 1;
 }
 
 /* RX02 encoding requires some buffering
@@ -387,6 +391,12 @@ main(int argc, char** argv)
   }
 
   /* Start Catweasel */
+#if linux
+  if (geteuid() != 0) {
+    fprintf(stderr, "cw2dmk: Must be setuid to root or be run as root\n");
+    return 1;
+  }
+#endif
   if (port < 10) {
     port = pci_find_catweasel(port, &cw_mk);
     if (port == -1) {
@@ -629,7 +639,8 @@ main(int argc, char** argv)
 	  }
 
 	} else if (datap >= dam_min && datap <= dam_max &&
-		   dmk_track[datap] >= 0xf8 && dmk_track[datap] <= 0xfd) {
+		   ((dmk_track[datap] >= 0xf8 && dmk_track[datap] <= 0xfb) ||
+		    dmk_track[datap] == 0xfd)) {
 	  /* Data address mark */
 	  dam_max = 0;  /* prevent detecting again inside data */
 	  skip = 1;
@@ -855,6 +866,14 @@ main(int argc, char** argv)
       }
 
       catweasel_set_hd(&c, hd);
+
+      /* In case the DMK buffer is shorter than the physical track,
+	 fill the rest of the Catweasel's memory with a run-out
+	 pattern that could be either FM ff or MFM ff or 00. */
+      for (;;) {
+	if (cw_bit(0, mult) < 0) break;
+	if (cw_bit(1, mult) < 0) break;
+      }
 
       if (!catweasel_write(&c.drives[drive], side, cwclock, -1)) {
 	fprintf(stderr, "dmk2cw: Write error\n");

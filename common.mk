@@ -1,7 +1,7 @@
-# $Id: common.mk,v 1.6 2005/04/06 06:12:18 mann Exp $
+# $Id: common.mk,v 1.7 2005/04/24 04:16:45 mann Exp $
 
 CFLAGS= -O3 -Wall
-##CFLAGS= -g -O -Wall
+#CFLAGS= -g -O -Wall
 CC= gcc
 CWEXE= cw2dmk$E dmk2cw$E testhist$E
 EXE= $(CWEXE) dmk2jv3$E jv2dmk$E
@@ -20,7 +20,7 @@ catweasl.$O: catweasl.c cwfloppy.h firmware.h
 
 cw2dmk$E: cw2dmk.c catweasl.$O cwpci.$O crc.c  \
     cwfloppy.h kind.h dmk.h version.h
-	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB)
+	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB) -lm
 
 dmk2cw$E: dmk2cw.c catweasl.$O cwpci.$O crc.c \
     cwfloppy.h kind.h dmk.h version.h

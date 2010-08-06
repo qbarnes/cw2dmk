@@ -1,7 +1,7 @@
 /*
  * cw2dmk: Dump floppy disk from Catweasel to .dmk format.
  * Copyright (C) 2000 Timothy Mann
- * $Id: cw2dmk.c,v 1.33 2005/04/05 08:10:56 mann Exp $
+ * $Id: cw2dmk.c,v 1.34 2005/04/24 04:16:45 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -20,9 +20,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-/*#define DEBUG2 1*/ /* Print histogram and detected speeds for debugging */
-
-#define DEBUG5 1 /* Do extra checking to detect Catweasel MK1 memory errors */
+/*#define DEBUG5 1*/ /* Extra checking to detect Catweasel MK1 memory errors */
 #define DEBUG5_BYTE 0x7e
 
 #include <stdio.h>
@@ -76,7 +74,7 @@ int mfmthresh1 = -1;
 int mfmthresh2 = -1;
 int dmktracklen = -1;
 float mfmshort = -1.0;
-float postcomp = 0.0;
+float postcomp = 0.5;
 unsigned short crc;
 int sizecode;
 unsigned char premark;
@@ -94,6 +92,9 @@ int fmtimes = 2; /* record FM bytes twice; see man page */
 int hole = 1;
 int backward_am, flippy = 0;
 int first_encoding;  /* first encoding to try on next track */
+int curenc;
+int rx02_secs = 0;
+int uencoding = MIXED;
 
 char* plu(val)
 {
@@ -148,10 +149,11 @@ msg(int level, const char *fmt, ...)
   }
 }
 
+
 /* True if we are ignoring data while waiting for an iam or for the
    first idam */
 int
-dmk_awaiting_track_start()
+dmk_awaiting_track_start(void)
 {
   if (dmk_iam_pos == -1) {
     return !hole && (unsigned char*) dmk_idam_p == dmk_track;
@@ -160,8 +162,9 @@ dmk_awaiting_track_start()
   }
 }
 
+
 int
-dmk_in_range()
+dmk_in_range(void)
 {
   if (dmk_full) return 0;
   if (dmk_ignored < dmk_ignore) {
@@ -176,6 +179,7 @@ dmk_in_range()
   }
   return 1;
 }
+
 
 void
 dmk_data(unsigned char byte, int encoding)
@@ -198,6 +202,7 @@ dmk_data(unsigned char byte, int encoding)
     dmk_full = 1;
   }
 }
+
 
 void
 dmk_idam(unsigned char byte, int encoding)
@@ -247,6 +252,7 @@ dmk_idam(unsigned char byte, int encoding)
     }
   }
 }
+
 
 void
 dmk_iam(unsigned char byte, int encoding)
@@ -301,30 +307,20 @@ dmk_iam(unsigned char byte, int encoding)
   dmk_data(byte, encoding);
 }
 
-void
-dmk_dam(unsigned char byte, int encoding)
-{
-  if (!dmk_in_range()) return;
-  if (!dmk_awaiting_dam && !dmk_awaiting_track_start()) {
-    msg(OUT_ERRORS, "[unexpected DAM] ");
-    errcount++;
-  }
-  dmk_awaiting_dam = 0;
-  dmk_data(byte, encoding);
-}
 
 void
-dmk_write_header()
+dmk_write_header(void)
 {
   rewind(dmk_file);
   /* assumes this machine is little-endian: */
   fwrite(&dmk_header, sizeof(dmk_header), 1, dmk_file);
 }
 
+
 void
-dmk_write()
+dmk_write(void)
 {
-  msg(OUT_TSUMMARY, "%d good sector%s, %d error%s\n",
+  msg(OUT_TSUMMARY, " %d good sector%s, %d error%s\n",
       good_sectors, plu(good_sectors), errcount, plu(errcount));
   msg(OUT_IDS, "\n");
 
@@ -332,14 +328,15 @@ dmk_write()
   total_errcount += errcount;
   if (errcount) {
     err_tracks++;
-  } else {
+  } else if (good_sectors > 0) {
     good_tracks++;
   }
   fwrite(dmk_track, dmk_header.tracklen, 1, dmk_file);
 }
 
+
 void
-dmk_init_track()
+dmk_init_track(void)
 {
   memset(dmk_track, 0, dmk_header.tracklen);
   dmk_idam_p = (unsigned short*) dmk_track;
@@ -362,8 +359,9 @@ dmk_init_track()
   write_splice = 0;
 }
 
+
 void
-check_missing_dam()
+check_missing_dam(void)
 {
   if (!dmk_awaiting_dam) return;
   dmk_awaiting_dam = 0;
@@ -373,8 +371,9 @@ check_missing_dam()
   msg(OUT_ERRORS, "[missing DAM] ");
 }
 
+
 int
-dmk_check_wraparound()
+dmk_check_wraparound(void)
 {
   /* Once we've read 95% of the track, if we see a sector ID that's
      identical to the first one we saw on the track, conclude that we
@@ -397,7 +396,7 @@ dmk_check_wraparound()
   }
   if (memcmp(&dmk_track[first_idamp & DMK_IDAMP_BITS],
 	     &dmk_track[last_idamp & DMK_IDAMP_BITS], cmplen) == 0) {
-    msg(OUT_IDS, "[wraparound] ");
+    msg(OUT_ERRORS, "[wraparound] ");
     *--dmk_idam_p = 0;
     dmk_awaiting_dam = 0;
     ibyte = -1;
@@ -407,19 +406,21 @@ dmk_check_wraparound()
   return 0;
 }
 
-/* FM/MFM decoding stuff */
 
 int
 secsize(int sizecode, int encoding)
 {
-  if (encoding == MFM) {
+  switch (encoding) {
+  case MFM:
     /* 179x can only do sizes 128, 256, 512, 1024, and ignores
        higher-order bits.  If you need to read a 765-formatted disk
        with larger sectors, change maxsize with the -z
        command line option. */
     return 128 << (sizecode % (maxsize + 1));
-  } else {
-    /* 1771 has two different encodings for sector size, depending on
+
+  case FM:
+  default:
+    /* WD1771 has two different encodings for sector size, depending on
        a bit in the read/write command that is not recorded on disk.
        We guess IBM encoding if the size is <= maxsize, non-IBM
        if larger.  This doesn't really matter for demodulating the
@@ -431,11 +432,15 @@ secsize(int sizecode, int encoding)
       /* non-IBM */
       return 16 * (sizecode ? sizecode : 256);
     }
+
+  case RX02:
+    return 256 << (sizecode % (maxsize + 1));
   }
 }
 
+
 void
-decode_init()
+init_decoder(void)
 {
   accum = 0;
   taccum = 0;
@@ -443,136 +448,309 @@ decode_init()
   ibyte = dbyte = -1;
   premark = 0;
   mark_after = -1;
+  curenc = first_encoding;
 }
 
-/* Check whether the bit vector encodes an FM address mark */
+
 int
-fm_mark(unsigned long long bitvec)
+mfm_valid_clock(unsigned long long accum)
 {
-  if (write_splice) {
-    write_splice--;
+  /* Check for valid clock bits */
+  unsigned int xclock = ~((accum >> 1) | (accum << 1)) & 0xaaaa;
+  unsigned int clock = accum & 0xaaaa;
+  if (xclock != clock) {
+    //msg(OUT_ERRORS, "[clock exp %04x got %04x]", xclock, clock);
     return 0;
   }
-  switch (bitvec & 0xffff) {
-  case 0xf77a:  /* Index address mark, 0xfc with 0xd7 clock */
-  case 0xf57e:  /* ID address mark, 0xfe with 0xc7 clock */
-  case 0xf56a:  /* Data address mark, 0xf8 with 0xc7 clock */
-  case 0xf56b:  /* Data address mark, 0xf9 with 0xc7 clock */
-  case 0xf56e:  /* Data address mark, 0xfa with 0xc7 clock */
-  case 0xf56f:  /* Data address mark, 0xfb with 0xc7 clock */
-  case 0xf57b:  /* Undefined address mark, 0xfd with 0xc7 clock */
-  case 0xb57a:  /* Data address mark (0xf8 to 0xfb) read backward */
-    return 1;
-  }
-  return 0;
+  return 1;
 }
 
-int
-fm_bit(int bit)
+
+/* Window used to undo RX02 MFM transform */
+#if 1
+#define WINDOW 4   /* change aligned 1000 -> 0101 */
+#else
+#define WINDOW 12  /* change aligned x01000100010 -> x00101010100 */
+#endif
+
+
+void
+change_enc(int newenc)
 {
-  static int fmcyl;
-  int i;
+  if (curenc != newenc) {
+    msg(OUT_ERRORS, "[%s->%s] ", enc_name[curenc], enc_name[newenc]);
+    curenc = newenc;
+  }
+  if (newenc == RX02) {
+    rx02_secs++;
+  }
+}
+
+
+/*
+ * Main routine of the FM/MFM/RX02 decoder.  The input is a stream of
+ * alternating clock/data bits, passed in one by one.  See decoder.txt
+ * for documentation on how the decoder works.
+ */
+void
+process_bit(int bit)
+{
+  static int curcyl = 0;
   unsigned char val = 0;
-  int ret = FM;
+  int i;
 
   accum = (accum << 1) + bit;
+  taccum = (taccum << 1) + bit;
   bits++;
   if (mark_after >= 0) mark_after--;
+  if (write_splice > 0) write_splice--;
 
-  if (bits < 16) return ret;
+  /*
+   * Pre-detect address marks: we shift bits into the low-order end of
+   * our 64-bit shift register (accum), look for marks in the lower
+   * half, but decode data from the upper half.  When we recognize a
+   * mark (or certain other patterns), we repeat or drop some bits to
+   * achieve proper clock/data separatation and proper byte-alignment.
+   * Pre-detecting the marks lets us do this adjustment earlier and
+   * decode data more cleanly.
+   *
+   * We always sample bits at the MFM rate (twice the FM rate), but
+   * we look for both FM and MFM marks at the same time.  There is
+   * ambiguity here if we're dealing with normal (not DEC-modified)
+   * MFM, because FM marks can be legitimate MFM data.  So we don't
+   * look for FM marks while we think we're inside an MFM ID or data
+   * block, only in gaps.  With -e2, we don't look for FM marks at
+   * all.
+   */
 
-  /* Pre-detect address marks to achieve proper byte alignment */
-  if (ibyte == -1) {
-    if (fm_mark(accum)) {
-      if (bits < 32 && bits >= 24) {
-	msg(OUT_HEX, "(+%d)", 32-bits);
-	bits = 32; /* byte-align by repeating some bits */
-      } else if (bits < 24 && bits > 16) {
-	msg(OUT_HEX, "(-%d)", bits-16);
-	bits = 16; /* byte-align by dropping some bits */
+  /*
+   * For FM and RX02 marks, we look at 9 data bits (including a
+   * leading 0), which ends up being 36 bits of accum (2x for clocks,
+   * another 2x for the double sampling rate).  We must not look
+   * inside a region that can contain standard MFM data.
+   */
+  if (uencoding != MFM && bits >= 36 && !write_splice &&
+      (curenc != MFM || (ibyte == -1 && dbyte == -1 && mark_after == -1))) {
+    switch (accum & 0xfffffffffULL) {
+    case 0x8aa2a2a88ULL:  /* 0xfc / 0xd7: Index address mark */
+    case 0x8aa222aa8ULL:  /* 0xfe / 0xc7: ID address mark */
+    case 0x8aa222888ULL:  /* 0xf8 / 0xc7: Standard deleted DAM */
+    case 0x8aa22288aULL:  /* 0xf9 / 0xc7: RX02 deleted DAM / WD1771 user DAM */
+    case 0x8aa2228a8ULL:  /* 0xfa / 0xc7: WD1771 user DAM */
+    case 0x8aa2228aaULL:  /* 0xfb / 0xc7: Standard DAM */
+    case 0x8aa222a8aULL:  /* 0xfd / 0xc7: RX02 DAM */
+      change_enc(FM);
+      if (bits < 64 && bits >= 48) {
+	msg(OUT_HEX, "(+%d)", 64-bits);
+	bits = 64; /* byte-align by repeating some bits */
+      } else if (bits < 48 && bits > 32) {
+	msg(OUT_HEX, "(-%d)", bits-32);
+	bits = 32; /* byte-align by dropping some bits */
       }
-      mark_after = 16;
-    }
-  }
-    
-  if (bits < 32) return ret;
+      mark_after = 32;
+      premark = 0; // doesn't apply to FM marks
+      break;
 
-  if (mark_after != 0 && ((accum >> 16) & 0xaaaa) != 0xaaaa) {
-    if (((accum >> 15) & 0xaaaa) == 0xaaaa) {
-      /* Ignore oldest bit */
-      bits--;
-      msg(OUT_HEX, "(-1)");
-      if (bits < 32) return ret;
-    } else {
-      /* Note bad clock pattern */
-      msg(OUT_HEX, "?");
+    case 0xa222a8888ULL:  /* Backward 0xf8-0xfd DAM */
+      change_enc(FM);
+      backward_am++;
+      msg(OUT_ERRORS, "[backward AM] ");
+      break;
     }
   }
-  for (i=0; i<8; i++) {
-    val |= (accum & (1ULL << (2*i + 16))) >> (i + 16);
+
+  /*
+   * For MFM premarks, we look at 16 data bits (two copies of the
+   * premark), which ends up being 32 bits of accum (2x for clocks).
+   */
+  if (uencoding != FM && uencoding != RX02 &&
+      bits >= 32 && !write_splice) {
+    switch (accum & 0xffffffff) {
+    case 0x52245224:
+      /* Pre-index mark, 0xc2c2 with missing clock between bits 3 & 4
+	 (using 0-origin big-endian counting!).  Would be 0x52a452a4
+	 without missing clock. */
+      change_enc(MFM);
+      premark = 0xc2;
+      if (bits < 64 && bits > 48) {
+	msg(OUT_HEX, "(+%d)", 64-bits);
+	bits = 64; /* byte-align by repeating some bits */
+      }
+      mark_after = bits;
+      break;
+
+    case 0x44894489:
+      /* Pre-address mark, 0xa1a1 with missing clock between bits 4 & 5
+	 (using 0-origin big-endian counting!).  Would be 0x44a944a9
+	 without missing clock.  Reading a pre-address mark backward
+	 also matches this pattern, but the following byte is then 0x80. */
+      change_enc(MFM);
+      premark = 0xa1;
+      if (bits < 64 && bits > 48) {
+	msg(OUT_HEX, "(+%d)", 64-bits);
+	bits = 64; /* byte-align by repeating some bits */
+      }
+      mark_after = bits;
+      break;
+
+    case 0x55555555:
+      if (curenc == MFM && mark_after < 0 &&
+	  ibyte == -1 && dbyte == -1 && !(bits & 1)) {
+	/* ff ff in gap.  This should probably be 00 00, so drop 1/2 bit */
+	msg(OUT_HEX, "(-1)");
+	bits--;
+      }
+      break;
+
+    case 0x92549254:
+      if (mark_after < 0 && ibyte == -1 && dbyte == -1) {
+	/* 4e 4e in gap.  This should probably be byte-aligned */
+	change_enc(MFM);
+	if (bits < 64 && bits > 48) {
+	  /* Byte-align by dropping bits */
+	  msg(OUT_HEX, "(-%d)", bits-48);
+	  bits = 48;
+	}
+      }
+      break;
+    }
+  }
+
+  /* Undo RX02 DEC-modified MFM transform (in taccum) */
+#if WINDOW == 4
+  if (bits >= WINDOW && (bits & 1) == 0 && (accum & 0xfULL) == 0x8ULL) {
+    taccum = (taccum & ~0xfULL) | 0x5ULL;
+  }
+#else /* WINDOW == 12 */
+  if (bits >= WINDOW && (bits & 1) == 0 && (accum & 0x7ffULL) == 0x222ULL) {
+    taccum = (taccum & ~0x7ffULL) | 0x154ULL;
+  }
+#endif
+
+  if (bits < 64) return;
+
+  if (curenc == FM || curenc == MIXED) {
+    /* Heuristic to detect being off by some number of bits */
+    if (mark_after != 0 && ((accum >> 32) & 0xddddddddULL) != 0x88888888ULL) {
+      for (i = 1; i <= 3; i++) {
+	if (((accum >> (32 - i)) & 0xddddddddULL) == 0x88888888ULL) {
+	  /* Ignore oldest i bits */
+	  bits -= i;
+	  msg(OUT_HEX, "(-%d)", i);
+	  if (bits < 64) return;
+	  break;
+	}
+      }
+      if (i > 3) {
+#if 0 /* Bad idea: fires way too often in FM gaps. */
+	/* Check if it looks more like MFM */
+	if (uencoding != FM && uencoding != RX02 &&
+	    ibyte == -1 && dbyte == -1 && !write_splice &&
+	    (accum & 0xaaaaaaaa00000000ULL) &&
+	    (accum & 0x5555555500000000ULL)) {
+	  for (i = 1; i <= 2; i++) {
+	    if (mfm_valid_clock(accum >> (48 - i))) {
+	      change_enc(MFM);
+	      bits -= i;
+	      msg(OUT_HEX, "(-%d)", i);
+	      return;
+	    }
+	  }
+	}	    
+#endif
+	/* Note bad clock pattern */
+	msg(OUT_HEX, "?");
+      }
+    }
+    for (i=0; i<8; i++) {
+      val |= (accum & (1ULL << (4*i + 1 + 32))) >> (3*i + 1 + 32);
+    }
+    bits = 32;
+
+  } else if (curenc == MFM) {
+    for (i=0; i<8; i++) {
+      val |= (accum & (1ULL << (2*i + 48))) >> (i + 48);
+    }
+    bits = 48;
+
+  } else /* curenc == RX02 */ {
+    for (i=0; i<8; i++) {
+      val |= (taccum & (1ULL << (2*i + 48))) >> (i + 48);
+    }
+    bits = 48;
   }
 
   if (mark_after == 0) {
+    mark_after = -1;
     switch (val) {
     case 0xfc:
-      /* Index address mark, 0xfc with 0xd7 clock */
+      /* Index address mark */
+      if (curenc == MFM && premark != 0xc2) break;
       check_missing_dam();
       msg(OUT_IDS, "\n#fc ");
-      dmk_iam(0xfc, FM);
-      bits = 16;
+      dmk_iam(0xfc, curenc);
       ibyte = -1;
       dbyte = -1;
-      break;
+      return;
 
     case 0xfe:
-      /* ID address mark, 0xfe with 0xc7 clock */
+      /* ID address mark */
+      if (curenc == MFM && premark != 0xa1) break;
       if (dmk_awaiting_iam) break;
       check_missing_dam();
       msg(OUT_IDS, "\n#fe ");
-      dmk_idam(0xfe, FM);
-      bits = 16;
-      crc = calc_crc1(0xffff, 0xfe);
+      dmk_idam(0xfe, curenc);
+      crc = calc_crc1((curenc == MFM) ? 0xcdb4 : 0xffff, val);
       dbyte = -1;
-      break;
+      return;
 
-    case 0xfd: /* Undefined address mark, 0xfd with 0xc7 clock */
-      if (dmk_awaiting_dam && dmk_valid_id) ret = RX02;
-      /* fall through */
-
-    case 0xf8: /* Data address mark, 0xf8 with 0xc7 clock */
-    case 0xf9: /* Data address mark, 0xf9 with 0xc7 clock */
-    case 0xfa: /* Data address mark, 0xfa with 0xc7 clock */
-    case 0xfb: /* Data address mark, 0xfb with 0xc7 clock */
-      if (dmk_awaiting_track_start()) break;
+    case 0xf8: /* Standard deleted data address mark */
+    case 0xf9: /* WD1771 user or RX02 deleted data address mark */
+    case 0xfa: /* WD1771 user data address mark */
+    case 0xfb: /* Standard data address mark */
+    case 0xfd: /* RX02 data address mark */
+      if (dmk_awaiting_track_start() || !dmk_in_range()) break;
+      if (curenc == MFM && premark != 0xa1) break;
+      if (!dmk_awaiting_dam) {
+	msg(OUT_ERRORS, "[unexpected DAM] ");
+	errcount++;
+	break;
+      }
+      dmk_awaiting_dam = 0;
       msg(OUT_HEX, "\n");
-      msg(OUT_RAW, "\n");
       msg(OUT_IDS, "#%2x ", val);
-      dmk_dam(val, FM);
-      bits = 16;
-      crc = calc_crc1(0xffff, val);
+      dmk_data(val, curenc);
+      if ((uencoding == MIXED || uencoding == RX02) &&
+	  (val == 0xfd ||
+	   (val == 0xf9 && (rx02_secs > 0 || uencoding == RX02)))) {
+	change_enc(RX02);
+      }
+      /* For MFM, premark a1a1a1 is included in the CRC */
+      crc = calc_crc1((curenc == MFM) ? 0xcdb4 : 0xffff, val);
       ibyte = -1;
-      dbyte = secsize(sizecode, FM) + 2;
-      break;
+      dbyte = secsize(sizecode, curenc) + 2;
+      return;
 
-    case 0x7c: /* Data address mark read backward */
+    case 0x80: /* MFM DAM or IDAM premark read backward */
+      if (curenc != MFM || premark != 0xc2) break;
       backward_am++;
       msg(OUT_ERRORS, "[backward AM] ");
       break;
 
     default:
-      msg(OUT_QUIET, "[BUG]");
+      /* Premark with no mark */
+      //msg(OUT_ERRORS, "[dangling premark] ");
+      //errcount++;
       break;
     }
   }
-
-  if (bits < 32) return ret;
 
   switch (ibyte) {
   default:
     break;
   case 0:
     msg(OUT_IDS, "cyl=");
-    fmcyl = val;
+    curcyl = val;
     break;
   case 1:
     msg(OUT_IDS, "side=");
@@ -605,8 +783,10 @@ fm_bit(int bit)
     ibyte = -1;
     break;
   }
-	
-  if (ibyte >= 0 && ibyte <= 3) {
+
+  if (ibyte == 2) {
+    msg(OUT_ERRORS, "%02x ", val);
+  } else if (ibyte >= 0 && ibyte <= 3) {
     msg(OUT_IDS, "%02x ", val);
   } else {
     msg(OUT_SAMPLES, "<");
@@ -616,19 +796,22 @@ fm_bit(int bit)
     msg(OUT_RAW, "%c", val);
   }
 
-  dmk_data(val, FM);
+  dmk_data(val, curenc);
 
   if (ibyte >= 0) ibyte++;
   if (dbyte > 0) dbyte--;
   crc = calc_crc1(crc, val);
 
   if (dbyte == 0) {
+    if (curenc == RX02) {
+      change_enc(FM);
+    }
     if (crc == 0) {
       msg(OUT_IDS, "[good data CRC] ");
       if (dmk_valid_id) {
-	if (good_sectors == 0) first_encoding = FM;
+	if (good_sectors == 0) first_encoding = curenc;
 	good_sectors++;
-	cylseen = fmcyl;
+	cylseen = curcyl;
       }
     } else {
       msg(OUT_ERRORS, "[bad data CRC] ");
@@ -640,741 +823,81 @@ fm_bit(int bit)
     write_splice = WRITE_SPLICE;
   }
 
-  bits = 16;
-  return ret;
-}
-
-int
-fm_decode(int sample)
-{
-  int enc;
-  msg(OUT_SAMPLES, "%d", sample);
-  if (sample <= fmthresh) {
-    /* Short */
-    msg(OUT_SAMPLES, "s ");
-    enc = fm_bit(1);
-  } else {
-    /* Long */
-    msg(OUT_SAMPLES, "l ");
-    enc = fm_bit(1);
-    if (enc != FM) return enc;
-    enc = fm_bit(0);
-  }
-  return enc;
-}
-
-/* Shove any valid bits out of the 16-bit address mark detection window */
-void
-fm_flush()
-{
-  int i;
-  for (i=0; i<16; i++) {
-    fm_bit(!(i&1));
-  }
-}
-
-int
-mfm_valid_clock(unsigned long long accum)
-{
-  /* Check for valid clock bits */
-  unsigned int xclock = ~((accum >> 1) | (accum << 1)) & 0xaaaa;
-  unsigned int clock = accum & 0xaaaa;
-  /*msg(OUT_ERRORS, "[clock exp %04x got %04x]", xclock, clock);*/
-  return (xclock == clock);
-}
-
-void
-mfm_bit(int bit)
-{
-  static int mfmcyl;
-  accum = (accum << 1) + bit;
-  bits++;
-  if (mark_after >= 0) mark_after--;
-
-  switch (accum & 0xffffffff) {
-  case 0x52245224:
-    /* Pre-index mark, 0xc2c2 with missing clock between bits 3 & 4
-       (using 0-origin big-endian counting!).  Would be 0x52a452a4
-       without missing clock. */
-    premark = 0xc2;
-    if (bits < 48 && bits > 32) {
-      msg(OUT_HEX, "(+%d)", 48-bits);
-      bits = 48; /* byte-align by repeating some bits */
-    }
-    mark_after = bits;
-    break;
-
-  case 0x44894489:
-    /* Pre-address mark, 0xa1a1 with missing clock between bits 4 & 5
-       (using 0-origin big-endian counting!).  Would be 0x44a944a9
-       without missing clock. */
-    premark = 0xa1;
-    if (bits < 48 && bits > 32) {
-      msg(OUT_HEX, "(+%d)", 48-bits);
-      bits = 48; /* byte-align by repeating some bits */
-    }
-    mark_after = bits;
-    break;
-
-  case 0x55555555:
-    if (!premark && ibyte == -1 && dbyte == -1 && !(bits & 1)) {
-      /* ff ff in gap.  This should probably be 00 00, so drop 1/2 bit */
+  /* Predetect bad MFM clock pattern.  Can't detect at decode time
+     because we need to look at 17 bits. */
+  if (curenc == MFM && bits == 48 && !mfm_valid_clock(accum >> 32)) {
+    if (mfm_valid_clock(accum >> 31)) {
       msg(OUT_HEX, "(-1)");
       bits--;
-    }
-    break;
-
-  case 0x92549254:
-    if (ibyte == -1 && dbyte == -1) {
-      /* 4e 4e in gap.  This should probably be byte-aligned */
-      if (bits < 48 && bits > 32) {
-	/* Byte-align by dropping bits */
-	msg(OUT_HEX, "(-%d)", bits-32);
-	bits = 32;
-      }
-    }
-    break;
-
-  default:
-    break;
-  }
-
-  if (bits >= 48) {
-    int i;
-    unsigned char val = 0;
-
-    /* Check for valid clock bits */
-    if (!mfm_valid_clock(accum >> 32)) {
-      if (!premark && mfm_valid_clock(accum >> 31)) {
-	/* Ignore oldest bit */
-	bits--;
-	msg(OUT_HEX, "(-1)");
-	if (bits < 48) return;
-      } else {
-	/* Note bad clock pattern */
-	msg(OUT_HEX, "?");
-      }
-    }
-
-    for (i=0; i<8; i++) {
-      val |= (accum & (1ULL << (2*i + 32))) >> (i + 32);
-    }
-    
-    if (mark_after == 0 && premark == 0xc2) {
-      switch (val) {
-      case 0xfc:
-	/* Index address mark */
-	check_missing_dam();
-	msg(OUT_IDS, "\n#%02x ", val);
-	dmk_iam(val, MFM);
-	bits = 32;
-	ibyte = -1;
-	dbyte = -1;
-	premark = 0;
-	mark_after = -1;
-	return;
-
-      case 0x80:
-	/* IDAM or DAM read backwards */
-	backward_am++;
-	msg(OUT_ERRORS, "[backward AM] ");
-	/* fall through */
-
-      default:
-	/* Premark with no mark */
-	premark = 0;
-	mark_after = -1;
-	break;
-      }
-    }
-
-    if (mark_after == 0 && premark == 0xa1) {
-      /* Premark sequence initializes CRC */
-      crc = calc_crc1(0x968b, 0xa1); /* CRC of a1 a1 a1 */
-
-      switch (val) {
-      case 0xfe:
-	/* ID address mark */
-	if (dmk_awaiting_iam) break;
-	check_missing_dam();
-	msg(OUT_IDS, "\n#%02x ", val);
-	dmk_idam(val, MFM);
-	bits = 32;
-	crc = calc_crc1(crc, val);
-	dbyte = -1;
-	premark = 0;
-	mark_after = -1;
-	return;
-
-      case 0xf8:
-      case 0xf9: /* probably unneeded */
-      case 0xfa: /* probably unneeded */
-      case 0xfb:
-	if (dmk_awaiting_track_start()) break;
-	/* Data address mark */
-	msg(OUT_HEX, "\n");
-	msg(OUT_IDS, "#%02x ", val);
-	dmk_dam(val, MFM);
-	bits = 32;
-	crc = calc_crc1(crc, val);
-	ibyte = -1;
-	dbyte = secsize(sizecode, MFM) + 2;
-	premark = 0;
-	mark_after = -1;
-	return;
-
-      default:
-	/* Premark with no mark */
-	premark = 0;
-	mark_after = -1;
-	break;
-      }
-    }
-
-    switch (ibyte) {
-    default:
-      break;
-    case 0:
-      msg(OUT_IDS, "cyl=");
-      mfmcyl = val;
-      break;
-    case 1:
-      msg(OUT_IDS, "side=");
-      break;
-    case 2:
-      msg(OUT_IDS, "sec=");
-      break;
-    case 3:
-      msg(OUT_IDS, "size=");
-      sizecode = val;
-      break;
-    case 4:
-      msg(OUT_HEX, "crc=");
-      break;
-    case 6:
-      if (crc == 0) {
-	msg(OUT_IDS, "[good ID CRC] ");
-	dmk_valid_id = 1;
-      } else {
-	msg(OUT_ERRORS, "[bad ID CRC] ");
-	errcount++;
-	ibyte = -1;
-      }
-      msg(OUT_HEX, "\n");
-      dmk_awaiting_dam = 1;
-      dmk_check_wraparound();
-      break;
-    case 18:
-      /* Done with post-ID gap */
-      ibyte = -1;
-      break;
-    }
-	
-    if (ibyte >= 0 && ibyte <= 3) {
-      msg(OUT_IDS, "%02x ", val);
     } else {
-      msg(OUT_SAMPLES, "<");
-      msg(OUT_HEX, "%02x", val);
-      msg(OUT_SAMPLES, ">");
-      msg(OUT_HEX, " ", val);
-      msg(OUT_RAW, "%c", val);
+      msg(OUT_HEX, "?");
     }
-
-    dmk_data(val, MFM);
-
-    if (ibyte >= 0) ibyte++;
-    if (dbyte > 0) dbyte--;
-    crc = calc_crc1(crc, val);
-
-    if (dbyte == 0) {
-      if (crc == 0) {
-	msg(OUT_IDS, "[good data CRC] ");
-	if (dmk_valid_id) {
-	  if (good_sectors == 0) first_encoding = MFM;
-	  good_sectors++;
-	  cylseen = mfmcyl;
-	}
-      } else {
-	msg(OUT_ERRORS, "[bad data CRC] ");
-	errcount++;
-      }
-      msg(OUT_HEX, "\n");
-      dbyte = -1;
-      dmk_valid_id = 0;
-      write_splice = WRITE_SPLICE;
-    }
-
-    bits = 32;
   }
 }
 
-void
-mfm_decode(int sample)
-{
-  static float adj = 0.0;
-  int len;
-
-  msg(OUT_SAMPLES, "%d", sample);
-  if (sample + adj <= mfmthresh1) {
-    /* Short */
-    len = 2;
-  } else if (sample + adj <= mfmthresh2) {
-    /* Medium */
-    len = 3;
-  } else {
-    /* Long */
-    len = 4;
-  }
-  adj = (sample - (len/2.0 * mfmshort * cwclock)) * postcomp;
-
-  msg(OUT_SAMPLES, "%c ", "--sml"[len]);
-
-  mfm_bit(1);
-  while (--len) mfm_bit(0);
-}
-
-/* Shove any valid bits out of the 32-bit address mark detection window */
-void
-mfm_flush()
-{
-  int i;
-  for (i=0; i<32; i++) {
-    mfm_bit(!(i&1));
-  }
-}
 
 /*
-RX02 DEC-modified MFM
-
-The DEC RX02 floppy disk drive uses a very strange format.  It is
-similar to standard FM format, except that if the DAM on a sector is
-0xf9 (deleted data) or 0xfd (data), there are twice as many data
-bytes, and the sector data and sector CRC are in a variant of MFM.
-The MFM encoding is modified to prevent the address mark detector from
-sometimes firing inside the MFM data, since a standard MFM stream can
-contain sequences that look just an an FM address mark.  (This
-DEC-modified MFM should not be confused with MMFM, which is completely
-different.)  Here I try to explain how this works.
-
-The FM address marks used in this format look like the following when
-decoded at MFM speed.  I've inserted one extra bit of FM-encoded 0
-before each one.  This is guaranteed to be present in any standard FM
-format -- the format actually requires 6 full bytes of FM-encoded 0
-before each address mark -- and is needed by this scheme.  That is, we
-assume the address mark detector looks for a 9-bit pattern starting
-with the extra 0, not just for the 8-bit mark.  Here "d" marks the bit
-positions for FM data, "c" for FM clock.
-
-                        ..d...d...d...d...d...d...d...d...d.
-                        c...c...c...c...c...c...c...c...c...
-0fc iam  -> 8aa2a2a88 = 100010101010001010100010101010001000
-0fe idam -> 8aa222aa8 = 100010101010001000100010101010101000
-0f8 dam  -> 8aa222888 = 100010101010001000100010100010001000
-0f9 dam  -> 8aa22288a = 100010101010001000100010100010001010
-0fb dam  -> 8aa2228aa = 100010101010001000100010100010101010
-0fd dam  -> 8aa222a8a = 100010101010001000100010101010001010
-
-
-The pattern 1000101010100 occurs in each of these marks, with the
-final 0 being one of the missing clock bits that characterize them as
-marks.  Thus if we can forbid that pattern in the MFM data, the
-problem is solved.  This MFM pattern can't be generated with the first
-bit as a clock bit, as it has a missing clock when decoded in that
-registration.  It could be generated with the first 1 as a data bit,
-however, by the data stream 1011110.
-
-Therefore we do the following transform.  Whenever the data stream
-contains 011110, instead of encoding it in the normal way as:
-
-   d d d d d d
-  x00101010100
-
-we encode it as:
-
-   d d d d d d
-  x01000100010
-
-This MFM sequence is otherwise illegal (i.e., unused), since it has
-missing clocks, so using it for this purpose does not create a
-collision with the encoding of any other data sequence.
-
-We could transform back by looking specifically for this sequence, or
-we could apply the simpler rule that when we see a missing clock
-between two 0 data bits, we change both data bits to 1's.  The simpler
-rule will cause some illegal MFM sequences to be silently accepted,
-which is perhaps a drawback.  It also leaves some apparent clock 
-violations in the translated data that must be ignored, also a drawback.
-However, the other rule doesn't seem to work on a test disk I have;
-this might be due to the boundary conditions described next.
-
-What do we do at the start and end of the data area?  Looking at a
-sample disk, it appears that the encoding is done as if the data field
-were preceded by 00 and followed by ff.  In other words, 11110 at the
-start is specially encoded, but 01111 at the end (second CRC byte) is
-not.  The following ff (or is it fe?) may actually be written as a
-lead-out; I'm not sure.
-*/
-
-/* Window used to undo RX02 MFM transform */
-#if 1
-#define WINDOW 4   /* change aligned 1000 -> 0101 */
-#else
-#define WINDOW 12  /* change aligned x01000100010 -> x00101010100 */
-#endif
-
-/* Check whether the bit vector encodes an RX02 FM address mark.
-   bitvec is sampled at twice normal FM rate, and we look at 9
-   encoded bits of it (including a leading 0) */
-int
-rx02_mark(unsigned long long bitvec)
-{
-  switch (bitvec & 0xfffffffffULL) {
-  case 0x8aa2a2a88ULL:  /* Index address mark, 0xfc with 0xd7 clock */
-  case 0x8aa222aa8ULL:  /* ID address mark, 0xfe with 0xc7 clock */
-  case 0x8aa222888ULL:  /* Data address mark, 0xf8 with 0xc7 clock */
-  case 0x8aa22288aULL:  /* Data address mark, 0xf9 with 0xc7 clock */
-  case 0x8aa2228a8ULL:  /* Data address mark, 0xfa with 0xc7 clock (unused) */
-  case 0x8aa2228aaULL:  /* Data address mark, 0xfb with 0xc7 clock */
-  case 0x8aa222a8aULL:  /* Data address mark, 0xfd with 0xc7 clock */
-    return 1;
-  }
-  return 0;
-}
-
+ * Convert Catweasel samples to strings of alternating clock/data bits
+ * and pass them to process_bit for further decoding.
+ * Ad hoc method using two fixed thresholds modified by a postcomp
+ * factor.
+ */
 void
-rx02_bit(int bit)
-{
-  static int rx02cyl = 0;
-  static int rx02dataenc = FM;
-  unsigned char val = 0;
-  int i;
-  accum = (accum << 1) + bit;
-  taccum = (taccum << 1) + bit;
-  bits++;
-  if (mark_after >= 0) mark_after--;
-
-  if (bits < 32) return;
-
-  /* Pre-detect address marks to achieve proper byte alignment */
-  if (ibyte == -1 && rx02_mark(accum)) {
-    if (bits < 64 && bits >= 48) {
-      msg(OUT_HEX, "(+%d)", 64-bits);
-      bits = 64; /* byte-align by repeating some bits */
-    } else if (bits < 48 && bits > 32) {
-      msg(OUT_HEX, "(-%d)", bits-32);
-      bits = 32; /* byte-align by dropping some bits */
-    }
-    mark_after = 32;
-  }
-
-  /* Undo RX02 DEC-modified MFM transform (in taccum) */
-#if WINDOW == 4
-  if (bits >= WINDOW && (bits & 1) == 0 && (accum & 0xfULL) == 0x8ULL) {
-    taccum = (taccum & ~0xfULL) | 0x5ULL;
-  }
-#else /* WINDOW == 12 */
-  if (bits >= WINDOW && (bits & 1) == 0 && (accum & 0x7ffULL) == 0x222ULL) {
-    taccum = (taccum & ~0x7ffULL) | 0x154ULL;
-  }
-#endif
-
-  if (rx02dataenc == FM || dbyte == -1) {
-    /* Try to decode accum in FM */
-    if (bits < 64) return;
-
-    /* Heuristic to detect being off by some number of bits */
-    if (mark_after != 0 && ((accum >> 32) & 0xddddddddULL) != 0x88888888ULL) {
-      for (i = 1; i <= 3; i++) {
-	if (((accum >> (32 - i)) & 0xddddddddULL) == 0x88888888ULL) {
-	  /* Ignore oldest i bits */
-	  bits -= i;
-	  msg(OUT_HEX, "(-%d)", i);
-	  if (bits < 64) return;
-	  break;
-	}
-      }
-      if (i > 3) {
-	/* Note bad clock pattern */
-	msg(OUT_HEX, "?");
-      }
-    }
-
-    for (i=0; i<8; i++) {
-      val |= (accum & (1ULL << (4*i + 1 + 32))) >> (3*i + 1 + 32);
-    }
-
-    if (mark_after == 0) {
-      switch (val) {
-      case 0xfc:
-	/* Index address mark, 0xfc with 0xd7 clock */
-	check_missing_dam();
-	msg(OUT_IDS, "\n#fc ");
-	dmk_iam(0xfc, FM);
-	bits = 32;
-	ibyte = -1;
-	dbyte = -1;
-	break;
-
-      case 0xfe:
-	/* ID address mark, 0xfe with 0xc7 clock */
-	if (dmk_awaiting_iam) break;
-	check_missing_dam();
-	msg(OUT_IDS, "\n#fe ");
-	dmk_idam(0xfe, FM);
-	bits = 32;
-	crc = calc_crc1(0xffff, 0xfe);
-	dbyte = -1;
-	break;
-
-      case 0xf8: /* Data address mark, 0xf8 with 0xc7 clock */
-      case 0xfa: /* Data address mark, 0xfa with 0xc7 clock (not used) */
-      case 0xfb: /* Data address mark, 0xfb with 0xc7 clock */
-	if (dmk_awaiting_track_start()) break;
-	msg(OUT_HEX, "\n");
-	msg(OUT_IDS, "#%2x ", val);
-	dmk_dam(val, FM);
-	bits = 32;
-	crc = calc_crc1(0xffff, val);
-	ibyte = -1;
-	dbyte = secsize(sizecode, FM) + 2;
-	rx02dataenc = FM;
-	break;
-
-      case 0xf9: /* Data address mark, 0xf9 with 0xc7 clock */
-      case 0xfd: /* Data address mark, 0xfd with 0xc7 clock */
-	if (dmk_awaiting_track_start()) break;
-	msg(OUT_HEX, "\n");
-	msg(OUT_IDS, "#%2x ", val);
-	dmk_dam(val, FM);
-	bits = 32;
-	crc = calc_crc1(0xffff, val);
-	ibyte = -1;
-	dbyte = 2*secsize(sizecode, FM) + 2;
-	rx02dataenc = MFM;
-	break;
-
-      default:
-	msg(OUT_QUIET, "[BUG]");
-	break;
-      }
-    }
-
-    if (bits < 64) return;
-
-    switch (ibyte) {
-    default:
-      break;
-    case 0:
-      msg(OUT_IDS, "cyl=");
-      rx02cyl = val;
-      break;
-    case 1:
-      msg(OUT_IDS, "side=");
-      break;
-    case 2:
-      msg(OUT_IDS, "sec=");
-      break;
-    case 3:
-      msg(OUT_IDS, "size=");
-      sizecode = val;
-      break;
-    case 4:
-      msg(OUT_HEX, "crc=");
-      break;
-    case 6:
-      if (crc == 0) {
-	msg(OUT_IDS, "[good ID CRC] ");
-	dmk_valid_id = 1;
-      } else {
-	msg(OUT_ERRORS, "[bad ID CRC] ");
-	errcount++;
-	ibyte = -1;
-      }
-      msg(OUT_HEX, "\n");
-      dmk_awaiting_dam = 1;
-      dmk_check_wraparound();
-      break;
-    case 18:
-      /* Done with post-ID gap */
-      ibyte = -1;
-      break;
-    }
-
-  } else {
-
-    /* Try to decode taccum in MFM */
-    if (bits < 16 + 32) return;
-
-#if 0
-    /* This should not be needed since there can't be any write splices
-       within a RX02-MFM area.  We should always be synchronized by the
-       DAM; if we aren't, there was a bit error and resynching won't
-       really help much.  So I've disabled it, because I don't want
-       it to print "?" (or possibly even do an unwanted 1/2-bit shift)
-       when the 4-bit window untransform leaves an apparent clock violation.
-    */
-    /* Check for valid clock bits */
-    if (!mfm_valid_clock(taccum >> 32)) {
-      if (mfm_valid_clock(taccum >> (32 - 1))) {
-	/* Ignore oldest bit */
-	/* Note: not clear this heuristic makes total sense, since the
-	   DEC untransform of taccum could have been wrong if we were
-	   shifted by one bit. */
-	bits--;
-	msg(OUT_HEX, "(-1)");
-	if (bits < 16 + 32) return;
-      } else {
-	/* Note bad clock pattern */
-	msg(OUT_HEX, "?");
-      }
-    }
-#endif
-
-    for (i=0; i<8; i++) {
-      val |= (taccum & (1ULL << (2*i + 32))) >> (i + 32);
-    }
-  }
-
-  if (ibyte >= 0 && ibyte <= 3) {
-    msg(OUT_IDS, "%02x ", val);
-  } else {
-    msg(OUT_SAMPLES, "<");
-    msg(OUT_HEX, "%02x", val);
-    msg(OUT_SAMPLES, ">");
-    msg(OUT_HEX, " ", val);
-    msg(OUT_RAW, "%c", val);
-  }
-
-  dmk_data(val, (dbyte == -1 || rx02dataenc == FM) ? FM : MFM);
-
-  if (ibyte >= 0) ibyte++;
-  if (dbyte > 0) dbyte--;
-  crc = calc_crc1(crc, val);
-
-  if (dbyte == 0) {
-    if (crc == 0) {
-      msg(OUT_IDS, "[good data CRC] ");
-      if (dmk_valid_id) {
-	if (good_sectors == 0) first_encoding = RX02;
-	good_sectors++;
-	cylseen = rx02cyl;
-      }
-    } else {
-      msg(OUT_ERRORS, "[bad data CRC] ");
-      errcount++;
-    }
-    msg(OUT_HEX, "\n");
-    dbyte = -1;
-    dmk_valid_id = 0;
-    write_splice = WRITE_SPLICE;
-  }
-
-  bits = 32;
-}
-
-void
-rx02_decode(int sample)
+process_sample(int sample)
 {
   static float adj = 0.0;
   int len;
 
   msg(OUT_SAMPLES, "%d", sample);
-  if (sample + adj <= mfmthresh1) {
-    /* Short */
-    len = 2;
-  } else if (sample + adj <= mfmthresh2) {
-    /* Medium */
-    len = 3;
+  if (uencoding == FM) {
+    if (sample + adj <= fmthresh) {
+      /* Short */
+      len = 2;
+    } else {
+      /* Long */
+      len = 4;
+    }
   } else {
-    /* Long */
-    len = 4;
+    if (sample + adj <= mfmthresh1) {
+      /* Short */
+      len = 2;
+    } else if (sample + adj <= mfmthresh2) {
+      /* Medium */
+      len = 3;
+    } else {
+      /* Long */
+      len = 4;
+    }
+    
   }
   adj = (sample - (len/2.0 * mfmshort * cwclock)) * postcomp;
 
   msg(OUT_SAMPLES, "%c ", "--sml"[len]);
 
-  rx02_bit(1);
-  while (--len) rx02_bit(0);
+  process_bit(1);
+  while (--len) process_bit(0);
 }
 
-/* Shove any valid bits out of the 32-bit address mark detection window */
+
+/* Push out any valid bits left in accum at end of track */
 void
-rx02_flush()
+flush_bits(void)
 {
   int i;
-  for (i=0; i<32; i++) {
-    rx02_bit(!(i&1));
+  for (i=0; i<63; i++) {
+    process_bit(!(i&1));
   }
 }
 
-int
-detect_encoding(int sample, int encoding)
-{
-  static float prob[3] = { 0.0, 0.0, 0.0 };
-  static int confidence = 0;
-# define DECAY 0.95
-# define ENOUGH 32
-  int sml, i;
-  int guess = encoding;
-
-  /* RX02 can't be detected automatically by this method */
-  if (encoding == RX02) return RX02;
-
-  /* Initialize for new track */
-  if (sample == -1) {
-    confidence = 0;
-    return guess;
-  }
-
-  if (sample <= mfmthresh1) {
-    /* if MFM, short; if FM, short */
-    sml = 0;
-  } else if (sample <= mfmthresh2) {
-    /* if MFM, medium; if FM, probably invalid */
-    sml = 1;
-  } else {
-    /* if MFM, long; if FM, long */
-    sml = 2;
-  }
-  
-  for (i=0; i<3; i++) {
-    prob[i] = (prob[i] * DECAY) + ((i == sml) * (1.0 - DECAY));
-  }
-
-  if (ibyte == -1 && dbyte == -1) {
-    /* We think we're in a gap */
-    if (++confidence >= ENOUGH) {
-      /* The 0x4e pattern in the early part of MFM gaps has 4
-	 mediums, 2 shorts, and no longs.  The 0x00 pattern later
-	 has all shorts, which doesn't help (looks like FM 0xff). */
-      if (prob[1] > prob[0] + prob[2]) {
-	guess = MFM;
-      }
-      /* The patterns in FM data are all longs and shorts.  The 0xff
-	 pattern sometimes used in gaps is all shorts and looks like
-	 MFM 0x00, which doesn't help.  The 0x00 pattern is all
-	 longs, though.  If we're seeing some longs but roughly zero
-	 mediums, guess that it's FM */
-      if (prob[2] > 0.1 && prob[1] < 0.05) {
-	guess = FM;
-      }
-      confidence = 0;
-    }      
-  } else {
-    /* Not in a gap, data is not useful */
-    confidence = 0;
-  }
-
-  return guess;
-}
 
 /* Main program */
 
 void
-cleanup()
+cleanup(void)
 {
   catweasel_free_controller(&c);
 }
+
 
 void
 handler(int sig)
@@ -1384,8 +907,9 @@ handler(int sig)
   kill(getpid(), sig);
 }
 
+
 void
-set_kind()
+set_kind(void)
 {
   kind_desc* kd = &kinds[kind-1];
   cwclock = kd->cwclock;
@@ -1396,14 +920,15 @@ set_kind()
   mfmshort = kd->mfmshort;
 }
 
+
 /* Do a histogram of a track, also counting the total
    number of catweasel clocks to go around the track.
-   (If !hole, the latter count is meaningless.) */
-void
+*/
+int
 do_histogram(int drive, int track, int side, int histogram[128],
 	     int* total_cycles, int* total_samples, float* first_peak)
 {
-  unsigned char b;
+  int b;
   int i, tc, ts;
   float peak;
   int pwidth, psamps, psampsw;
@@ -1414,25 +939,26 @@ do_histogram(int drive, int track, int side, int histogram[128],
     histogram[i] = 0;
   }
   catweasel_seek(&c.drives[drive], track);
-  if (!catweasel_read(&c.drives[drive], side, 1, hole ? 0 : 200, 0)) {
-    fprintf(stderr, "cw2dmk: Read error\n");
-    cleanup();
-    exit(1);
+  /*
+   * Use index-to-index read without marking index edges.  Although
+   * this does count the width of the index pulse twice, it's fast and
+   * quite accurate enough for a histogram.
+   */
+  if (!catweasel_read(&c.drives[drive], side, 1, 0, 0)) {
+    return 0;
   }
-  while ((b = catweasel_get_byte(&c)) != 0xff) {
-    histogram[b]++;
+  while ((b = catweasel_get_byte(&c)) != -1 && b < 0x80) {
+    histogram[b & 0x7f]++;
     tc += b + 1;  /* not sure if the +1 is right */
     ts++;
   }
 
-#if DEBUG2
   /* Print histogram for debugging */
   for (i=0; i<128; i+=8) {
-    printf("%3d: %06d %06d %06d %06d %06d %06d %06d %06d\n",
-	   i, histogram[i+0], histogram[i+1], histogram[i+2], histogram[i+3],
-	   histogram[i+4], histogram[i+5], histogram[i+6], histogram[i+7]);
+    msg(OUT_SAMPLES, "%3d: %06d %06d %06d %06d %06d %06d %06d %06d\n",
+	i, histogram[i+0], histogram[i+1], histogram[i+2], histogram[i+3],
+	histogram[i+4], histogram[i+5], histogram[i+6], histogram[i+7]);
   }
-#endif
 
   /* Find first peak */
   i = 0;
@@ -1446,7 +972,7 @@ do_histogram(int drive, int track, int side, int histogram[128],
     psampsw += histogram[i] * i;
     i++;
   }
-  if (pwidth > 16) {
+  if (pwidth > 24) {
     /* Track is blank */
     peak = -1.0;
   } else {
@@ -1457,7 +983,9 @@ do_histogram(int drive, int track, int side, int histogram[128],
   *total_cycles = tc;
   *total_samples = ts;
   *first_peak = peak;
+  return 1;
 }
+
 
 /* Guess the kind of drive and media in use */
 void
@@ -1467,7 +995,19 @@ detect_kind(int drive)
   int total_cycles, total_samples;
   float peak, rpm, dclock;
 
-  do_histogram(drive, 0, 0, histogram, &total_cycles, &total_samples, &peak);
+  if (!do_histogram(drive, 0, 0, histogram,
+		    &total_cycles, &total_samples, &peak)) {
+    if (hole) {
+      fprintf(stderr, "cw2dmk: No index hole detected\n");
+    } else {
+      fprintf(stderr,
+	      "cw2dmk: No index hole; can't detect drive and media type\n");
+      fprintf(stderr,
+	      "  Try using the -k flag to specify the correct type\n");
+    }
+    cleanup();
+    exit(1);
+  }
 
   if (peak < 0.0) {
     /* Track is blank */
@@ -1481,10 +1021,8 @@ detect_kind(int drive)
   /* Total cycles gives us the RPM */
   rpm = 7080500.0 / ((float)total_cycles) * 60.0;
 
-#if DEBUG2
-  printf("data clock approx %f kHz\n", dclock);
-  printf("drive speed approx %f RPM\n", rpm);
-#endif
+  msg(OUT_SAMPLES, "Data clock approx %f kHz\n", dclock);
+  msg(OUT_SAMPLES, "Drive speed approx %f RPM\n", rpm);
 
   if (rpm > 270.0 && rpm < 330.0) {
     /* 300 RPM */
@@ -1508,8 +1046,8 @@ detect_kind(int drive)
 
   if (kind == -1) {
     fprintf(stderr, "cw2dmk: Failed to detect drive and media type\n");
-    fprintf(stderr, "data clock approx %f kHz\n", dclock);
-    fprintf(stderr, "drive speed approx %f RPM\n", rpm);
+    fprintf(stderr, "  Data clock approx %f kHz\n", dclock);
+    fprintf(stderr, "  Drive speed approx %f RPM\n", rpm);
     cleanup();
     exit(1);
   }
@@ -1542,17 +1080,17 @@ detect_sides(int drive)
   return res;
 }
 
+
 /* Command-line parameters */
 int port = 0;
 int tracks = -1;
 int sides = -1;
 int steps = -1;
 int drive = -1;
-int uencoding = MIXED;
 int retries = 4;
 int alternate = 0;
 
-void usage()
+void usage(void)
 {
   printf("\nUsage: cw2dmk [options] file.dmk\n");
   printf("\n Options [defaults in brackets]:\n");
@@ -1600,26 +1138,28 @@ void usage()
 	 maxsize);
   printf("\n Fine-tuning options; effective only after the -k option\n");
   printf(" -c clock      Catweasel clock multipler [%d]\n", cwclock);
-  printf(" -f threshold  FM threshold for short vs. long [%d]\n", fmthresh);
   printf(" -1 threshold  MFM threshold for short vs. medium [%d]\n",
 	 mfmthresh1);
   printf(" -2 threshold  MFM threshold for medium vs. long [%d]\n",
 	 mfmthresh2);
+  printf(" -f threshold  FM-only (-e1) threshold for short vs. long [%d]\n",
+	 fmthresh);
   printf(" -l bytes      DMK track length in bytes [%d]\n", dmktracklen);
   printf("\n");
   exit(1);
 }
 
+
 int
 main(int argc, char** argv)
 {
-  int ch, track, side, curenc, headpos, readtime, i;
+  int ch, track, side, headpos, readtime, i;
   int guess_sides = 0, guess_steps = 0, guess_tracks = 0;
   int cw_mk = 1;
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:c:f:1:2:l:");
+    ch = getopt(argc, argv, "p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:c:1:2:f:l:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1705,16 +1245,16 @@ main(int argc, char** argv)
 	usage();
       }
       break;
-    case 'f':
-      fmthresh = strtol(optarg, NULL, 0);
-      if (kind == -1) usage();
-      break;
     case '1':
       mfmthresh1 = strtol(optarg, NULL, 0);
       if (kind == -1) usage();
       break;
     case '2':
       mfmthresh2 = strtol(optarg, NULL, 0);
+      if (kind == -1) usage();
+      break;
+    case 'f':
+      fmthresh = strtol(optarg, NULL, 0);
       if (kind == -1) usage();
       break;
     case 'l':
@@ -1748,17 +1288,6 @@ main(int argc, char** argv)
     }
     out_file_name = (char *) malloc(len + 5);
     sprintf(out_file_name, "%.*s.log", len, argv[optind]);
-  }
-
-  /*
-   * We can't detect autodetect kind if there is no index hole.
-   * ToDo: Try to autodetect anyway, in case there is a hole but the
-   * user gave -h0 because he didn't want us to try to align with it.
-   * Complain only if detect_kind times out due to not finding a hole.
-   */
-  if (hole == 0 && kind == -1) {
-    fprintf(stderr, "cw2dmk: If -h0 is given, -k is required too\n");
-    exit(1);
   }
 
   /* Keep drive from spinning endlessly on (expected) signals */
@@ -1924,7 +1453,7 @@ main(int argc, char** argv)
   total_good_sectors = 0;
   good_tracks = 0;
   err_tracks = 0;
-  first_encoding = curenc = uencoding;
+  first_encoding = (uencoding == RX02 ? FM : uencoding);
 
   /* Set DMK parameters */
   memset(&dmk_header, 0, sizeof(dmk_header));
@@ -1948,7 +1477,7 @@ main(int argc, char** argv)
 
       /* Loop over retries */
       do {
-	unsigned char b = 0, oldb;
+	int b = 0, oldb;
 #if DEBUG3
 	int histogram[128], i;
 	for (i=0; i<128; i++) histogram[i] = 0;
@@ -1965,23 +1494,28 @@ main(int argc, char** argv)
 	  headpos ^= 1;
 	}
 	catweasel_seek(&c.drives[drive], headpos);
-	curenc = detect_encoding(-1, first_encoding); /* initialize detector */
 	dmk_init_track();
-	decode_init();
+	init_decoder();
 #if DEBUG5
 	if (c.mk == 1) {
 	  catweasel_fillmem(&c, DEBUG5_BYTE);
 	}
 #endif
 
-	/* Do read */
+	/*
+	 * If doing a timed read starting from the index hole, spin
+	 * until we see the hole.  XXX Can MK4 do this better?
+	 */
 	if (hole && readtime > 0 && !catweasel_await_index(&c.drives[drive])) {
 	  fprintf(stderr, "cw2dmk: No index hole detected\n");
 	  cleanup();
 	  return 1;
 	}
-	if (!catweasel_read(&c.drives[drive], side, cwclock,
-			    readtime, (readtime != 0))) {
+	/*
+	 * Do read.  Always store index holes in the data stream; this
+	 * helps avoid duplicating data due to undetected wraparound.
+	 */
+	if (!catweasel_read(&c.drives[drive], side, cwclock, readtime, 1)) {
 	  fprintf(stderr, "cw2dmk: Read error\n");
 	  cleanup();
 	  return 1;
@@ -1992,6 +1526,10 @@ main(int argc, char** argv)
 	index_edge = 0;
 	while (!dmk_full) {
 	  b = catweasel_get_byte(&c);
+	  if (b == -1 || (b == 0x00 && oldb == 0x80)) {
+	    msg(OUT_HEX, "[end of data] ");
+	    break;
+	  }
 #if DEBUG5
 	  if (c.mk == 1 && b == DEBUG5_BYTE) {
 	    static int ecount = 0;
@@ -2003,24 +1541,11 @@ main(int argc, char** argv)
 	  }
 #endif
 	  /*
-	   * Index hole edge check.  Also counts the artificial end
-	   * mark that catweasel_read appends to the data.
+	   * Index hole edge check.
 	   */ 
 	  if ((oldb ^ b) & 0x80) {
 	    index_edge++;
-	    if (index_edge > 4) {
-	      /*
-	       * Unless we have hard-sectored media or have read 3
-	       * revolutions, index_edge > 4 must mean we've hit the
-	       * end mark.  XXX Would be better to positively detect
-	       * the end mark rather than conflating it with index edges.
-	       */
-	      msg(OUT_HEX, "[end of data] ");
-	      break;
-	    }
-	    if (hole) {
-	      msg(OUT_HEX, (b & 0x80) ? "{" : "}");
-	    }
+	    msg(OUT_HEX, (b & 0x80) ? "{" : "}");
 	  }
 	  oldb = b;
 	  b &= 0x7f;
@@ -2029,34 +1554,7 @@ main(int argc, char** argv)
 #endif
 
 	  /* Process this sample */
-	  if (uencoding == MIXED) {
-	    int newenc = detect_encoding(b, curenc);
-	    if (newenc != curenc) {
-	      check_missing_dam();
-	      msg(OUT_IDS, "\n");
-	      msg(OUT_ERRORS, "[%s->%s] ", enc_name[curenc], enc_name[newenc]);
-	      if (!(curenc == MIXED && newenc == FM)) decode_init();
-	      curenc = newenc;
-	    }
-	  }
-	  if (curenc == FM || curenc == MIXED) {
-	    int newenc = fm_decode(b);
-	    if (uencoding == MIXED && newenc == RX02 &&
-		track < 2 && side == 0) {
-	      msg(OUT_IDS, "\n");
-	      msg(OUT_QUIET + 1, "[apparently RX02 encoding; restarting]\n");
-	      uencoding = RX02; /* slight kludge */
-	      if (guess_steps) {
-		steps = 1;
-		if (guess_tracks) tracks = TRACKS_GUESS / steps;
-	      }
-	      goto restart;
-	    }
-	  } else if (curenc == MFM) {
-	    mfm_decode(b);
-	  } else {
-	    rx02_decode(b);
-	  }
+	  process_sample(b);
 	}
 
 	/*
@@ -2071,13 +1569,7 @@ main(int argc, char** argv)
 		 histogram[i+6], histogram[i+7]);
 	}
 #endif
-	if (curenc == FM || curenc == MIXED) {
-	  fm_flush();
-	} else if (curenc == MFM) {
-	  mfm_flush();
-	} else {
-	  rx02_flush(b);
-	}
+	flush_bits();
 	check_missing_dam();
 	if (ibyte != -1) {
 	  /* Ignore incomplete sector IDs; assume they are wraparound */
@@ -2142,6 +1634,16 @@ main(int argc, char** argv)
  done:
 
   cleanup();
+  if (rx02_secs > 0 && uencoding != RX02) {
+    // XXX What if disk had some 0xf9 DAM sectors misinterpreted as
+    // WD1771 FM instead of RX02-MFM before we detected RX02?  Ugh.
+    // Should at least detect this and give an error.  Maybe
+    // autorestart if it happens.  I believe it's quite unlikely, as I
+    // suspect the 0xf9 DAM is never or almost never actually used on
+    // RX02 disks.
+    dmk_header.options |= DMK_RX02_OPT;
+    dmk_write_header();
+  }
   msg(OUT_SUMMARY, "\nTotals:\n");
   msg(OUT_SUMMARY, "%d good track%s, %d good sector%s\n",
       good_tracks, plu(good_tracks),

@@ -3,7 +3,7 @@
  * PCI detection routines
  *
  * Copyright (C) 2002 by Timothy Mann
- * $Id: cwpci.c,v 1.3 2005/04/06 06:12:18 mann Exp $
+ * $Id: cwpci.c,v 1.5 2005/04/24 04:18:29 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -194,10 +194,11 @@ pci_find_catweasel(int index, int *cw_mk)
     /* Check if they match the Catweasel */
     switch (subsysID) {
     case 0x00021212: 	/* Catweasel MK3 */
+    case 0x00031212: 	/* Catweasel MK3 alternate */
       mk = 3;
       break;
     case 0x00025213: 	/* Catweasel MK4 */
-    case 0x00035213: 	/* Catweasel MK4 preproduction */
+    case 0x00035213: 	/* Catweasel MK4 alternate */
       mk = 4;
       break;
     default:
@@ -253,10 +254,11 @@ pci_find_catweasel(int index, int *cw_mk)
 
       switch (pci_read_long(pd, 0x2c)) {
       case 0x00021212: 	/* Catweasel MK3 */
+      case 0x00031212: 	/* Catweasel MK3 alternate */
 	mk = 3;
 	break;
       case 0x00025213: 	/* Catweasel MK4 */
-      case 0x00035213: 	/* Catweasel MK4 preproduction */
+      case 0x00035213: 	/* Catweasel MK4 alternate */
 	mk = 4;
 	break;
       default:

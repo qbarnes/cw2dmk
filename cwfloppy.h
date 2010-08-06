@@ -1,4 +1,4 @@
-/* $Id: cwfloppy.h,v 1.11 2005/04/06 06:12:18 mann Exp $ */
+/* $Id: cwfloppy.h,v 1.12 2005/04/24 04:16:45 mann Exp $ */
 
 #ifndef _CWFLOPPY_H
 #define _CWFLOPPY_H
@@ -55,6 +55,7 @@ int catweasel_write_protected(catweasel_drive *d);
 /* Read data -- msdelay will be used */
 /* If time = 0, read from index hole to index hole */
 /* If idx = 1, high order bit will be set while index hole is going by */
+/* Inserts a 0x80 0x00 sequence at the end of the buffer if there is room. */
 int catweasel_read(catweasel_drive *d, int side, int clock, int time, int idx);
 
 /* Write data -- msdelay will be used */
@@ -74,14 +75,18 @@ int catweasel_await_index(catweasel_drive *d);
 /* Set the HD line of the Shugart bus */
 void catweasel_set_hd(catweasel_contr *c, int hd);
 
-/* Get one byte from Catweasel memory */
-unsigned char catweasel_get_byte(catweasel_contr *c);
+/* Get one byte from Catweasel memory.  Returns -1 if reading past end
+   of memory.  Also watch for the 0x80 0x00 sequence that
+   catweasel_read puts at the end of partial reads.  Although this is
+   technically ambiguous, it should be very rare in real data. */
+int catweasel_get_byte(catweasel_contr *c);
 
 /* Reset Catweasel memory pointer */
 void catweasel_reset_pointer(catweasel_contr *c);
 
-/* Put one byte to Catweasel memory */
-void catweasel_put_byte(catweasel_contr *c, unsigned char val);
+/* Put one byte to Catweasel memory.  Return 0 if OK, -1 if
+   memory was full.  */
+int catweasel_put_byte(catweasel_contr *c, unsigned char val);
 
 /* Working version of usleep */
 unsigned int catweasel_usleep(unsigned int _useconds);

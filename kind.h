@@ -17,12 +17,12 @@ kind_desc kinds[NKINDS] = {
  
   /* 360 RPM, MFM data 300 kHz */
   { "5.25\" SD/DD disk in 1.2MB drive",
-    1 /*7.080MHz*/, 35, 28, 40,
+    2 /*14.161MHz*/, 70, 56, 79,
     DMK_TRACKLEN_5, CW_TRACKLEN_5, 23.600, 0, 167 },
 
   /* 300 RPM, MFM data 250 kHz */
   { "5.25\" SD/DD disk in 360KB/720KB drive, or 3.5\" SD/DD disk",
-    1 /*7.080MHz*/, 42, 35, 46,
+    2 /*14.161MHz*/, 84, 70, 92,
     DMK_TRACKLEN_5, CW_TRACKLEN_5, 28.322, 0, 200 },
 
   /* 360 RPM, MFM data 500 kHz */

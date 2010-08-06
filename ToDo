@@ -3,13 +3,12 @@ feasible.
 
 1) Done.
 
-2) ** In dmk2cw, what if the DMK track buffer is a little too long to
-   fit on the disk?  This is especially an issue now that cw2dmk uses
-   a slightly longer buffer for reading and (in -h0 mode) might not
-   put the original gap3 at the end of the buffer.  It's clear we
-   should check whether any known non-gap bytes got cut off, and maybe
-   whether enough of gap3 made it out to disk.  Can we really tell how
-   much the CW wrote out, though?
+2) In dmk2cw, what if the DMK track buffer is a little too long to fit
+   on the disk?  This is especially an issue now that cw2dmk uses a
+   slightly longer buffer for reading and (in -h0 mode) might not put
+   the original gap3 at the end of the buffer.  It's impossible to
+   detect this error on MK1 or MK3, where the memory pointer can't be
+   read back, but we can (and should) check for it on MK4.
 
 3) In -h0 mode, we'd really like to find gap3 and start right after
    that, not with the first sector we see.  That would duplicate the
@@ -20,18 +19,20 @@ feasible.
 
 4) Copy the raw samples out of the CW into a buffer, then parse the
    buffer.  This allows us to do multi-pass algorithms in the future.
-   (I'm not sure this is needed; calling catweasel_reset_pointer may
-   already work.  However, it would be nice to change the interface to
-   work this way anyway, as it fits better with using a real driver in
-   the future instead of touching the hardware directly in
-   catweasl.c.  It's a tiny change, really.)
+   (This is not strictly needed; calling catweasel_reset_pointer would
+   already work.  However, it would be better to change the interface
+   to work this way anyway, as it fits better with using a real driver
+   in the future instead of touching the hardware directly in
+   catweasl.c.)
+
+4a) Support reading/writing raw samples to a file for later decoding.
+   This will help with regression testing and debugging future tweaks
+   to the decoder.
 
 5) Done.
 
-6) Consider printing sector numbers in TSUMMARY log.  (This is not
-   quite trivial.  Have to buffer them up until we get a good read or
-   we give up on retries.  Should also remember which ones have errors
-   and flag them.)  D.S. requested this, seems reasonably useful.
+6) Done.  (Almost.  We now print sector numbers in -v3.  This item
+   had suggested doing it in -v2, but I prefer -v3.)
 
 7) Done.
 
@@ -46,13 +47,24 @@ feasible.
 
 10) Done.
 
-11) Do we check properly for trying to read past the end of CW RAM and
-    wrapping around (or whatever the CW does in that case)?
+11) Done.
 
 12) Change cw2dmk and dmk2cw to work with a real device driver in the
     future.  Possibly they could even fit into the Arjuna framework
     and thus run on all Windows versions, not just Linux and plain
     MS-DOS.
+
+    * Check what the existing Windows driver provides; can it do what
+      cw2dmk and dmk2cw need?  Answer: Not clear; not enough doc.  I
+      don't know which type of raw read it does.  For -h1, I want
+      index to index with index marks in the stream (which MK3 won't
+      do fully in HW, sigh).  For -h0, I want about 2 revs by time
+      with index marks in the stream.
+
+    * For Linux, look at merging my changes back into Michael Krause's
+      kernel-resident driver and adding the ability to read/write raw catweasel
+      tracks. (Maybe also pull his code to parse sample buffers for
+      Amiga, etc., into a separate module.)
 
 13) dmk2cw might benefit from a more sophisticated write-precomp
     algorithm, if I can find one described anywhere.
@@ -61,11 +73,7 @@ feasible.
 
 15) Done.
 
-16) Allow -h0 without -k.  This would mean to try to detect the drive
-    kind using the index hole even though we're going to do the actual
-    read without it.  It would fail, obviously, if there is no index
-    hole.  Sounds trivial but will require a little bit of code reorg
-    to work.
+16) Done.
 
 17) Done.
 
@@ -77,76 +85,84 @@ feasible.
     the initial gap incorrectly (that is, in MFM) before it figures
     out the problem and switches.  That results in the track being
     recorded in the DMK file as if the gap started with a long run of
-    00 00 00...  instead of FF FF FF....  This doesn't hurt the sector
-    headers and user data any, but if some software is looking at gap
+    00 00 00...  instead of FF FF FF....  (It could randomly be either
+    depending on which bits are interpreted as clock and which as
+    data, but the detector has a heuristic that says 00 is expected in
+    MFM gaps rather than FF, so it actively shifts to 00.)  Having
+    00's instead of FF's in the gap doesn't hurt the sector headers
+    and user data any, but if some software is looking at gap
     contents, the initial gap will have the wrong thing in it.  This
     case gets triggered if track N is (or starts with) MFM and track
-    N+1 is (or starts with) FM.  I don't have any ideas on fixing it
-    (but see item 20).
+    N+1 is (or starts with) FM.  I don't have any ideas on fixing it;
+    it's a dilemma even with the new decoder.
 
-20) The FM/MFM detector is really quite a kludge.  Switching from MFM
-    back to FM is particularly bad, since the FM patterns that can
-    appear within a gap are also legal MFM.  The detector fires too
-    late on some real switches (e.g., reading a HyperZap disk with -h0
-    so that the MFM sectors are sometimes seen first), yet I recently
-    had to tame it to fix a case where it fired spuriously in gap2
-    (see ChangeLog for 4.0).  Another issue is that both the fm and
-    mfm decoders have state, but the main loop switches between them
-    without worrying about that when the detector thinks there was a
-    change.  So the new bits get shifted into whatever old state is
-    lying around.
+20) Done, but 20a-20b remain as fallout.
 
-    I have an idea for fixing this.  Basically, adapt the approach of
-    the RX02 decoder -- maybe even expand the existing RX02 decoder to
-    handle all three encodings.  The cool thing about the RX02 decoder
-    is that it's always scanning at the MFM data rate.  It detects FM
-    address marks (and even decodes FM) despite the double speed
-    scanning.  All the mark detection occurs 32 bits (clock+data)
-    upstream of where data bytes are currently being decoded, and we
-    switch cleanly from FM to RX02-MFM decoding at exactly the right
-    spot when an address mark that indicates it is seen.
+20a) In -e1 mode, might want process_sample to use only one long(1000)
+    vs. short(10) threshold instead of also allowing mediums (100).
+    The old decoder used to effectively do that; the new one doesn't.
 
-    I think we should be able to recognize MFM address marks in the
-    same detector too, mostly just by adding more patterns to the
-    switch statements and doing a few tweaks.
+20b) An FM 0xf9 DAM is ambiguous.  We have to consider it as plain FM
+    (a WD1771 extension) by default, but as RX02-MFM if -e3 was
+    specified or we've seen any 0xfd DAMs on this disk.  We should
+    really detect the pathological case where we see an 0xf9 and
+    interpret it as WD1771-FM, then later see a 0xfd and realize this
+    is an RX02 disk.  This case will also have a CRC error in the 0xf9
+    sector, so we'll still be OK if there is an 0xfd sector on the
+    same track -- we'll decode the 0xf9 sector correctly on the first
+    retry.  Fortunately -e3 is a fine workaround, and there is enough
+    guidance in the man page that people should think to try it.
 
-    Looking for both kinds of marks at the same time is technically
-    ambiguous, but I think it will work OK with some heuristics.  I
-    need to check this more carefully, but we probably do have to
-    suppress looking for marks of the non-prevailing density while
-    inside a data (or id) block.  Looking for both in gaps (while
-    avoiding write splices) should be safe enough, though.  Out of
-    spec disks could have something that looks like an address mark of
-    the wrong density in a gap, but the -e flag will handle those
-    unless they really are mixed density in spite of having such
-    spurious marks confusing the issue.  Really perversely
-    copy-protected disks could defeat us: say they "hide" an FM sector
-    ID by putting a spurious MFM ID and DAM in front of it (or vice
-    versa), so that we ignore the FM ID because we think we're in an
-    MFM data area.  The current version of cw2dmk won't deal with this
-    anyway.
+21) For non-hole aligned reads, does it make sense to read exactly
+    until the CW's memory is full (128K)?  Maybe not, as that's quite
+    a variable amount of time.  How close are we to filling it on one
+    or two revs of (say) HD data?  Answer: On 3.5" HD, the data rate
+    is 500 kHz and there are 5 revs per second, so there can be up to
+    about 100,000 transitions.  So about 1.3 revs fit in memory.  This
+    means -h0 won't always work if sectors are too long, but they
+    usually aren't.
 
-    Tweaks needed: 
+22) Consider having detect_kind dynamically set the thresholds for a
+    track by examining the histogram.  This will be especially good if
+    a track contains only FM and thus has only two peaks; we can
+    automatically have only one threshold then.  Jim Battle's "helios"
+    program for decoding Sol Helios/PTDOS hard sectored disks (based
+    in part on cw2dmk) does this.  I'm a bit worried it will go wrong
+    sometimes, though.  Looking at the comments and stuff in Jim's
+    adaptation of my code, he had problems with it finding too many
+    peaks due (he thought) to variations in disk drive speed, so the
+    peak detector probably needs more work to be reliable enough.
 
-    Of course don't do the RX02-MFM untransform on normal MFM, and
-    don't automatically switch back to FM at the end of a normal MFM
-    CRC sequence.
+23) Learn some real signal processing algorithms instead of just
+    making stuff up.  Unfortunately my web searches haven't yet turned
+    up anything I can use.
 
-    Switch immediately between FM/MFM decoding when we see a mark in
-    the other density rather than waiting until we hit the mark.
-    Actually, it might be better to have even more lookahead for this.
-    Switching only 2 MFM data bytes (or 1 FM) before the mark is a bit
-    skimpy.  However, the cleanup code in dmk2cw will add more 00's
-    there if needed when writing the disk back out -- it ensures at
-    least 4 00's for FM and 8 for MFM -- so maybe it's OK.
+    23a) One might think a software PLL would be better than fixed
+    thresholds for detecting sample lengths.  I'm not sure that's
+    true, though.  The idea of using the histogram of the whole track
+    (see 22) seems intuitively like it should be better: The frequency
+    is fairly constant, so using the whole track's information
+    together should give a more accurate estimate than trying to
+    dynamically track it with an on-line, sample-by-sample algorithm.
 
-    We still need to accept the -e1/-e2/-e3 switches, to force only
-    one of the encodings to be considered.  In -e1 mode, might want
-    the first phase to use only one long (0001)/short(01) threshold
-    instead of also allowing mediums (001).  Also, an FM 0xf9 DAM is
-    ambiguous.  We have to consider it as plain FM (a WD1771
-    extension) by default, but as RX02-MFM if -e3 was specified or
-    we've seen any 0xfd DAMs on this disk.  To be safe in case we see
-    an 0xf9 before the first 0xfd, we still need to restart the first
-    time an 0xfd shows up in autodetect mode.
+    23b) Surely there must be better algorithms for peak detection in
+    the literature than the one I invented ad hoc for
+    testhist/detect_kind (see 22).  It seems like correlating or
+    convolving the histogram with what we expect it to look like ought
+    to help...?
 
+    23c) An algorithm for detecting wraparound, using the fact that at
+    some point the sample stream starts to approximately match the
+    stream seen at the beginning of the track, would be nice.
+
+    23d) It might be useful to be able to average together several
+    passes over the same track.  This has to be done carefully since
+    if there are "weak bits" (even if unintentional), one pass might
+    have extra samples inserted where the other has none.
+
+24) Factor out common code in testhist.c and cw2dmk's detect_kind().
+
+25) Should we drop the first sample on the MK4?  It looks sort of
+    garbagey.  What about on MK1 and MK3?  (On those we're already
+    dropping two samples because of the problem with not knowing
+    whether we wrapped, so perhaps it's moot there.)

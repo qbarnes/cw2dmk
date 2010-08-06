@@ -1,0 +1,348 @@
+Some documentation of the new unified decoder in cw2dmk 4.1
+-----------------------------------------------------------
+
+In cw2dmk 4.1, there is a single decoder that handles standard
+IBM-style FM, standard IBM-style MFM, and DEC RX02 MFM.  The basic
+idea of the decoder is to always translate the sample stream into bits
+at the MFM data rate, simultaneously scan the bit stream for all three
+types of address marks, and when a mark is recognized, switch
+instantly and cleanly to decoding the bit stream into data according
+to the type of encoding the mark corresponds to.
+
+There are of course many other pesky details to flesh this idea out
+into a complete decoder.
+
+* The bit stream passes through a 64-bit shift register ("accum"),
+with new bits shifted in at the low-order end.  Marks are detected in
+the low-order 32 bits, and data bytes are decoded from the high order
+16 (MFM) or 32 bits (FM).  The early detection of marks allows the
+decoder to switch earlier, so that the entire mark is decoded cleanly
+without a byte of misaligned garbage preceding it.  In general,
+density switches and write splices don't occur immediately before
+marks, and indeed a mark generally is supposed to have several bytes
+of 00 preceding it.  Thus switching to the correct encoding several
+bytes before a mark would be still better, but 32 bits is enough to be
+useful.  (Note that there is extra cleanup code in dmk2cw that inserts
+the needed 00 bytes when writing a DMK image to a real disk.)
+
+* When decoding FM, the decoder uses only every other bit, and checks
+that the other bits are 0.  There is a heuristic to add/drop bits if
+doing so creates a correct clock pattern and correctly leaves 0's in
+the unused bits.
+
+* While decoding the body of a sector ID block or data block in
+standard MFM, the decoder does not look for FM or RX02 marks, because
+some legal standard MFM data patterns look the same as FM/RX02 marks.
+
+* In addition to address marks, within gaps, the decoder also looks
+for the repeated 4e4e MFM pattern (with normal clocking) that is a
+standard gap fill in MFM.  This pattern is not a legal sequence in FM
+at half the clock rate, so it helps shift the decoder into MFM and get
+it byte-aligned early.
+
+* When the decoder is in MFM mode and in a gap, it looks for MFM 0000
+as well and will drop 1 bit to align with it if it appears shifted by
+1 bit.  This pattern is ambiguous -- in a different alignment, it
+could be FM ffff or MFM ffff, but MFM 0000 is more likely in an MFM
+gap.  I'm not certain this heuristic is worthwhile, but it seems
+harmless, at least.  It usually helps get a string of 00 (rather than
+ff) bytes to precede MFM marks, as should happen.
+
+* The decoder looks for patterns that correspond to marks read
+backward but that cannot appear in legal data written forward.  This
+gives it the ability to sense when a disk has "flippy" data on the
+back or has been inserted into the drive upside down.
+
+* The FM data address mark 0xf9 is ambiguous.  It could be a
+nonstandard data address mark that the WD1771 FDC supports for
+ordinary FM and which is used on some TRS-80 copy-protected disks, or
+it could be the deleted data address mark for an RX02-MFM sector.  The
+decoder chooses the 1771 interpretation if (1) it is in -e0
+(autodetect) mode and no normal RX02-MFM (0xfd DAM) sectors have
+appeared on the disk so far, or (2) it is in -e1 (standard FM) mode.
+It chooses the RX02 interpretation if (3) it is in autodetect mode and
+at least one 0xfd sector has been seen, or (4) it is in -e3 (RX02
+only) mode.
+
+* The decoder avoids looking for marks for 32 bit times in places
+where it expects to see a write splice.  Without this feature, it
+could spuriously detect marks there on occasion.
+
+Standard FM
+-----------
+
+Standard FM encodes data using one clock bit and one data bit per
+input data bit.  The clock bit is always 1 for normal data, and the
+data bit is the input data.  Certain bytes in which some clock bits
+are 0 are used as address marks.  An address mark is always preceded
+by several normally encoded 00 bytes (not important for decoding
+normal FM, but important for RX02, discussed later).
+
+Here are the address marks that are used.
+
+Index address mark
+0xfc with 0xd7 clock pattern:
+
+        ------f ------c
+data:   1 1 1 1 1 1 0 0
+clock: 1 1 0 1 0 1 1 1 
+       ---f---7---7---a
+
+At the MFM double data rate, preceded by one extra 0 bit, this looks
+like:
+
+             ------------f   ------------c
+data:    0   1   1   1   1   1   1   0   0
+clock: 1   1   1   0   1   0   1   1   1
+space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+       ---8---a---a---2---a---2---a---8---8
+
+
+ID address mark
+0xfe with 0xc7 clock pattern:
+
+        ------f ------e
+data:   1 1 1 1 1 1 1 0
+clock: 1 1 0 0 0 1 1 1 
+       ---f---5---7---e
+
+             ------------f   ------------e
+data:    0   1   1   1   1   1   1   1   0
+clock: 1   1   1   0   0   0   1   1   1
+space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+       ---8---a---a---2---2---2---a---a---8
+
+
+Standard deleted data address mark
+0xf8 with 0xc7 clock pattern:
+
+        ------f ------8
+data:   1 1 1 1 1 0 0 0
+clock: 1 1 0 0 0 1 1 1 
+       ---f---5---5---a
+
+             ------------f   ------------8
+data:    0   1   1   1   1   1   0   0   0
+clock: 1   1   1   0   0   0   1   1   1
+space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+       ---8---a---a---2---2---2---8---8---8
+
+
+Nonstandard data address mark available with WD1771 FDCs
+Also used as RX02 deleted data address mark (see below)
+0xf9 with 0xc7 clock pattern:
+
+        ------f ------9
+data:   1 1 1 1 1 0 0 1
+clock: 1 1 0 0 0 1 1 1 
+       ---f---5---5---b
+
+             ------------f   ------------9
+data:    0   1   1   1   1   1   0   0   1
+clock: 1   1   1   0   0   0   1   1   1
+space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+       ---8---a---a---2---2---2---8---8---a
+
+
+Nonstandard data address mark available with WD1771 FDCs
+0xfa with 0xc7 clock pattern:
+
+        ------f ------a
+data:   1 1 1 1 1 0 1 0
+clock: 1 1 0 0 0 1 1 1 
+       ---f---5---5---e
+
+             ------------f   ------------a
+data:    0   1   1   1   1   1   0   1   0
+clock: 1   1   1   0   0   0   1   1   1
+space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+       ---8---a---a---2---2---2---8---a---8
+
+
+Standard normal data address mark
+0xfb with 0xc7 clock pattern:
+
+        ------f ------b
+data:   1 1 1 1 1 0 1 1
+clock: 1 1 0 0 0 1 1 1 
+       ---f---5---5---f
+
+             ------------f   ------------b
+data:    0   1   1   1   1   1   0   1   1
+clock: 1   1   1   0   0   0   1   1   1
+space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+       ---8---a---a---2---2---2---8---a---a
+
+
+RX02 normal data address mark (see below)
+0xfd with 0xc7 clock pattern:
+
+        ------f ------d
+data:   1 1 1 1 1 1 0 1
+clock: 1 1 0 0 0 1 1 1 
+       ---f---5---7---b
+
+             ------------f   ------------d         
+data:    0   1   1   1   1   1   1   0   1
+clock: 1   1   1   0   0   0   1   1   1
+space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+       ---8---a---a---2---2---2---a---8---a
+
+
+Backward FM
+-----------
+
+Reading any of the data address marks (0xf8, 0xf9, 0xfa, 0xfb, or 0xfd
+with 0xc7 clock) backward, starting from just before the three data
+bits that distinguish them from each other and continuing into the
+preceding 00 byte, happens to yield a unique pattern that is also
+missing clock bits but does not match any of the FM address marks read
+forward.  Like forward FM address marks, the pattern is legal within
+MFM data, so the decoder doesn't look for it within MFM ID or sector
+data.
+
+That is:
+
+        X-----< f-----<
+data:   X X X 1 1 1 1 1 0 0 0 0
+         7-----< c-----<
+clock: 1 1 1 1 0 0 0 1 1 1 1 1
+             ---d---5---e---a
+
+         X-----------<   f-----------<
+data:    X   X   X   1   1   1   1   1   0   0   0   0
+clock: 1   1   1   1   0   0   0   1   1   1   1   1
+space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                   ---a---2---2---2---a---8---8---8---8
+
+
+Standard MFM
+------------
+
+Standard MFM is a modified version of FM, in which a clock bit is
+normally 0 unless the data bits on both sides of it are 1.  With this
+scheme, two 1 bits never appear consecutively (so it can be recorded
+on the same media as FM at twice the bit rate), and at most three 0
+bits appear consecutively (so it's not difficult for a decoder to stay
+in sync with the signal).
+
+As in FM, sequences that would otherwise be illegal due to missing
+clocks are used as address marks.  Fewer such sequences are available;
+in fact, only two are used: a 0xc2 data byte with a missing clock
+between bits 3 and 4 (using 0-origin big-endian bit numbering!)  a
+0xa1 data byte with a missing clock between bits 4 and 5 (again, using
+0-origin big-endian bit numbering).  Since IBM-style formats require
+more than two different marks, marks are formed by repeating one of
+these specially encoded bytes (which I call a "premark") three times
+and following it with another byte of normally encoded data that
+specifies the type of mark.  An index address mark is 00c2c2c2fc, an
+ID address mark is 00a1a1a1fe, a normal DAM is 00a1a1a1fb, and a
+deleted DAM is 00a1a1a1f8.  Many other marks would be possible with
+this scheme, but I don't know of any others being used.
+
+Premark 0xc2 with missing clock (indicated as "o"):
+
+        ------c ------2 ------c ------2
+data:   1 1 0 0 0 0 1 0 1 1 0 0 0 0 1 0
+clock: 0 0 0 1 o 1 0 0 0 0 0 1 o 1 0 0 
+       ---5---2---2---4---5---2---2---4
+
+Premark 0xa1 with missing clock (indicated as "o"):
+
+        ------a ------1 ------a ------1
+data:   1 0 1 0 0 0 0 1 1 0 1 0 0 0 0 1
+clock: 0 0 0 0 1 o 1 0 0 0 0 0 1 o 1 0
+       ---4---4---8---9---4---4---8---9
+
+
+Backward MFM
+------------
+
+A backward 0xa1a1a1 premark preceded by a 00 byte looks like a forward
+0xc2c2 premark followed by an 0x80.  This sequence is not used as a
+normal mark, so the decoder is able to recognize it.  This would also
+work for premarks consisting of only two 0xa1's, as long as the next
+byte had the high bit set; for example, 0x00a1a1fb.
+
+          1-----< a-----< 1-----< a-----< 0-----< 0-----<
+data:   1 1 0 0 0 0 1 0 1 1 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0
+clock: 0 0 0 1 o 1 0 0 0 0 0 1 o 1 0 0 0 0 0 1 1 1 1 1 1 1
+       ---5---2---2---4---5---2---2---4---4---2---a---a
+        ------c ------2 ------c ------2 ------8 ------0
+
+
+RX02 DEC-modified MFM
+---------------------
+
+The DEC RX02 floppy disk drive uses a peculiar format.  It is similar
+to standard FM format, except that if the DAM on a sector is 0xf9
+(deleted data) or 0xfd (data), there are twice as many data bytes, and
+the sector data and sector CRC are in a variant of MFM.  The MFM
+encoding is modified to prevent the address mark detector from
+sometimes firing inside the MFM data, since a standard MFM stream can
+contain sequences that look just an an FM address mark.  (This
+RX02-modified MFM should not be confused with MMFM, which is completely
+different.)
+
+The address marks used in this format are all shown in the "FM"
+section above.  As in standard FM, 0xfc with 0xd7 clock is used as an
+index address mark.  As just mentioned, 0xf9 and 0xfd with 0xc7 clock
+are used as deleted and normal data address marks.  It is important
+for this scheme that a mark be preceded by at least one bit of
+FM-encoded 0; otherwise it can still match a legal RX02-modified MFM
+pattern.
+
+The pattern 1000101010100 occurs in each of the marks used in RX02
+format, with the final 0 being one of the missing clock bits that
+characterize them as marks.  In standard MFM data encoding, this
+pattern can't be generated with the first bit being a clock bit,
+because it would have a missing clock when decoded in that
+registration.  It could be generated with the first 1 as a data bit,
+however, by the data stream 1011110.  The RX02 data encoding prevents
+this by encoding that data stream a different way.
+
+Whenever the data stream contains 011110, instead of encoding it in
+the normal way as:
+
+data:   0 1 1 1 1 0
+clock: x 0 0 0 0 0
+
+RX02 transforms it to:
+
+data:   0 0 0 0 0 0
+clock: x 1 0 1 0 1
+
+This MFM sequence is otherwise illegal (i.e., unused), since it has
+missing clocks, so using it for this purpose does not create a
+collision with the encoding of any other data sequence.
+
+As far as I know, a decoder could undo this transform by looking
+specifically for the 11-bit sequence above, or it could apply the
+simpler rule that when we see a missing clock between two 0 data bits,
+we change both data bits to 1's.  The simpler rule will cause some
+illegal MFM sequences to be silently accepted, which is perhaps a
+drawback.  It also leaves some apparent clock violations in the
+translated data that must be ignored, also a drawback.  However, the
+other rule doesn't seem to work on a test disk I have; this might be
+due to the boundary conditions described next, or perhaps I made a
+mistake in the implementation.  See the code under #if WINDOW == 4
+vs. WINDOW == 12 in cw2dmk.c.
+
+What happens at the start and end of the data area?  Looking at a
+sample disk, it appears that the encoding is done as if the data field
+were preceded by 00 and followed by ff.  In other words, 11110 at the
+start is specially encoded, but 01111 at the end (second CRC byte) is
+not.  The following ff (or is it fe?) may actually be written as a
+lead-out; I'm not sure.
+
+cw2dmk's decoder always does the untransform in a shift register that
+runs in parallel to accum, called taccum.  Data is decoded from this
+register only inside the sector data area of an RX02-encoded sector.
+
+
+Backward RX02
+-------------
+
+See "Backward FM" above for backward versions of the address marks
+used in RX02 format.
+

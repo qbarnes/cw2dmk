@@ -1,3 +1,91 @@
+4.1 -- Tue Apr 19 22:14:21 PDT 2005 -- Tim Mann
+
+* Made cw2dmk print the histogram gathered by detect_kind with -v7.
+
+* Tweaked drive/media autodetection to work whenever the disk has an
+  index hole, even if we're not using it for reading because -h0 was
+  given.  If there really is no index hole, autodetection will fail
+  and -k will still have to be given explicitly.
+
+* Changed testhist (and cw2dmk's detect_kind) to recognize peaks up to
+  24 samples wide instead of 16.  I noticed peaks slightly wider than
+  16 on some good disks.  It would be nice to find a good peak
+  detection algorithm in the literature to replace this one, which I
+  pulled out of the air.
+
+* Changed the total "good tracks" count to omit tracks with 0 good
+  sectors even if they also have 0 errors.
+
+* Fixed backward address mark detection to work on RX02 disks too.
+
+* Changed dmk2cw to fill any tail of the Catweasel's sample memory
+  beyond the end of the DMK buffer with a run-out pattern of
+  alternating 0's and 1's, which looks like 0xff in FM or 0x00 or 0xff
+  in MFM.  Formerly we'd leave this tail untouched, which could result
+  in data left in the sample buffer from a previous track being
+  written to the end of the current track, a bad thing.
+
+* Switched to using the Catweasel's 2x (14.161 MHz) clock for all disk
+  kinds.  Formerly I was using the 1x clock on disks with lower data
+  rates in hopes of being more compatible with early MK1's that need
+  their MACH chip reprogrammed.
+
+* Disabled the check for the old CW MK1 memory error.  It fires
+  spuriously too often when reading a bulk-erased disk or other such
+  garbage.  Hopefully people with early CW MK1's have gotten their
+  MACH chips reprogrammed by now.
+
+* Since a long timed read can completely fill catweasel memory (in
+  particular, this is likely on a HD or 8" DD disk read with -h0), I
+  shortened the end mark that catweasel_read puts in the data buffer
+  to two bytes.  On MK4, I avoid putting in the mark if memory is
+  already full.  On MK1 and MK3 there's no way to tell whether memory
+  is full, so I always put in the mark, but then I skip the first two
+  samples in case the write wrapped and the end mark wound up in the
+  first two bytes of the buffer -- ugh.
+
+* catweasel_put_byte and catweasel_get_byte now keep track of how much
+  catweasel memory has been used.  Callers now check properly for
+  hitting the end of memory on both reads and writes.
+
+* Bugfix: MK1 was not using index-to-index read with index storage as
+  intended.  (It was using index-to-index read without index storage.)
+
+* Small tweak to dmk2cw: don't recognize 0xfc in the area where a DAM
+  is expected as a possible DAM.  This fixed a problem writing my dmk
+  image of l2-631a.dmk back to a real disk.  It looks like this image
+  was made with an old version of cw2dmk that left more crud in this
+  region than it should have, so I plan to redo it.
+
+* Write 0x22 to iobase+3 to make MK4 give drives back to the onboard
+  controller instead of 0x21.  Per a thread on the developer mailing
+  list, this may be needed to ensure the PCI bridge chip doesn't
+  misbehave and cause the card to show an incorrect PCI ID after
+  reboot on systems that do only a soft reset of the PCI bus upon
+  reboot.  This command also clears the FPGA.
+
+* Changed -v3 to print the sector numbers too.
+
+* Changed the default postcomp (-o flag) to 0.5.  This seems to help
+  the new decoder deal with FM better, as well as being good for MFM
+  disks written with too little precomp.
+
+* The new decoder may not be quite as good at reading FM disks as the
+  old one, because its data separator is always looking for MFM
+  medium-length samples (corresponding to MFM 100 sequences), which
+  can't occur in FM data.  Using -e1 will force the data separator to
+  classify all samples as either long (MFM 1000; FM 10) or short (MFM
+  10; FM 1), never medium.  So try -e1 if you have difficulty reading
+  an all-FM disk.
+
+* Rewrote cw2dmk's FM/MFM/RX02 decoder, the core of the program.
+  Formerly there were three separate decoders with some flaky
+  heuristics to switch between them.  There is now just one decoder
+  that handles all three types of encoding.  See decoder.txt for
+  internal documentation.  The new decoder is much better than the old
+  one at switching between FM and MFM on tracks with some sectors of
+  each.  It's also much smaller and cleaner than the old code.
+
 4.0 -- Tue Apr  5 22:08:59 PDT 2005 -- Tim Mann
 
 * Added Catweasel MK4 support.  For now, I load the firmware and then

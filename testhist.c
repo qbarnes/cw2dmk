@@ -1,7 +1,7 @@
 /* Catweasel test program
    From cwfloppy-0.2.1 package, copyright (c) 1998 Michael Krause
    Modified by Timothy Mann
-   $Id: testhist.c,v 1.12 2005/04/06 06:12:18 mann Exp $
+   $Id: testhist.c,v 1.13 2005/04/24 04:16:45 mann Exp $
 
    Reads a track and prints a histogram of the samples (flux
    transition interarrival times) returned.  Also guesses the drive
@@ -42,24 +42,30 @@ struct catweasel_contr c;
 unsigned char trackbuffer[18*512];
 
 int cwclock = 1;
-int readtime = -1;
 
 static void histo_track(int drive, int track, int side, unsigned int *buf) 
 {
-  char b;
+  int b;
   int i;
 
   catweasel_seek(&c.drives[drive], track);
 
   memset(buf, 0, 128*sizeof(int));
   for(i=0;i<NNN;i++) {
-    if (!catweasel_read(&c.drives[drive], side, cwclock, readtime, 0)) {
+    /*
+     * Use index-to-index read without marking index edges.  Although
+     * this does count the width of the index pulse twice, it's fast and
+     * quite accurate enough for a histogram.
+     */
+    if (!catweasel_read(&c.drives[drive], side, cwclock, 0, 0)) {
       fprintf(stderr, "Read error\n");
+      catweasel_free_controller(&c);
       exit(2);
     }
-    if (f) putc(0x80 + i, f);
-    while((b = catweasel_get_byte(&c)) >= 0) {
-      buf[(int)b]++;
+    if (f) putc(0x80 + i, f); // mark start of ith read
+    while((b = catweasel_get_byte(&c)) != -1 && b < 0x80) {
+      b &= 0x7f;
+      buf[b]++;
       if (f) putc(b, f);
     }
   }
@@ -90,7 +96,7 @@ static void eval_histo(unsigned int *histogram)
 	psampsw += histogram[i] * i;
 	i++;
       }
-      if (pwidth == 0 || pwidth > 16) {
+      if (pwidth == 0 || pwidth > 24) {
 	/* Not a real peak */
 	break;
       } else {

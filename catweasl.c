@@ -5,7 +5,7 @@
  *
  * Copyright (C) 1998 Michael Krause
  * Modifications by Timothy Mann for use with cw2dmk
- * $Id: catweasl.c,v 1.20 2005/04/06 06:12:18 mann Exp $
+ * $Id: catweasl.c,v 1.21 2005/04/24 04:16:45 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -187,6 +187,7 @@ unsigned char Mk3ControlBit[] = {
 
 #define MEMSIZE 131072
 #define CREG(c) (c->private[0])
+#define PTR(c) (c->private[1])
 #define INREG(c, name) inb((c)->iobase + (c)->reg[name])
 #define OUTREG(c, name, val) outb((val), (c)->iobase + (c)->reg[name])
 #define SBIT(c, name) ((c)->stat[name])
@@ -200,6 +201,7 @@ catweasel_reset_pointer(catweasel_contr *c)
     } else {
 	OUTREG(c, CatAbort, 0);
     }
+    PTR(c) = 0;
 }
 
 void
@@ -210,6 +212,23 @@ catweasel_abort(catweasel_contr *c)
     } else {
 	INREG(c, CatAbort);
     }
+}
+
+int
+CWReadPointer(catweasel_contr *c)
+{
+    int pointer;
+
+    if (c->mk < 4) {
+        fprintf(stderr, "bug: MK%d can't read memory pointer", c->mk);
+	return -1;
+    }
+
+    outb(0xc1, c->iobase + 0x03);
+    pointer = (inb(c->iobase + 0xd0) << 16) + (inb(c->iobase + 0xd4) << 8)
+	+ inb(c->iobase + 0xd8);
+    outb(0x41, c->iobase + 0x03);
+    return pointer;
 }
 
 /* Await particular bit value(s) in the control register.  Return 1 if
@@ -273,6 +292,7 @@ catweasel_memtest(catweasel_contr *c)
 #endif
 	}
     }
+    catweasel_reset_pointer(c);
     return i;
 }
 
@@ -292,6 +312,7 @@ catweasel_fillmem(catweasel_contr *c, unsigned char byte)
 	    printf("catweasel memory fill error at address %#x\n", i);
 	}
     }
+    catweasel_reset_pointer(c);
 }
 
 static __inline__ void
@@ -528,9 +549,18 @@ catweasel_free_controller(catweasel_contr *c)
     CWSetCReg(c, 0, (CBIT(c, CatSelect0) | CBIT(c, CatSelect1) |
 		     CBIT(c, CatMotor0) | CBIT(c, CatMotor1)));
 
-    /* give drives back to onboard controller if using MK4's mux */
+    /*
+     * Reset FPGA and set Kywalda mux to give drives back to
+     * controller.  This is somewhat magic.  The 0x22 pattern is
+     * needed to work around a bug in the PCI bridge chip the CW uses,
+     * which shows up on certain PCs that don't hard-reset the PCI bus
+     * on reboot.  Without it, the chip's PCI ID can become corrupted.
+     * If this happens, drivers can't detect the card until the
+     * machine is power cycled, as it will appear to be a different
+     * type of card.
+     */
     if (c->mk == 4) {
-	outb(0x21, c->iobase + 0x3);
+	outb(0x22, c->iobase + 0x3);
     }
 }
 
@@ -657,6 +687,14 @@ catweasel_read(catweasel_drive *d, int side, int clockmult, int time, int idx)
 {
     catweasel_contr *c = d->contr;
 
+    /* On MK3 and MK4, turning on index storage and requesting the
+     * index to index read instead does a read starting at the
+     * next MFM sync sequence!  Ugh. */
+    if (c->mk >= 3 && idx && time == 0) {
+        fprintf(stderr, "bug: MK%d can't index-to-index read with index store",
+		c->mk);
+    }
+
 #if CHECK_DISK_CHANGED
     if (!CWAwaitCReg(c, 0, SBIT(c, CatDiskChange))) return 0;
 #endif
@@ -669,9 +707,6 @@ catweasel_read(catweasel_drive *d, int side, int clockmult, int time, int idx)
     OUTREG(c, CatOption, CWEncodeClock(c, clockmult));
 
     /* store or don't store index pulse in high-order bit */
-    /* Note: on MK3, turning on index storage and requesting the
-     * index to index read instead does a read starting at the
-     * next MFM sync sequence! */
     catweasel_reset_pointer(c);  /* pointer = 0 */
     INREG(c, CatMem);            /* pointer++ (=1) */
     INREG(c, CatMem);            /* pointer++ (=2) */
@@ -697,17 +732,27 @@ catweasel_read(catweasel_drive *d, int side, int clockmult, int time, int idx)
 	/* stop reading, don't reset pointer */
 	catweasel_abort(c);
     }
-    /* add data end mark */
-    OUTREG(c, CatMem, 0xff);
-    OUTREG(c, CatMem, 0xff);
-    OUTREG(c, CatMem, 0);
-    OUTREG(c, CatMem, 0xff);
-    OUTREG(c, CatMem, 0);
-    OUTREG(c, CatMem, 0xff);
-    OUTREG(c, CatMem, 0);
 
-    /* reset RA */
-    catweasel_reset_pointer(c);
+    if (c->mk >= 4) {
+	/* add data end mark if there is room */
+	if (CWReadPointer(c) <= MEMSIZE - 2) {
+	    OUTREG(c, CatMem, 0x80);
+	    OUTREG(c, CatMem, 0x00);
+	}
+	catweasel_reset_pointer(c);
+
+    } else {
+	/* add data end mark */
+	OUTREG(c, CatMem, 0x80);
+	OUTREG(c, CatMem, 0x00);
+
+	catweasel_reset_pointer(c);
+
+	/* drop two samples in case the read filled memory completely and
+	   the end mark wound up at the start of memory.  ugh. */
+	INREG(c, CatMem);
+	INREG(c, CatMem);
+    }
 
     return 1;
 }
@@ -780,13 +825,35 @@ void catweasel_set_hd(catweasel_contr *c, int hd)
     }
 }
 
-unsigned char catweasel_get_byte(catweasel_contr *c)
+int catweasel_get_byte(catweasel_contr *c)
 {
+#if DEBUG13
+    int p;
+    if (c->mk == 4 && (p = CWReadPointer(c)) != PTR(c)) {
+	printf("ptr is %d; expected %d\n", p, PTR(c));
+    }
+#endif
+
+    if (PTR(c) >= MEMSIZE) {
+	return -1;
+    }
+    ++PTR(c);
     return INREG(c, CatMem);
 }
 
-void catweasel_put_byte(catweasel_contr *c, unsigned char val)
+int catweasel_put_byte(catweasel_contr *c, unsigned char val)
 {
-    OUTREG(c, CatMem, val);
-}
+#if DEBUG13
+    int p;
+    if (c->mk == 4 && (p = CWReadPointer(c)) != PTR(c)) {
+	printf("ptr is %d; expected %d\n", p, PTR(c));
+    }
+#endif
 
+    if (++PTR(c) > MEMSIZE) {
+      return -1;
+    }
+    OUTREG(c, CatMem, val);
+
+    return 0;
+}
