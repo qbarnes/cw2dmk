@@ -1,6 +1,6 @@
 Tim Mann's Catweasel Floppy Read/Write Tools
 
-* cw2dmk is a program that uses a Catweasel MK1, MK3, or MK4 universal
+* cw2dmk is a program that uses a Catweasel MK1, MK2, MK3, or MK4 universal
 floppy controller to read several kinds of floppy disk, some of which
 ordinary PC controllers have trouble with, and write it out in the DMK
 disk image format used by David Keil's TRS-80 emulator and by xtrs.
@@ -32,7 +32,7 @@ Timothy Mann.  testhist and the low-level driver routines in
 catweasl.c were originally written by Michael Krause for his Linux
 catweasel driver package cwfloppy-0.2.1.  The versions in this package
 were extensively modified for use with cw2dmk and dmk2cw and to add
-Catweasel MK3 support.
+Catweasel MK2 and MK3 support.
 
 The DPMI host cwsdpmi.exe is free software, written and copyrighted by
 Charles W. Sandmann and released under the GNU General Public license.
@@ -44,3 +44,8 @@ has been tested with the Catweasel tools at this writing is 5.
 For more information, see:
 http://www.tim-mann.org/trs80.html
 http://www.jschoenfeld.com/
+
+For information on building a IDE cable compatible with the CatWeasel
+Mk2's IDE interface, which swaps IDE_CS0 and IDE_CS1, please see:
+
+http://www.evillabs.net/wiki/index.php/Project_catweasel

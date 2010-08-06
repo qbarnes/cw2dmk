@@ -170,7 +170,12 @@ int main(int argc, char **argv) {
 	return 1;
     }
 
-    port = strtol(argv[1], NULL, 16);
+    if (strcmp(argv[1], "ide0") == 0) {
+        port = -0x1f0;
+    } else if (strcmp(argv[1], "ide1") == 0) {
+        port = -0x170;
+    } else
+    	port = strtol(argv[1], NULL, 0);
     drive = atoi(argv[2]);
     track = atoi(argv[3]);
     side = atoi(argv[4]);
@@ -184,6 +189,10 @@ int main(int argc, char **argv) {
     }
 
     /* Start Catweasel */
+    if (port < 0) {
+      port = -port;
+      cw_mk = 2;
+    }
     if (port < 10) {
       port = pci_find_catweasel(port, &cw_mk);
       if (port == -1) {
@@ -193,7 +202,7 @@ int main(int argc, char **argv) {
       }
     }
 #if linux
-    if ((cw_mk == 1 && ioperm(port, 8, 1) == -1) ||
+    if (((cw_mk < 3) && ioperm(port, 8, 1) == -1) ||
 	(cw_mk >= 3 && iopl(3) == -1)) {
       fprintf(stderr, "testhist: No access to I/O ports\n");
       return 1;
@@ -203,7 +212,7 @@ int main(int argc, char **argv) {
     ret = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
       && catweasel_memtest(&c);
     if (!ret) {
-      fprintf(stderr, "testhist: Failed to detect Catweasel at port 0x%x\n", port);
+      fprintf(stderr, "testhist: Failed to detect Catweasel Mk%d at port 0x%x\n", cw_mk, port);
       return 1;
     }
     catweasel_detect_drive(&c.drives[drive]);

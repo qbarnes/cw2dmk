@@ -112,6 +112,25 @@ unsigned char Mk1Reg[] = {
     /* CatIRQ */       -1
 };
 
+/* Register addresses */
+unsigned char Mk2Reg[] = {
+    /* JoyDat */       -1,
+    /* PaddleSelect */ -1,
+    /* Joybutton */    -1,
+    /* Joybuttondir */ -1,
+    /* KeyDat */       -1,
+    /* KeyStatus */    -1,
+    /* SidDat */       -1,
+    /* SidCommand */   -1,
+    /* CatMem */       0,
+    /* CatAbort */     1,
+    /* CatControl */   2,
+    /* CatOption */    3,
+    /* CatStartA */    4,
+    /* CatStartB */    5,
+    /* CatIRQ */       -1
+};
+
 unsigned char Mk3Reg[] = {
     /* JoyDat */       0xc0,
     /* PaddleSelect */ 0xc4,
@@ -146,6 +165,17 @@ unsigned char Mk1StatusBit[] = {
     /* CatDensityIn */  1<<2,
 };
 
+unsigned char Mk2StatusBit[] = {
+    /* CatReading */    1<<7,
+    /* CatWriting */    1<<6,
+    /* CatDiskChange */ 1<<5,
+    /* CatUnused */     1<<4,
+    /* CatWProtect */   1<<3,
+    /* CatTrack0 */     1<<2,
+    /* CatIndex */      1<<1,
+    /* CatDensityIn */  1<<0,
+};
+
 unsigned char Mk3StatusBit[] = {
     /* CatReading */    1<<7,
     /* CatWriting */    1<<6,
@@ -172,6 +202,17 @@ unsigned char Mk1ControlBit[] = {
     /* CatSelect1 */     1<<5,
     /* CatMotor1 */      1<<3,
     /* CatDensityOut */  1<<6,
+};
+
+unsigned char Mk2ControlBit[] = {
+    /* CatStep */        1<<7,
+    /* CatSideSelect */  1<<6,
+    /* CatMotor0 */      1<<5,
+    /* CatDirection */   1<<4,
+    /* CatSelect0 */     1<<3,
+    /* CatSelect1 */     1<<2,
+    /* CatMotor1 */      1<<1,
+    /* CatDensityOut */  1<<0,
 };
 
 unsigned char Mk3ControlBit[] = {
@@ -357,6 +398,12 @@ catweasel_init_controller(catweasel_contr *c, int iobase, int mk, char *fwname)
 	c->stat = Mk1StatusBit;
 	c->ctrl = Mk1ControlBit;
 	break;
+
+    case 2:
+    	c->reg = Mk2Reg;
+    	c->stat = Mk2StatusBit;
+    	c->ctrl = Mk2ControlBit;
+    	break;
 
     case 3:
 	c->reg = Mk3Reg;

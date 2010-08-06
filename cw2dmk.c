@@ -1127,7 +1127,7 @@ void usage(void)
   printf("               21 = level 2 to logfile, 1 to screen, etc.\n");
   printf(" -u logfile    Log output to the give file [none]\n");
   printf("\n Options to manually set values that are normally autodetected\n");
-  printf(" -p port       I/O port base (MK1) or card number (MK3/4) [%d]\n",
+  printf(" -p port       I/O port base (MK1), \"ide0\", \"ide1\" (MK2), or card number (MK3/4) [%d]\n",
 	 port);
   printf(" -k kind       1 = %s\n", kinds[0].description);
   printf("               2 = %s\n", kinds[1].description);
@@ -1183,6 +1183,16 @@ main(int argc, char** argv)
     if (ch == -1) break;
     switch (ch) {
     case 'p':
+      if (strcmp(optarg, "ide0") == 0) {
+      	      port = 0x1f0;
+      	      cw_mk = 2;
+      	      break;
+      }
+      if (strcmp(optarg, "ide1") == 0) {
+      	      port = 0x170;
+      	      cw_mk = 2;
+      	      break;
+      }
       port = strtol(optarg, NULL, 16);
       if (port < 0 || (port >= MK3_MAX_CARDS && port < MK1_MIN_PORT) ||
 	  (port > MK1_MAX_PORT)) {
@@ -1335,7 +1345,7 @@ main(int argc, char** argv)
 #if linux
   /* Get port access and drop other root privileges */
   /* We avoid opening files and calling msg() before this point */
-  if ((cw_mk == 1 &&
+  if ((cw_mk < 3 &&
        ioperm(port == -1 ? MK1_DEFAULT_PORT : port, 8, 1) == -1) ||
       (cw_mk >= 3 && iopl(3) == -1)) {
     fprintf(stderr, "cw2dmk: No access to I/O ports\n");

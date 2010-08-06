@@ -88,7 +88,7 @@ void usage()
   printf(" -m steps      Step multiplier, 1 or 2 [%d]\n", steps);
   printf(" -s maxsides   Maximum number of sides, 1 or 2 [%d]\n", maxsides);
   printf("\nThese values normally need not be changed:\n");
-  printf(" -p port       I/O port base (MK1) or card number (MK3/4) [%d]\n",
+  printf(" -p port       I/O port base (MK1), \"ide0\" or \"ide1\" (MK2) or card number (MK3/4) [%d]\n",
 	 port);
   printf(" -c clock      Catweasel clock multiplier [%d]\n", cwclock);
   printf(" -o plo[,phi]  Write-precompensation range (ns) [%g,%g]\n",
@@ -365,6 +365,16 @@ main(int argc, char** argv)
     if (ch == -1) break;
     switch (ch) {
     case 'p':
+      if (strcmp(optarg, "ide0") == 0) {
+        port = 0x1f0;
+        cw_mk = 2;
+        break;
+      }
+      if (strcmp(optarg, "ide1") == 0) {
+        port = 0x170;
+        cw_mk = 2;
+        break;
+      }
       port = strtol(optarg, NULL, 16);
       if (port < 0 || (port >= MK3_MAX_CARDS && port < MK1_MIN_PORT) ||
 	  (port > MK1_MAX_PORT)) {
@@ -483,7 +493,7 @@ main(int argc, char** argv)
     }
   }
 #if linux
-  if ((cw_mk == 1 && ioperm(port, 8, 1) == -1) ||
+  if ((cw_mk < 3 && ioperm(port, 8, 1) == -1) ||
       (cw_mk >= 3 && iopl(3) == -1)) {
     fprintf(stderr, "dmk2cw: No access to I/O ports\n");
     exit(1);
@@ -498,8 +508,8 @@ main(int argc, char** argv)
       fflush(stdout);
     }
   } else {
-    fprintf(stderr, "dmk2cw: Failed to detect Catweasel at port 0x%x\n",
-	    port);
+    fprintf(stderr, "dmk2cw: Failed to detect Catweasel Mk%d at port 0x%x\n",
+	    cw_mk, port);
     exit(1);
   }
   if (cw_mk == 1 && cwclock == 4) {
