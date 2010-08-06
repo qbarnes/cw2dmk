@@ -1,3 +1,9 @@
+4.4-ide -- Fri Aug  6 00:07:16 EDT 2010 -- Jason McMullan
+
+* Added support for the CatWeasel Mk2, via the Mk2's IDE interface.
+  You will need to make a special 40-pin IDE cable, that swaps IDE
+  pins 37 and 38 (IDE_CS0 and IDE_CS1) for this support to work.
+
 4.4 -- Sat Nov 28 11:45:01 PST 2009 -- Tim Mann
 
 * The Linux binaries included in this distribution are compiled on a
