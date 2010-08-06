@@ -1,3 +1,27 @@
+4.2 -- Sun May 15 21:00:44 PDT 2005 -- Tim Mann
+
+* Fixed a couple of places where we could fail to stop the drive when
+  quitting with an error.
+
+* Added support to dmk2cw for switching the Catweasel's HD output on
+  or off for tracks greater than 43.  This may be useful with 8"
+  drives that want a "track greater than 43" or "write current switch"
+  signal.  When building an adapter cable, note that HD is pin 2 on
+  the 34-pin bus and TG43/WCS is pin 2 on the 50-pin bus.
+
+* Fixed error checking and message in cw2dmk's side detection.  We
+  can't detect whether side 1 is formatted unless we can get a
+  histogram, which requires an index hole.  Formerly we'd just
+  incorrectly detect that it wasn't formatted in that case.  Also,
+  only detect_kind checks if side 0 is formatted; detect_sides
+  doesn't, so the message "Detected 1 side formatted" was
+  misleading.  Changed it to "Detected side 1 not formatted".
+
+* Improved write precompensation in dmk2cw.  The -o flag now takes two
+  values, so you can make precompensation steadily increase when going
+  from outer (lower-numbered) to inner tracks.  The default is still a
+  constant 140ns, but that may change.
+
 4.1 -- Tue Apr 19 22:14:21 PDT 2005 -- Tim Mann
 
 * Made cw2dmk print the histogram gathered by detect_kind with -v7.

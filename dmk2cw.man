@@ -136,30 +136,51 @@ Catweasel sample rate multiplier.  1 selects 7.080 MHz (about 140 ns),
 2 selects 14.161 MHz (about 70 ns), and (on Catweasel MK3 and MK4 only) 4
 selects 28.322 MHz (about 35 ns).  Default: 2.
 .TP
-.B \-o \fIprecomp\fP
-Specifies the number of nanoseconds to advance or retard
-transitions for write precompensation.  The actual distance
-between transitions is always rounded to a multiple of the Catweasel
-clock period (-c option), so it is pointless to make adjustments
-much finer than that value.  Default: 140 ns.
+.B \-o \fIplo[,phi]\fP
+Specifies the number of nanoseconds to advance or retard transitions
+for write precompensation.  The actual distance between transitions is
+always rounded to a multiple of the Catweasel clock period (-c
+option), so it is pointless to make adjustments much finer than that
+value.  If one value is given, the same precompensation is used on all
+tracks. If a pair of values plo,phi is given, plo is used on track 0
+and phi on the highest track, with tracks between interpolated
+linearly.  Default: 140ns.
 
 Exactly what does this option do?  The magnetic flux transitions on a
 floppy disk tend to move slightly farther apart if they are recorded
 very close together, thus lengthening the short intervals and
-shortening the long ones, a phenomenon sometimes called
-bit-shifting.  When a disk is recorded, the disk controller
-ordinarily applies write precompensation to reduce this effect;
-that is, it makes the short intervals extra short and the long ones
-correspondingly longer, especially on the inner, higher-numbered
-tracks.  Currently dmk2cw uses a very simple write precompensation
-algorithm that is not dependent on track number.  If the shortest
-legal interval appears immediately to the left (right) of a longer
-one, the flux transition between them is moved to the left (right)
-by precomp Catweasel clocks.
+shortening the long ones, a phenomenon sometimes called bit-shifting.
+When a disk is recorded, the disk controller ordinarily applies write
+precompensation to reduce this effect; that is, it makes the short
+intervals extra short and the long ones correspondingly longer,
+especially on the inner, higher-numbered tracks.  In dw2dmk, if the
+shortest legal interval appears immediately to the left (or right) of
+a longer one, the flux transition between them is moved to the left
+(or respectively, right).
+
+In general, disks need more precompensation on the inner
+(higher-numbered) tracks than on the outer tracks, and this effect is
+more pronounced for larger disks where the difference in length
+between the inner and outer tracks is greater.  The default value of
+140ns for all tracks seems to work reasonably well on 3.5-inch and
+5.25-inch disks, though it is surely not optimal.  For 8-inch disks, a
+few experiments with the testhist program suggest that -o70,700 is a
+good value -- it makes tracks 1 and 76 have much more similar
+histograms than if a constant value is used.  If you have trouble
+reading disks written by dmk2cw with a regular floppy disk controller,
+try using testhist to compare track histograms of natively-written
+media that read successfully in your controller with media written by
+dmk2cw.  If there is a substantial difference, try different -o values
+to see if you can get dmk2cw to write disks that are more similar to
+the native disks.
 .TP
-.B \-h \fIhdline\fP
-Set the HD line on the floppy bus to the indicated value.  If hd=2 (the
-default), the value is set according to the disk kind (see -k flag).
+.B \-h \fIhd\fP
+For -h0 or -h1, set the HD line on the floppy bus to the indicated
+value.  For -h2, set the HD line on the floppy bus to 0 for tracks 0
+to 43, to 1 for tracks greater than 43.  For -h3, set the HD line on the
+floppy bus to 1 for tracks 0 to 43, to 0 for tracks greater than 43.  For
+-h4 (the default), the line is set according to the disk kind (-k
+flag); to 0 for -k1 and -k2; to 1 for -k2 and -k3.
 .TP 
 .B \-g \fIigno\fP
 Causes dmk2cw to ignore the first igno bytes 
@@ -255,5 +276,5 @@ program from ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.
 Look for files with names of the form csdpmi*.zip.  Note: the highest
 version that has been tested with dmk2cw at this writing is 5.
 
-$Id: dmk2cw.man,v 1.14 2005/04/06 05:11:14 mann Exp $
+$Id: dmk2cw.man,v 1.15 2005/05/16 04:31:03 mann Exp $
 

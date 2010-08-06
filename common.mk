@@ -1,4 +1,4 @@
-# $Id: common.mk,v 1.7 2005/04/24 04:16:45 mann Exp $
+# $Id: common.mk,v 1.8 2005/05/16 04:31:03 mann Exp $
 
 CFLAGS= -O3 -Wall
 #CFLAGS= -g -O -Wall
@@ -15,6 +15,10 @@ FIRMWARE=pre29.cw4
 	nroff -man $(NROFFFLAGS) $< | colcrt - | cat -s > $*.txt
 
 all: $(EXE) $(TXT) cwsdpmi.exe
+
+progs: $(EXE)
+
+manpages: $(TXT)
 
 catweasl.$O: catweasl.c cwfloppy.h firmware.h
 

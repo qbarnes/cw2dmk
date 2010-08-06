@@ -17,7 +17,7 @@ feasible.
    algorithm: in pass 1, find the largest gap and deem it gap3; in
    pass 2, decode starting after gap3.
 
-4) Copy the raw samples out of the CW into a buffer, then parse the
+4) **Copy the raw samples out of the CW into a buffer, then parse the
    buffer.  This allows us to do multi-pass algorithms in the future.
    (This is not strictly needed; calling catweasel_reset_pointer would
    already work.  However, it would be better to change the interface
@@ -66,8 +66,11 @@ feasible.
       tracks. (Maybe also pull his code to parse sample buffers for
       Amiga, etc., into a separate module.)
 
-13) dmk2cw might benefit from a more sophisticated write-precomp
-    algorithm, if I can find one described anywhere.
+13) dmk2cw might benefit from a still more sophisticated write-precomp
+    algorithm, if I can find one described anywhere.  Right now only
+    short (10) intervals are compensated, and the amount of
+    compensation is the same regardless of whether the adjacent
+    interval is medium (100) or long (1000).
 
 14) Done.
 
@@ -96,11 +99,9 @@ feasible.
     N+1 is (or starts with) FM.  I don't have any ideas on fixing it;
     it's a dilemma even with the new decoder.
 
-20) Done, but 20a-20b remain as fallout.
+20) Done, but 20a-20c remain as fallout.
 
-20a) In -e1 mode, might want process_sample to use only one long(1000)
-    vs. short(10) threshold instead of also allowing mediums (100).
-    The old decoder used to effectively do that; the new one doesn't.
+20a) Done.
 
 20b) An FM 0xf9 DAM is ambiguous.  We have to consider it as plain FM
     (a WD1771 extension) by default, but as RX02-MFM if -e3 was
@@ -113,6 +114,8 @@ feasible.
     retry.  Fortunately -e3 is a fine workaround, and there is enough
     guidance in the man page that people should think to try it.
 
+20c) Done.
+
 21) For non-hole aligned reads, does it make sense to read exactly
     until the CW's memory is full (128K)?  Maybe not, as that's quite
     a variable amount of time.  How close are we to filling it on one
@@ -123,9 +126,9 @@ feasible.
     usually aren't.
 
 22) Consider having detect_kind dynamically set the thresholds for a
-    track by examining the histogram.  This will be especially good if
+    track by examining the histogram.  (This will be especially good if
     a track contains only FM and thus has only two peaks; we can
-    automatically have only one threshold then.  Jim Battle's "helios"
+    automatically have only one threshold then.)  Jim Battle's "helios"
     program for decoding Sol Helios/PTDOS hard sectored disks (based
     in part on cw2dmk) does this.  I'm a bit worried it will go wrong
     sometimes, though.  Looking at the comments and stuff in Jim's
@@ -144,6 +147,10 @@ feasible.
     is fairly constant, so using the whole track's information
     together should give a more accurate estimate than trying to
     dynamically track it with an on-line, sample-by-sample algorithm.
+    Even if different sectors were written in different drives at
+    slightly different speeds, a per-sector histogram may be better
+    than a PLL.  Anyway, I didn't find a cookbook PLL algorithm I
+    could use, and my attempts to kludge one up were a failure.
 
     23b) Surely there must be better algorithms for peak detection in
     the literature than the one I invented ad hoc for
@@ -166,3 +173,19 @@ feasible.
     garbagey.  What about on MK1 and MK3?  (On those we're already
     dropping two samples because of the problem with not knowing
     whether we wrapped, so perhaps it's moot there.)
+
+26) It would be interesting to remember places where we were unsure
+    about thresholds (or other decisions), and go back and retry those
+    decisions the other way if one fell inside a sector with a CRC
+    error (or part of a track with some other error).  It seems like
+    the "maximum likelihood" concept may fit in here somewhere.
+
+27) On the MK4 it's once again possible to wait in hardware to start a
+    read on the first rising index edge (although you then have to
+    stop it in software or wait until the memory fills up).  Should
+    use this to make reading more reliable: on an MK3, we can
+    sometimes miss some data right after the index hole if the OS
+    takes an interrupt or otherwise deschedules cw2dmk while it's
+    spinning waiting for the hole to show up.  (It would also be good
+    to have a way to avoid this problem on the MK3.)
+

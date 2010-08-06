@@ -454,7 +454,7 @@ Diagnostics
               software  supplied  by  Individual Computers.  This has now been
               corrected.
 
-       cw2dmk: Track 0 is unformatted
+       cw2dmk: Track 0 side 0 is unformatted
               For drive/media autodetection to work, track 0 of  the  diskette
               must be formatted.  This message is printed if the track appears
               not to be formatted.
@@ -468,6 +468,7 @@ Diagnostics
        cw2dmk: Read error
        cw2dmk: No index hole detected
        cw2dmk: No index hole; can't detect drive and media type
+       cw2dmk: No index hole; can't detect if side 1 is formatted
               Either  the  drive  reported  that  it  was  not  ready when the
               Catweasel tried to read from it, or no index hole was  detected.
               These  messages usually mean that there is no disk in the drive.
@@ -478,42 +479,43 @@ Diagnostics
               If the disk really does not have an index hole -- in particular,
               if  you  are  reading  the  back of a disk that was written in a
               flippy drive by inserting it upside-down into a normal drive  --
-              cw2dmk  cannot  autodetect the drive and media type, so you will
-              have to give the -k flag to tell it the correct type.
+              cw2dmk  cannot  autodetect the drive and media type or if side 1
+              is formatted, so you will have to give the -k and  -s  flags  to
+              tell it the correct type and number of sides.
 
        cw2dmk: Catweasel memory error?! See cw2dmk.txt
-              If you receive this message  on  an  unformatted  track,  please
+              If  you  receive  this  message  on an unformatted track, please
               ignore it; nothing is wrong.
 
-              If  you receive the message on a formatted track, and you have a
-              Catweasel MK1 card that was manufactured before July 2000,  con-
+              If you receive the message on a formatted track, and you have  a
+              Catweasel  MK1 card that was manufactured before July 2000, con-
               tact  Individual  Computers  for  information  on  obtaining  an
-              updated version of the MACH chip  in  your  Catweasel.   If  you
+              updated  version  of  the  MACH  chip in your Catweasel.  If you
               never see this message, the update is not needed.
 
-              Alternatively,  you  may  be  able to work around the problem by
-              using the Catweasel's lower clock rate (-c1) with  appropriately
-              reduced  values  for the threshold parameters (-1 and -2 or -f).
-              The thresholds for -c1 should be about half the  default  values
-              used  with  -c2.   To  see the default threshold values for disk
+              Alternatively, you may be able to work  around  the  problem  by
+              using  the Catweasel's lower clock rate (-c1) with appropriately
+              reduced values for the threshold parameters (-1 and -2  or  -f).
+              The  thresholds  for -c1 should be about half the default values
+              used with -c2.  To see the default  threshold  values  for  disk
               kind number N, type the command "cw2dmk -kN" with no other argu-
               ments; they will be shown in brackets in the usage message.
 
 Authors
        cw2dmk was written by Timothy Mann, http://tim-mann.org/.  It uses low-
-       level Catweasel access routines written by Michael Krause.   cw2dmk  is
-       free  software,  released under the GNU General Public License.  Thanks
-       to Jens Schoenfeld  for  providing  documentation  on  programming  the
+       level  Catweasel  access routines written by Michael Krause.  cw2dmk is
+       free software, released under the GNU General Public  License.   Thanks
+       to  Jens  Schoenfeld  for  providing  documentation  on programming the
        Catweasel hardware.  Thanks to David Keil for designing and documenting
        the DMK file format for floppy disk images.
 
-       The DPMI host cwsdpmi.exe is free software, written and copyrighted  by
-       Charles  W. Sandmann and released under the GNU General Public license.
+       The  DPMI host cwsdpmi.exe is free software, written and copyrighted by
+       Charles W. Sandmann and released under the GNU General Public  license.
        You can download the source code and/or binary updates for this program
        from  ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.   Look  for
-       files with names of the form csdpmi*.zip.  Note:  the  highest  version
+       files  with  names  of the form csdpmi*.zip.  Note: the highest version
        that has been tested with cw2dmk at this writing is 5.
 
-       $Id: cw2dmk.man,v 1.26 2005/04/24 04:16:45 mann Exp $
+       $Id: cw2dmk.man,v 1.27 2005/05/16 04:31:03 mann Exp $
 
                                                                      cw2dmk(1)

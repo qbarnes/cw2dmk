@@ -1,7 +1,7 @@
 /*
  * dmk2cw: Write a .dmk to a real floppy disk using the Catweasel.
  * Copyright (C) 2001 Timothy Mann
- * $Id: dmk2cw.c,v 1.14 2005/04/24 04:16:45 mann Exp $
+ * $Id: dmk2cw.c,v 1.15 2005/05/16 04:31:03 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -59,9 +59,9 @@ int maxsides = 2;
 int sides = 1;
 int fmtimes = 2;
 int rx02 = 0;
-double precomp = 140; /*ns*/
+double precomplo = 140.0, precomphi = 140.0, precomp; /*ns*/
 int cwclock = 2;
-int hd = 2;
+int hd = 4;
 int ignore = 0;
 int iam_pos = -1;
 int testmode = -1;
@@ -88,9 +88,10 @@ void usage()
   printf(" -p port       I/O port base (MK1) or card number (MK3/4) [%d]\n",
 	 port);
   printf(" -c clock      Catweasel clock multiplier [%d]\n", cwclock);
-  printf(" -o precomp    Amount of write-precompensation (ns) [%g]\n",
-	 precomp);
-  printf(" -h hd         HD output; 0=low, 1=high [according to -k]\n");
+  printf(" -o plo[,phi]  Write-precompensation range (ns) [%g,%g]\n",
+	 precomplo, precomphi);
+  printf(" -h hd         HD; 0=lo, 1=hi, 2=lo/hi, 3=hi/lo, 4=by kind [%d]\n",
+	 hd);
   printf(" -g ign        Ignore first ign bytes of track [%d]\n", ignore);
   printf(" -i ipos       Force IAM to ipos from track start; "
 	 "if -1, don't [%d]\n", iam_pos);
@@ -339,8 +340,10 @@ main(int argc, char** argv)
       if (maxsides < 1 || maxsides > 2) usage();
       break;
     case 'o':
-      precomp = strtod(optarg, NULL);
-      if (precomp < 0.0) usage();
+      ret = sscanf(optarg, "%lf, %lf", &precomplo, &precomphi);
+      if (ret == 0) usage();
+      if (ret == 1) precomphi = precomplo;
+      if (precomplo < 0.0 || precomphi < 0.0) usage();
       break;
     case 'c':
       cwclock = strtol(optarg, NULL, 0);
@@ -348,7 +351,7 @@ main(int argc, char** argv)
       break;
     case 'h':
       hd = strtol(optarg, NULL, 0);
-      if (hd < 0 || hd > 2) usage();
+      if (hd < 0 || hd > 4) usage();
       break;
     case 'g':
       ignore = strtol(optarg, NULL, 0);
@@ -394,7 +397,7 @@ main(int argc, char** argv)
 #if linux
   if (geteuid() != 0) {
     fprintf(stderr, "cw2dmk: Must be setuid to root or be run as root\n");
-    return 1;
+    exit(1);
   }
 #endif
   if (port < 10) {
@@ -410,7 +413,7 @@ main(int argc, char** argv)
   if ((cw_mk == 1 && ioperm(port, 8, 1) == -1) ||
       (cw_mk >= 3 && iopl(3) == -1)) {
     fprintf(stderr, "dmk2cw: No access to I/O ports\n");
-    return 1;
+    exit(1);
   }
   setuid(getuid());
 #endif
@@ -424,12 +427,11 @@ main(int argc, char** argv)
   } else {
     fprintf(stderr, "dmk2cw: Failed to detect Catweasel at port 0x%x\n",
 	    port);
-    return 1;
+    exit(1);
   }
   if (cw_mk == 1 && cwclock == 4) {
     fprintf(stderr, "dmk2cw: Catweasel MK1 does not support 4x clock\n");
-    cleanup();
-    return 1;
+    exit(1);
   }
   catweasel_detect_drive(&c.drives[drive]);
 
@@ -444,7 +446,7 @@ main(int argc, char** argv)
 	      drive, 1-drive, 1-drive, 1-drive);
     }
     cleanup();
-    return 1;
+    exit(1);
   }
 
   /* Open input file */
@@ -477,7 +479,7 @@ main(int argc, char** argv)
   if (catweasel_write_protected(&c.drives[drive])) {
     fprintf(stderr, "dmk2cw: Disk is write-protected\n");
     cleanup();
-    return 1;
+    exit(1);
   }
 
   /* Detect kind if needed */
@@ -507,6 +509,7 @@ main(int argc, char** argv)
     }
     if (kind == 0) {
       fprintf(stderr, "dmk2cw: Failed to guess drive kind; use -k\n");
+      cleanup();
       exit(1);
     } else {
       kd = &kinds[kind-1];
@@ -516,13 +519,16 @@ main(int argc, char** argv)
     kd = &kinds[kind-1];
   }
   mult = (kd->mfmshort / 2.0) * cwclock;
-  if (hd == 2) {
+  if (hd == 4) {
     hd = kd->hd;
   }
 
   /* Loop through tracks */
   for (track=0; track<dmk_header.ntracks; track++) {
     catweasel_seek(&c.drives[drive], track * steps);
+
+    precomp = ((dmk_header.ntracks - 1 - track) * precomplo +
+	       track * precomphi) / (dmk_header.ntracks - 1);
 
     /* Loop through sides */
     for (side=0; side<sides; side++) {
@@ -865,7 +871,7 @@ main(int argc, char** argv)
 	fflush(stdout);
       }
 
-      catweasel_set_hd(&c, hd);
+      catweasel_set_hd(&c, (hd & 1) ^ ((hd > 1) && (track > 43)));
 
       /* In case the DMK buffer is shorter than the physical track,
 	 fill the rest of the Catweasel's memory with a run-out
@@ -878,7 +884,7 @@ main(int argc, char** argv)
       if (!catweasel_write(&c.drives[drive], side, cwclock, -1)) {
 	fprintf(stderr, "dmk2cw: Write error\n");
 	cleanup();
-	return 1;
+	exit(1);
       }
     }
   }

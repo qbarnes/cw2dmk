@@ -1,7 +1,7 @@
 /*
  * cw2dmk: Dump floppy disk from Catweasel to .dmk format.
  * Copyright (C) 2000 Timothy Mann
- * $Id: cw2dmk.c,v 1.34 2005/04/24 04:16:45 mann Exp $
+ * $Id: cw2dmk.c,v 1.35 2005/05/16 04:31:03 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -1011,7 +1011,7 @@ detect_kind(int drive)
 
   if (peak < 0.0) {
     /* Track is blank */
-    fprintf(stderr, "cw2dmk: Track 0 is unformatted\n");
+    fprintf(stderr, "cw2dmk: Track 0 side 0 is unformatted\n");
     cleanup();
     exit(1);
   } else {
@@ -1067,7 +1067,13 @@ detect_sides(int drive)
   int total_cycles, total_samples;
   float peak;
 
-  do_histogram(drive, 0, 1, histogram, &total_cycles, &total_samples, &peak);
+  if (!do_histogram(drive, 0, 1, histogram,
+		    &total_cycles, &total_samples, &peak)) {
+    fprintf(stderr,
+	    "cw2dmk: No index hole; can't detect if side 1 is formatted\n");
+    cleanup();
+    exit(1);
+  }
 
   if (peak > 0.0) {
     float dclock = 7080.5 / peak;
@@ -1075,7 +1081,8 @@ detect_sides(int drive)
       res = 2;
     }
   }
-  msg(OUT_QUIET + 1, "Detected %d side%s formatted\n", res, plu(res));
+  msg(OUT_QUIET + 1, "Detected side 1 %sformatted\n",
+      res == 1 ? "not " : "");
   fflush(stdout);
   return res;
 }
@@ -1300,7 +1307,7 @@ main(int argc, char** argv)
 #if linux
   if (geteuid() != 0) {
     fprintf(stderr, "cw2dmk: Must be setuid to root or be run as root\n");
-    return 1;
+    exit(1);
   }
 #endif
   /* Detect PCI catweasel */
@@ -1315,7 +1322,7 @@ main(int argc, char** argv)
        ioperm(port == -1 ? MK1_DEFAULT_PORT : port, 8, 1) == -1) ||
       (cw_mk >= 3 && iopl(3) == -1)) {
     fprintf(stderr, "cw2dmk: No access to I/O ports\n");
-    return 1;
+    exit(1);
   }
   setuid(getuid());
 #endif
@@ -1350,12 +1357,11 @@ main(int argc, char** argv)
     fflush(stdout);
   } else {
     fprintf(stderr, "cw2dmk: Failed to detect Catweasel at port 0x%x\n", port);
-    return 1;
+    exit(1);
   }
   if (cw_mk == 1 && cwclock == 4) {
     fprintf(stderr, "cw2dmk: Catweasel MK1 does not support 4x clock\n");
-    cleanup();
-    return 1;
+    exit(1);
   }
 
   /* Detect drive */
@@ -1374,7 +1380,7 @@ main(int argc, char** argv)
     if (drive == 2) {
       fprintf(stderr, "cw2dmk: Failed to detect any drives\n");
       cleanup();
-      return 1;
+      exit(1);
     }
   } else {
     msg(OUT_SUMMARY, "Looking for drive %d...", drive);
@@ -1509,7 +1515,7 @@ main(int argc, char** argv)
 	if (hole && readtime > 0 && !catweasel_await_index(&c.drives[drive])) {
 	  fprintf(stderr, "cw2dmk: No index hole detected\n");
 	  cleanup();
-	  return 1;
+	  exit(1);
 	}
 	/*
 	 * Do read.  Always store index holes in the data stream; this
@@ -1518,7 +1524,7 @@ main(int argc, char** argv)
 	if (!catweasel_read(&c.drives[drive], side, cwclock, readtime, 1)) {
 	  fprintf(stderr, "cw2dmk: Read error\n");
 	  cleanup();
-	  return 1;
+	  exit(1);
 	}
 
 	/* Loop over samples */

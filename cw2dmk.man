@@ -455,7 +455,7 @@ cw2dmk used the opposite drive numbering convention from the bundled
 Catweasel software supplied by Individual Computers.  This has now
 been corrected.
 .TP
-.B cw2dmk: Track 0 is unformatted
+.B cw2dmk: Track 0 side 0 is unformatted
 For drive/media autodetection to work, track 0 of the diskette must
 be formatted.  This message is printed if the track appears not to be
 formatted.
@@ -472,6 +472,8 @@ disk may be unformatted.
 .B cw2dmk: No index hole detected
 .TP
 .B cw2dmk: No index hole; can't detect drive and media type
+.TP
+.B cw2dmk: No index hole; can't detect if side 1 is formatted
 .PD
 Either the drive reported that it was not ready when the Catweasel tried to 
 read from it, or no index hole was detected.
@@ -482,8 +484,9 @@ properly, the door is not closed, the disk is inserted upside-down, etc.
 If the disk really does not have an index hole -- in particular, if
 you are reading the back of a disk that was written in a flippy drive
 by inserting it upside-down into a normal drive -- cw2dmk cannot
-autodetect the drive and media type, so you will have to give the -k
-flag to tell it the correct type.
+autodetect the drive and media type or if side 1 is formatted,
+so you will have to give the -k and -s flags to tell it the correct
+type and number of sides.
 .TP
 .B cw2dmk: Catweasel memory error?! See cw2dmk.txt
 If you receive this message on an unformatted track, please ignore it;
@@ -517,4 +520,4 @@ program from ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.
 Look for files with names of the form csdpmi*.zip.  Note: the highest
 version that has been tested with cw2dmk at this writing is 5.
 
-$Id: cw2dmk.man,v 1.26 2005/04/24 04:16:45 mann Exp $
+$Id: cw2dmk.man,v 1.27 2005/05/16 04:31:03 mann Exp $
