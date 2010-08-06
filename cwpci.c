@@ -3,7 +3,7 @@
  * PCI detection routines
  *
  * Copyright (C) 2002 by Timothy Mann
- * $Id: cwpci.c,v 1.2 2002/12/08 05:36:47 mann Exp $
+ * $Id: cwpci.c,v 1.3 2005/04/06 06:12:18 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -176,10 +176,10 @@ pci_read_config_dword(int bus, int device, int func,
  * machine (0-origin).  Return port address if found, -1 if not found.
  */
 int
-pci_find_catweasel(int index)
+pci_find_catweasel(int index, int *cw_mk)
 {
   int i = 0, j = 0, res;
-  int bus, device, func;
+  int bus, device, func, mk = 0;
   uint32 subsysID, baseAddr;
 
   if (pci_install_check() != 0) return -1;
@@ -191,9 +191,17 @@ pci_find_catweasel(int index)
     /* Read the subsystem vendor ID + subsystem ID */
     res = pci_read_config_dword(bus, device, func, 0x2c, &subsysID);
     if (res != 0) continue;
-    /* Check if they match the Catweasel MK3 */
-    if (subsysID != 0x00021212) {
-      DEBUG_PCI( printf("subsysID 0x%lx != 0x00021212\n", subsysID); )
+    /* Check if they match the Catweasel */
+    switch (subsysID) {
+    case 0x00021212: 	/* Catweasel MK3 */
+      mk = 3;
+      break;
+    case 0x00025213: 	/* Catweasel MK4 */
+    case 0x00035213: 	/* Catweasel MK4 preproduction */
+      mk = 4;
+      break;
+    default:
+      DEBUG_PCI( printf("subsysID 0x%lx\n", subsysID); )
       continue;
     }
     i++;
@@ -205,6 +213,7 @@ pci_find_catweasel(int index)
     if (res != 0) return -1;
     /* Check for I/O space */
     if (baseAddr & 1) {
+      *cw_mk = mk;
       return baseAddr & ~3;
     }
     DEBUG_PCI( printf("baseAddr 0x%lx not I/O space\n", baseAddr); )
@@ -222,11 +231,11 @@ pci_find_catweasel(int index)
  * machine (0-origin).  Return port address if found, -1 if not found.
  */
 int
-pci_find_catweasel(int index)
+pci_find_catweasel(int index, int *cw_mk)
 {
   struct pci_access *pa;
   struct pci_dev *pd;
-  int i;
+  int i, mk;
 
   /* Initialize */
   pa = pci_alloc();
@@ -239,17 +248,29 @@ pci_find_catweasel(int index)
   for (pd = pa->devices; pd != NULL; pd = pd->next) {
 
     pci_fill_info(pd, PCI_FILL_IDENT);
-    if (pd->vendor_id == 0xe159 &&             /* Tiger Jet Networks */
-	pd->device_id == 0x0001 &&             /* Tiger320 PCI chip */
-	pci_read_long(pd, 0x2c) == 0x00021212  /* Catweasel MK3 */) {
+    if (pd->vendor_id == 0xe159 &&  /* Tiger Jet Networks */
+	pd->device_id == 0x0001) {  /* Tiger320 PCI chip */
 
-      /* Found a Catweasel MK3 */
+      switch (pci_read_long(pd, 0x2c)) {
+      case 0x00021212: 	/* Catweasel MK3 */
+	mk = 3;
+	break;
+      case 0x00025213: 	/* Catweasel MK4 */
+      case 0x00035213: 	/* Catweasel MK4 preproduction */
+	mk = 4;
+	break;
+      default:
+	continue;
+      }
+
+      /* Is this the index'th card? */
       if (index-- > 0) continue;
 
       /* Find the I/O space */
       pci_fill_info(pd, PCI_FILL_BASES);
       for (i = 0; i < 6; i++) {
 	if (pd->base_addr[i] & 1) {
+	  *cw_mk = mk;
 	  return pd->base_addr[i] & PCI_ADDR_IO_MASK;
 	}
       }

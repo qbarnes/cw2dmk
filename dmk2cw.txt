@@ -86,8 +86,9 @@ Options
        -p port
               For  the  Catweasel MK1 (ISA), port should be the I/O port base,
               or 0 to default to  the  factory  setting  of  0x320.   For  the
-              Catweasel  MK3  (PCI),  port should be 0 for the first Catweasel
-              card in the machine, 1 for the second, etc.  The default is 0.
+              Catweasel  MK3  or  MK4  (PCI),  port  should be 0 for the first
+              Catweasel card in the machine,  1  for  the  second,  etc.   The
+              default is 0.
 
        -k kind
               Specify the type of drive and type of media in use.  This option
@@ -95,7 +96,7 @@ Options
 
               1      5.25-inch SD/DD disk in 1.2MB drive
 
-              2      5.25-inch SD/DD disk in 360KB/720KB  drive,  or  3.5-inch
+              2      5.25-inch  SD/DD  disk  in 360KB/720KB drive, or 3.5-inch
                      SD/DD disk
 
               3      5.25-inch HD disk, or 8-inch SD/DD disk
@@ -103,28 +104,29 @@ Options
               4      3.5-inch HD disk
 
        -m steps
-              Step  multiplier,  1  or 2.  A step multiplier of 2 is used when
-              writing a 40-track (or 35-track)  disk  in  an  80-track  drive.
-              Default:  1.   If  you  set -m2, you should bulk-erase the media
-              first to eliminate residual magnetization from the odd  numbered
-              tracks  that  may  cause  problems  when  the  disk is read in a
+              Step multiplier, 1 or 2.  A step multiplier of 2  is  used  when
+              writing  a  40-track  (or  35-track)  disk in an 80-track drive.
+              Default: 1.  If you set -m2, you  should  bulk-erase  the  media
+              first  to eliminate residual magnetization from the odd numbered
+              tracks that may cause problems  when  the  disk  is  read  in  a
               40-track drive.
 
        -s sides
-              Maximum number of sides, 1 or  2.   Use  -s1  if  your  physical
+              Maximum  number  of  sides,  1  or  2.  Use -s1 if your physical
               floppy drive has only one head (that is, if it can only write to
-              side 0 of the disk).  If you forget to do this and the DMK  file
-              has  space  reserved for side 1 data (even if there are no valid
+              side  0 of the disk).  If you forget to do this and the DMK file
+              has space reserved for side 1 data (even if there are  no  valid
               sectors in that space), dmk2cw will overwrite the side 0 data on
               each track of the media with the side 1 data.
 
-       The  remaining  options  usually  do  not need to be changed from their
+       The remaining options usually do not need  to  be  changed  from  their
        default values.
 
        -c clock
-              Catweasel sample rate multiplier.  1 selects  7.080  MHz  (about
-              140  ns),  2 selects 14.161 MHz (about 70 ns), and (on Catweasel
-              MK3 only) 4 selects 28.322 MHz (about 35 ns).  Default: 2.
+              Catweasel  sample  rate  multiplier.  1 selects 7.080 MHz (about
+              140 ns), 2 selects 14.161 MHz (about 70 ns), and  (on  Catweasel
+              MK3  and MK4 only) 4 selects 28.322 MHz (about 35 ns).  Default:
+              2.
 
        -o precomp
               Specifies the number of nanoseconds to advance or retard transi-
@@ -251,6 +253,6 @@ Authors
        files with names of the form csdpmi*.zip.  Note:  the  highest  version
        that has been tested with dmk2cw at this writing is 5.
 
-       $Id: dmk2cw.man,v 1.13 2005/03/29 07:13:40 mann Exp $
+       $Id: dmk2cw.man,v 1.14 2005/04/06 05:11:14 mann Exp $
 
                                                                      dmk2cw(1)

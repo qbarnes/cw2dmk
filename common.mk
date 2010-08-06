@@ -1,4 +1,4 @@
-# $Id: common.mk,v 1.5 2005/04/03 01:02:08 mann Exp $
+# $Id: common.mk,v 1.6 2005/04/06 06:12:18 mann Exp $
 
 CFLAGS= -O3 -Wall
 ##CFLAGS= -g -O -Wall
@@ -7,6 +7,7 @@ CWEXE= cw2dmk$E dmk2cw$E testhist$E
 EXE= $(CWEXE) dmk2jv3$E jv2dmk$E
 TXT= cw2dmk.txt dmk2cw.txt dmk2jv3.txt jv2dmk.txt
 NROFFFLAGS= -c -Tascii
+FIRMWARE=pre29.cw4
 
 .SUFFIXES: .man .txt
 
@@ -15,10 +16,14 @@ NROFFFLAGS= -c -Tascii
 
 all: $(EXE) $(TXT) cwsdpmi.exe
 
-cw2dmk$E: cw2dmk.c catweasl.$O cwpci.$O crc.c cwfloppy.h kind.h dmk.h version.h
+catweasl.$O: catweasl.c cwfloppy.h firmware.h
+
+cw2dmk$E: cw2dmk.c catweasl.$O cwpci.$O crc.c  \
+    cwfloppy.h kind.h dmk.h version.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB)
 
-dmk2cw$E: dmk2cw.c catweasl.$O cwpci.$O crc.c cwfloppy.h kind.h dmk.h version.h
+dmk2cw$E: dmk2cw.c catweasl.$O cwpci.$O crc.c \
+    cwfloppy.h kind.h dmk.h version.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB)
 
 dmk2jv3$E: dmk2jv3.c crc.c dmk.h jv3.h
@@ -32,6 +37,11 @@ testhist$E: testhist.c catweasl.$O cwpci.$O cwfloppy.h
 
 cwsdpmi.exe:
 	cp $(HOME)/djgpp/csdpmi5b/bin/cwsdpmi.exe cwsdpmi.exe
+
+firmware.h: $(FIRMWARE)
+	(echo 'unsigned char firmware[] = { ' ;\
+	 hexdump -v -e '12/1 "%#x, " "\n"' $(FIRMWARE) ;\
+	 echo '};') | sed -e 's/ ,//g' > firmware.h
 
 clean:
 	$(RM) $(EXE) *.$O *~

@@ -1,4 +1,4 @@
-/* $Id: cwfloppy.h,v 1.10 2004/05/30 08:53:03 mann Exp $ */
+/* $Id: cwfloppy.h,v 1.11 2005/04/06 06:12:18 mann Exp $ */
 
 #ifndef _CWFLOPPY_H
 #define _CWFLOPPY_H
@@ -18,7 +18,7 @@ typedef struct catweasel_drive {
 typedef struct catweasel_contr {
     int iobase;                    /* 0 = not present */
     void (*msdelay)(int ms);       /* microseconds delay routine */
-    int mk;                        /* 1 = Catweasel MK1, 3 = MK3 */
+    int mk;                        /* 1 = Catweasel MK1, 3 = MK3, 4 = MK4 */
     unsigned char *reg;
     unsigned char *stat;
     unsigned char *ctrl;
@@ -26,8 +26,9 @@ typedef struct catweasel_contr {
     int private[4];                /* private data */
 } catweasel_contr;
 
-/* Initialize a Catweasel controller */
-void catweasel_init_controller(catweasel_contr *c, int iobase, int mk);
+/* Initialize a Catweasel controller.  Return true on success. */
+int catweasel_init_controller(catweasel_contr *c, int iobase, int mk,
+			      char *fwname);
 
 /* Detect whether drive is present using track0 sensor */
 void catweasel_detect_drive(catweasel_drive *d);
@@ -86,7 +87,7 @@ void catweasel_put_byte(catweasel_contr *c, unsigned char val);
 unsigned int catweasel_usleep(unsigned int _useconds);
 
 /* Catweasel min sample rate.
- * MK1 supports 1x and 2x; MK3 supports 1x, 2x, 4x */
+ * MK1 supports 1x and 2x; MK3 and MK4 support 1x, 2x, 4x */
 #define CWHZ 7080500.0
 
 /* Factory port setting for MK1 */

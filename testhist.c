@@ -1,7 +1,7 @@
 /* Catweasel test program
    From cwfloppy-0.2.1 package, copyright (c) 1998 Michael Krause
    Modified by Timothy Mann
-   $Id: testhist.c,v 1.11 2002/12/08 05:36:47 mann Exp $
+   $Id: testhist.c,v 1.12 2005/04/06 06:12:18 mann Exp $
 
    Reads a track and prints a histogram of the samples (flux
    transition interarrival times) returned.  Also guesses the drive
@@ -20,7 +20,7 @@
 
    Clock is normally 0 to read SD/DD, 1 to read HD.  For Catweasel
    MK1, port should be the I/O port base, or 0 to default to 0x320.
-   For Catweasel MK3, port should be 0 for the first Catweasel card in
+   For Catweasel MK3/4, port should be 0 for the first Catweasel card in
    the machine, 1 for the second, etc.
 */
 
@@ -179,25 +179,23 @@ int main(int argc, char **argv) {
 
     /* Start Catweasel */
     if (port < 10) {
-      cw_mk = 3;
-      port = pci_find_catweasel(port);
+      port = pci_find_catweasel(port, &cw_mk);
       if (port == -1) {
-	cw_mk = 1;
 	port = MK1_DEFAULT_PORT;
-	printf("Failed to detect Catweasel MK3 on PCI bus; "
+	printf("Failed to detect Catweasel MK3/4 on PCI bus; "
 	       "looking for MK1 on ISA bus at 0x%x\n", port);
       }
     }
 #if linux
     if ((cw_mk == 1 && ioperm(port, 8, 1) == -1) ||
-	(cw_mk == 3 && iopl(3) == -1)) {
+	(cw_mk >= 3 && iopl(3) == -1)) {
       fprintf(stderr, "testhist: No access to I/O ports\n");
       return 1;
     }
     setuid(getuid());
 #endif
-    catweasel_init_controller(&c, port, cw_mk);
-    ret = catweasel_memtest(&c);
+    ret = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
+      && catweasel_memtest(&c);
     if (!ret) {
       fprintf(stderr, "testhist: Failed to detect Catweasel at port 0x%x\n", port);
       return 1;

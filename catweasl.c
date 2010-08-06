@@ -5,7 +5,7 @@
  *
  * Copyright (C) 1998 Michael Krause
  * Modifications by Timothy Mann for use with cw2dmk
- * $Id: catweasl.c,v 1.19 2005/03/29 07:13:40 mann Exp $
+ * $Id: catweasl.c,v 1.20 2005/04/06 06:12:18 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,11 +25,15 @@
 #define CHECK_DISK_CHANGED 0  /* older drives don't provide this signal */
 
 #include "cwfloppy.h"
+#include "firmware.h"
+
 #include <sys/time.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <time.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #if linux
 #include <sys/io.h>
 #endif
@@ -40,7 +44,11 @@
 #define outb(v, p) outportb(p, v) /* args in opposite order, arrgh */
 #endif
 
-#if DEBUG1
+//#define DEBUG10 1
+//#define DEBUG11 1
+//#define DEBUG12 1
+
+#if DEBUG10
 unsigned char INB(unsigned short port)
 {
   unsigned char b = inb(port);
@@ -57,7 +65,6 @@ void OUTB(unsigned char b, unsigned short port)
 #define inb INB
 #define outb OUTB
 #endif /*DEBUG*/
-
 
 unsigned int
 catweasel_usleep(unsigned int _useconds)
@@ -97,7 +104,7 @@ unsigned char Mk1Reg[] = {
     /* SidDat */       -1,
     /* SidCommand */   -1,
     /* CatMem */       0,
-    /* CatAbort */     1,    /* reading/writing this reg reversed on MK3 */
+    /* CatAbort */     1,    /* reading/writing this reg reversed on MK1 */
     /* CatControl */   2,
     /* CatOption */    3,
     /* CatStartA */    7,
@@ -233,6 +240,7 @@ int
 catweasel_memtest(catweasel_contr *c)
 {
     int i;
+    unsigned char v;
 
     catweasel_reset_pointer(c);
     for (i=0; i<MEMSIZE; i++) {
@@ -240,8 +248,14 @@ catweasel_memtest(catweasel_contr *c)
     }
     catweasel_reset_pointer(c);
     for (i=0; i<MEMSIZE; i++) {
-	if (INREG(c, CatMem) != (unsigned char) (i%4093)) {
+	v = INREG(c, CatMem);
+	if (v != (unsigned char) (i%4093)) {
+#if DEBUG11
+	    printf("at offset %d: expected 0x%02x, got 0x%02x\n",
+		   i, (unsigned char) (i%4093), v);
+#else
 	    return i;
+#endif
 	}
     }
     catweasel_reset_pointer(c);
@@ -251,7 +265,12 @@ catweasel_memtest(catweasel_contr *c)
     catweasel_reset_pointer(c);
     for (i=0; i<MEMSIZE; i++) {
 	if (INREG(c, CatMem) != (unsigned char) ~(i%4093)) {
+#if DEBUG11
+	    printf("at offset %d: expected 0x%02x, got 0x%02x\n",
+		   i, (unsigned char) (i%4093), v);
+#else
 	    return i;
+#endif
 	}
     }
     return i;
@@ -298,10 +317,15 @@ CWTrack0(catweasel_contr *c)
   return bit == 0;
 }
 
-void
-catweasel_init_controller(catweasel_contr *c, int iobase, int mk)
+/* Return true if successful */
+int
+catweasel_init_controller(catweasel_contr *c, int iobase, int mk, char *fwname)
 {
     int i;
+    FILE* f = NULL;
+    int countdown;
+    int fwsize = 0;
+    unsigned char *fwptr = NULL;
 
     c->iobase = iobase;
     c->mk = mk;
@@ -312,10 +336,12 @@ catweasel_init_controller(catweasel_contr *c, int iobase, int mk)
 	c->stat = Mk1StatusBit;
 	c->ctrl = Mk1ControlBit;
 	break;
+
     case 3:
 	c->reg = Mk3Reg;
 	c->stat = Mk3StatusBit;
 	c->ctrl = Mk3ControlBit;
+
 	/* Initialize PCI bridge */
 	outb(0xf1, iobase+0x00);
 	outb(0x00, iobase+0x01);
@@ -324,6 +350,110 @@ catweasel_init_controller(catweasel_contr *c, int iobase, int mk)
 	outb(0x00, iobase+0x05);
 	outb(0x00, iobase+0x29);
 	outb(0x00, iobase+0x2b);
+	break;
+
+    case 4:
+	c->reg = Mk3Reg;
+	c->stat = Mk3StatusBit;
+	c->ctrl = Mk3ControlBit;
+
+	if (fwname) {
+	    /* Open firmware file first to make sure we have it. */
+	    f = fopen(fwname, "rb");
+	    if (f == NULL) {
+		fprintf(stderr, "can't open MK4 firmware %s: %s\n",
+			fwname, strerror(errno));
+		catweasel_free_controller(c);
+		return 0;
+	    }
+	} else {
+	    fwptr = &firmware[0];
+	    fwsize = sizeof(firmware);
+	}
+
+	/* Initialize PCI bridge */
+	outb(0xf1, iobase + 0x0);
+	outb(0x00, iobase + 0x1);
+	outb(0xe3, iobase + 0x2); // data direction bits for out@0x3/in@0x7
+	outb(0x41, iobase + 0x3);
+	outb(0x00, iobase + 0x4);
+	outb(0x00, iobase + 0x5);
+	outb(0x00, iobase + 0x29);
+	outb(0x00, iobase + 0x2b);
+
+#if DEBUG12
+	printf("MK4 firmware %spreviously loaded\n",
+	       (inb(iobase + 0x07) & 4) ? "" : "not ");
+#endif
+
+	/* Reset FPGA */
+	outb(0x00, iobase + 0x3);
+	catweasel_usleep(1000);
+	outb(0x41, iobase + 0x3);
+
+	if (inb(iobase + 0x07) & 4) {
+	    fprintf(stderr, "failure erasing MK4 firmware\n");
+	    catweasel_free_controller(c);
+	    return 0;
+	}
+
+	/* Load FPGA */
+	for (;;) {
+	    int b;
+
+	    if (f) {
+		b = getc(f);
+		if (b == EOF) {
+		    break;
+		}
+	    } else {
+		if (fwsize-- == 0) {
+		    break;
+		}
+		b = *fwptr++;
+	    }
+	    if (b & 1) {
+		outb(0x43, iobase + 0x3);
+            } else {
+                outb(0x41, iobase + 0x3);
+	    }
+	    /* Spin until FPGA ready */
+	    countdown = 1000000000;
+	    while ((inb(iobase + 0x7) & 8) == 0 && --countdown) {
+		;
+	    }
+	    if (countdown == 0) {
+		fprintf(stderr, "timeout loading MK4 firmware\n");
+		catweasel_free_controller(c);
+		return 0;
+	    }    
+	    outb(b, iobase + 0xc0);
+	}
+	if (f) {
+	    fclose(f);
+	}
+
+	if ((inb(iobase + 0x7) & 0x4) == 0) {
+	    fprintf(stderr, "failure loading MK4 firmware\n");
+	    catweasel_free_controller(c);
+	    return 0;
+	}
+
+	/*
+	 * Wait until FPGA is active.  We do this by checking for an
+	 * open data bus when reading the floppy status register
+	 */
+	countdown = 1000000000;
+	while (inb(iobase + 0xe8) == 0x13) {
+	    ;
+	}
+	if (countdown == 0) {
+	    fprintf(stderr, "timeout waiting for MK4 to start\n");
+	    catweasel_free_controller(c);
+	    return 0;
+        }    
+
+	outb(0x41, iobase + 0x3);
 	break;
     }
 
@@ -335,6 +465,7 @@ catweasel_init_controller(catweasel_contr *c, int iobase, int mk)
 
     CREG(c) = 255;
     catweasel_abort(c);
+    return 1;
 }
 
 void
@@ -396,6 +527,11 @@ catweasel_free_controller(catweasel_contr *c)
     /* all motors off, deselect all drives */
     CWSetCReg(c, 0, (CBIT(c, CatSelect0) | CBIT(c, CatSelect1) |
 		     CBIT(c, CatMotor0) | CBIT(c, CatMotor1)));
+
+    /* give drives back to onboard controller if using MK4's mux */
+    if (c->mk == 4) {
+	outb(0x21, c->iobase + 0x3);
+    }
 }
 
 void
@@ -506,7 +642,7 @@ CWEncodeClock(catweasel_contr *c, int multiplier)
     case 2:
 	return (c->mk == 1) ? 0x00 : 0x80;
     case 4:
-	if (c->mk == 3) return 0xc0;
+	if (c->mk >= 3) return 0xc0;
 	/* fall through */
     default:
 	fprintf(stderr, "unsupported MK%d clock multiplier %d\n",
@@ -540,7 +676,7 @@ catweasel_read(catweasel_drive *d, int side, int clockmult, int time, int idx)
     INREG(c, CatMem);            /* pointer++ (=1) */
     INREG(c, CatMem);            /* pointer++ (=2) */
     OUTREG(c, CatOption, idx ? 0x80 : 0);
-    if (c->mk == 3 && !idx) {
+    if (c->mk >= 3 && !idx) {
 	INREG(c, CatMem);        /* pointer++ (=3) */
 	OUTREG(c, CatOption, 0);
     }

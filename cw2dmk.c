@@ -1,7 +1,7 @@
 /*
  * cw2dmk: Dump floppy disk from Catweasel to .dmk format.
  * Copyright (C) 2000 Timothy Mann
- * $Id: cw2dmk.c,v 1.32 2005/03/29 07:13:40 mann Exp $
+ * $Id: cw2dmk.c,v 1.33 2005/04/05 08:10:56 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -1355,7 +1355,7 @@ detect_encoding(int sample, int encoding)
 	 MFM 0x00, which doesn't help.  The 0x00 pattern is all
 	 longs, though.  If we're seeing some longs but roughly zero
 	 mediums, guess that it's FM */
-      if (prob[2] > 0.1 && prob[1] < 0.1) {
+      if (prob[2] > 0.1 && prob[1] < 0.05) {
 	guess = FM;
       }
       confidence = 0;
@@ -1570,7 +1570,7 @@ void usage()
   printf("               21 = level 2 to logfile, 1 to screen, etc.\n");
   printf(" -u logfile    Log output to the give file [none]\n");
   printf("\n Options to manually set values that are normally autodetected\n");
-  printf(" -p port       I/O port base (MK1) or card number (MK3) [%d]\n",
+  printf(" -p port       I/O port base (MK1) or card number (MK3/4) [%d]\n",
 	 port);
   printf(" -k kind       1 = %s\n", kinds[0].description);
   printf("               2 = %s\n", kinds[1].description);
@@ -1626,7 +1626,8 @@ main(int argc, char** argv)
       port = strtol(optarg, NULL, 16);
       if (port < 0 || (port >= MK3_MAX_CARDS && port < MK1_MIN_PORT) ||
 	  (port > MK1_MAX_PORT)) {
-	fprintf(stderr, "cw2dmk: -p must be between %d and %d for MK3 cards,\n"
+	fprintf(stderr,
+		"cw2dmk: -p must be between %d and %d for MK3/4 cards,\n"
 		"  or between 0x%x and 0x%x for MK1 cards.\n",
 		0, MK3_MAX_CARDS-1, MK1_MIN_PORT, MK1_MAX_PORT);
 	exit(1);
@@ -1775,11 +1776,7 @@ main(int argc, char** argv)
 #endif
   /* Detect PCI catweasel */
   if (port < 10) {
-    cw_mk = 3;
-    port = pci_find_catweasel(port);
-    if (port == -1) {
-      cw_mk = 1;
-    }
+    port = pci_find_catweasel(port, &cw_mk);
   }
 
 #if linux
@@ -1787,7 +1784,7 @@ main(int argc, char** argv)
   /* We avoid opening files and calling msg() before this point */
   if ((cw_mk == 1 &&
        ioperm(port == -1 ? MK1_DEFAULT_PORT : port, 8, 1) == -1) ||
-      (cw_mk == 3 && iopl(3) == -1)) {
+      (cw_mk >= 3 && iopl(3) == -1)) {
     fprintf(stderr, "cw2dmk: No access to I/O ports\n");
     return 1;
   }
@@ -1813,12 +1810,12 @@ main(int argc, char** argv)
   /* Finish detecting and initializating Catweasel */
   if (port == -1) {
     port = MK1_DEFAULT_PORT;
-    msg(OUT_SUMMARY, "Failed to detect Catweasel MK3 on PCI bus; "
+    msg(OUT_SUMMARY, "Failed to detect Catweasel MK3/4 on PCI bus; "
 	"looking for MK1 on ISA bus at 0x%x\n", port);
     fflush(stdout);
   }
-  catweasel_init_controller(&c, port, cw_mk);
-  ch = catweasel_memtest(&c);
+  ch = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
+    && catweasel_memtest(&c);
   if (ch) {
     msg(OUT_SUMMARY, "Detected Catweasel MK%d at port 0x%x\n", cw_mk, port);
     fflush(stdout);
@@ -2037,7 +2034,7 @@ main(int argc, char** argv)
 	    if (newenc != curenc) {
 	      check_missing_dam();
 	      msg(OUT_IDS, "\n");
-	      msg(OUT_ERRORS, "[%s] ", enc_name[newenc]);
+	      msg(OUT_ERRORS, "[%s->%s] ", enc_name[curenc], enc_name[newenc]);
 	      if (!(curenc == MIXED && newenc == FM)) decode_init();
 	      curenc = newenc;
 	    }

@@ -91,7 +91,8 @@ This option is primarily for debugging purposes.
 .TP
 .B \-p \fIport\fP
 For the Catweasel MK1 (ISA), port should be the I/O port base, or
-0 to default to the factory setting of 0x320.  For the Catweasel MK3 (PCI),
+0 to default to the factory setting of 0x320.  For the Catweasel 
+MK3 or MK4 (PCI),
 port should be 0 for the first Catweasel card in the machine, 1 for the
 second, etc.  The default is 0.
 .TP
@@ -132,7 +133,7 @@ default values.
 .TP
 .B \-c \fIclock\fP
 Catweasel sample rate multiplier.  1 selects 7.080 MHz (about 140 ns),
-2 selects 14.161 MHz (about 70 ns), and (on Catweasel MK3 only) 4
+2 selects 14.161 MHz (about 70 ns), and (on Catweasel MK3 and MK4 only) 4
 selects 28.322 MHz (about 35 ns).  Default: 2.
 .TP
 .B \-o \fIprecomp\fP
@@ -254,5 +255,5 @@ program from ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.
 Look for files with names of the form csdpmi*.zip.  Note: the highest
 version that has been tested with dmk2cw at this writing is 5.
 
-$Id: dmk2cw.man,v 1.13 2005/03/29 07:13:40 mann Exp $
+$Id: dmk2cw.man,v 1.14 2005/04/06 05:11:14 mann Exp $
 

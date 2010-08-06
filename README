@@ -1,6 +1,6 @@
 Tim Mann's Catweasel Floppy Read/Write Tools
 
-* cw2dmk is a program that uses a Catweasel MK1 or MK3 universal
+* cw2dmk is a program that uses a Catweasel MK1, MK3, or MK4 universal
 floppy controller to read several kinds of floppy disk, some of which
 ordinary PC controllers have trouble with, and write it out in the DMK
 disk image format used by David Keil's TRS-80 emulator and by xtrs.

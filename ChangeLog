@@ -1,3 +1,28 @@
+4.0 -- Tue Apr  5 22:08:59 PDT 2005 -- Tim Mann
+
+* Added Catweasel MK4 support.  For now, I load the firmware and then
+  pretty much treat it like a MK3.
+
+* Added code to take advantage of one new MK4 feature: the ability to
+  multiplex the same set of drives between the Catweasel and the
+  onboard floppy controller.  catweasel_init_controller takes over the
+  drives, and catweasel_free_controller gives them back.  If cw2dmk or
+  dmk2cw dies uncleanly and fails to give the drives back, simply run
+  it again.  Unfortunately, I haven't had good luck with this myself;
+  the onboard controller gets lots of errors reading/writing the
+  drives.  Maybe I'm doing something wrong.
+
+* I ran into a problem with one disk where the FM autodetector would
+  fire spuriously in an MFM region (deterministically, or almost so)
+  just at the very end of gap2 (the gap between the ID field and the
+  sector data) on certain sectors.  I tweaked one of the constants in
+  detect_encoding() to make FM a bit slower to fire, which fixed this
+  case.  However, testing another hard case (a HyperZap disk read with
+  -h0), it's clear that there are also times when the FM detector is
+  too *slow* to fire, even with the constant at its old value.  The
+  detector is really a rather bad kludge and I'm thinking about
+  rewriting it; see the ToDo file.
+
 3.5a -- Sat Apr  2 17:04:12 PST 2005 -- Tim Mann
 
 I forgot to update the version number in version.h when releasing 3.5,

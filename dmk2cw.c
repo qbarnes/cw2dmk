@@ -1,7 +1,7 @@
 /*
  * dmk2cw: Write a .dmk to a real floppy disk using the Catweasel.
  * Copyright (C) 2001 Timothy Mann
- * $Id: dmk2cw.c,v 1.12 2004/06/05 08:39:05 mann Exp $
+ * $Id: dmk2cw.c,v 1.13 2005/04/06 06:12:18 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -85,7 +85,7 @@ void usage()
   printf(" -m steps      Step multiplier, 1 or 2 [%d]\n", steps);
   printf(" -s maxsides   Maximum number of sides, 1 or 2 [%d]\n", maxsides);
   printf("\nThese values normally need not be changed:\n");
-  printf(" -p port       I/O port base (MK1) or card number (MK3) [%d]\n",
+  printf(" -p port       I/O port base (MK1) or card number (MK3/4) [%d]\n",
 	 port);
   printf(" -c clock      Catweasel clock multiplier [%d]\n", cwclock);
   printf(" -o precomp    Amount of write-precompensation (ns) [%g]\n",
@@ -307,7 +307,8 @@ main(int argc, char** argv)
       port = strtol(optarg, NULL, 16);
       if (port < 0 || (port >= MK3_MAX_CARDS && port < MK1_MIN_PORT) ||
 	  (port > MK1_MAX_PORT)) {
-	fprintf(stderr, "dmk2cw: -p must be between %d and %d for MK3 cards,\n"
+	fprintf(stderr,
+		"dmk2cw: -p must be between %d and %d for MK3/4 cards,\n"
 		"  or between 0x%x and 0x%x for MK1 cards.\n",
 		0, MK3_MAX_CARDS-1, MK1_MIN_PORT, MK1_MAX_PORT);
 	exit(1);
@@ -387,26 +388,24 @@ main(int argc, char** argv)
 
   /* Start Catweasel */
   if (port < 10) {
-    cw_mk = 3;
-    port = pci_find_catweasel(port);
+    port = pci_find_catweasel(port, &cw_mk);
     if (port == -1) {
-      cw_mk = 1;
       port = MK1_DEFAULT_PORT;
-      printf("Failed to detect Catweasel MK3 on PCI bus; "
+      printf("Failed to detect Catweasel MK3/4 on PCI bus; "
 	     "looking for MK1 on ISA bus at 0x%x\n", port);
       fflush(stdout);
     }
   }
 #if linux
   if ((cw_mk == 1 && ioperm(port, 8, 1) == -1) ||
-      (cw_mk == 3 && iopl(3) == -1)) {
+      (cw_mk >= 3 && iopl(3) == -1)) {
     fprintf(stderr, "dmk2cw: No access to I/O ports\n");
     return 1;
   }
   setuid(getuid());
 #endif
-  catweasel_init_controller(&c, port, cw_mk);
-  ret = catweasel_memtest(&c);
+  ret = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
+    && catweasel_memtest(&c);
   if (ret) {
     if (out_fmt >= OUT_QUIET) {
       printf("Detected Catweasel MK%d at port 0x%x\n", cw_mk, port);
