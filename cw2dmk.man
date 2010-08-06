@@ -474,7 +474,7 @@ the default threshold values for disk kind number N, type the command
 "cw2dmk -kN" with no other arguments; they will be shown
 in brackets in the usage message.
 .SH Authors
-cw2dmk was written by Timothy Mann <tim@tim-mann.org>.  It
+cw2dmk was written by Timothy Mann, http://tim-mann.org/.  It
 uses low-level Catweasel access routines written by Michael Krause.
 cw2dmk is free software, released under the GNU General Public License.
 Thanks to Jens Schoenfeld for providing documentation on programming
@@ -488,4 +488,4 @@ program from ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.
 Look for files with names of the form csdpmi*.zip.  Note: the highest
 version that has been tested with cw2dmk at this writing is 5.
 
-$Id: cw2dmk.man,v 1.23 2004/05/30 08:53:03 mann Exp $
+$Id: cw2dmk.man,v 1.24 2005/03/29 07:13:40 mann Exp $

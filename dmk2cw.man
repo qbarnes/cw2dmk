@@ -240,7 +240,7 @@ This message means that there is space reserved in the DMK file for
 two sides, and some apparently valid data was found on side 1, but you
 gave the -s1 flag to say that your disk drive is only one-sided.
 .SH Authors
-dmk2cw was written by Timothy Mann <tim@tim-mann.org>.  It
+dmk2cw was written by Timothy Mann, http://tim-mann.org/.  It
 uses low-level Catweasel access routines written by Michael Krause.
 dmk2cw is free software, released under the GNU General Public License.
 Thanks to Jens Schoenfeld for providing documentation on programming
@@ -254,5 +254,5 @@ program from ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.
 Look for files with names of the form csdpmi*.zip.  Note: the highest
 version that has been tested with dmk2cw at this writing is 5.
 
-$Id: dmk2cw.man,v 1.12 2004/06/05 08:39:05 mann Exp $
+$Id: dmk2cw.man,v 1.13 2005/03/29 07:13:40 mann Exp $
 

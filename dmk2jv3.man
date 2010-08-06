@@ -118,11 +118,11 @@ error, so we record this condition as if it were a data CRC error.
 The JV3 format has no way to indicate that a sector ID has no matching
 data address mark, so we record this condition as if it were a data CRC error.
 .SH Author
-dmk2jv3 was written by Timothy Mann <tim@tim-mann.org>.
+dmk2jv3 was written by Timothy Mann, http://tim-mann.org/.
 dmk2jv3 is free software, released under the GNU General Public License.
 Thanks to David Keil for designing and
 documenting the DMK file format for floppy disk images,
 and to Jeff Vavasour for designing and documenting the JV3 format.
 
-$Id: dmk2jv3.man,v 1.6 2004/05/30 08:53:03 mann Exp $
+$Id: dmk2jv3.man,v 1.7 2005/03/29 07:13:40 mann Exp $
 

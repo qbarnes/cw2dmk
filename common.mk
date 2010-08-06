@@ -1,4 +1,4 @@
-# $Id: common.mk,v 1.4 2004/05/30 08:53:03 mann Exp $
+# $Id: common.mk,v 1.5 2005/04/03 01:02:08 mann Exp $
 
 CFLAGS= -O3 -Wall
 ##CFLAGS= -g -O -Wall
@@ -15,10 +15,10 @@ NROFFFLAGS= -c -Tascii
 
 all: $(EXE) $(TXT) cwsdpmi.exe
 
-cw2dmk$E: cw2dmk.c catweasl.$O cwpci.$O crc.c cwfloppy.h kind.h dmk.h
+cw2dmk$E: cw2dmk.c catweasl.$O cwpci.$O crc.c cwfloppy.h kind.h dmk.h version.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB)
 
-dmk2cw$E: dmk2cw.c catweasl.$O cwpci.$O crc.c cwfloppy.h kind.h dmk.h
+dmk2cw$E: dmk2cw.c catweasl.$O cwpci.$O crc.c cwfloppy.h kind.h dmk.h version.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB)
 
 dmk2jv3$E: dmk2jv3.c crc.c dmk.h jv3.h

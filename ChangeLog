@@ -1,3 +1,59 @@
+3.5a -- Sat Apr  2 17:04:12 PST 2005 -- Tim Mann
+
+I forgot to update the version number in version.h when releasing 3.5,
+so it still read 3.4.  This release is identical except that I've
+updated the version number and have added a dependency on version.h to
+common.mak.
+
+3.5 -- Mon Mar 28 22:16:00 PST 2005 -- Tim Mann
+
+A few simple changes that I've been sitting on for a while.  I haven't
+started work on Catweasel MK4 support yet.
+
+* Fixed a bug in autodetecting a Catweasel MK1 that I introduced in
+  cw2dmk 3.3 when moving code around so that all messages could be
+  written to the log file.  The bug caused cw2dmk to error out with a
+  spurious "No access to I/O ports" message instead of looking for a
+  MK1 at the default address of 0x320.  Giving an explicit -p option
+  still worked, so I didn't notice the bug.
+
+* Changed catweasel_detect_drive to turn on the motor while detecting.
+  Chuck Guzis reports that this is needed for some 8" drives.  (At
+  least if you happen to drive the 8" DRIVE_SELECT wtih the PC
+  MOTOR_ON signal and the 8" HEAD_LOAD with the PC DRIVE_SELECT.  This
+  seems a bit backward to me, but Chuck says it's "usual".)  At any
+  rate, turning on the motor ought to do no harm, so it's worthwhile
+  if it helps some users.
+	
+* There was a fatal bug in dmk2jv3's handling of disks containing more
+  than 2901 total sectors, which necessitates adding a second block of
+  JV3 sector headers.  Instead of putting the write protect flag into
+  the last byte of the first block of headers, dmk2jv3 was putting
+  what should have been the first byte of the second block there.
+  Worse, it was leaving this byte out of the second block, ending up
+  shifting the whole block back by 1 byte.  Probably no one has hit
+  this bug but me, since 5.25" 80-track disks can't have that many
+  sectors, and most emulators don't support the second block of
+  headers in a JV3 image anyway.  I noticed it when working with some
+  8" disks.
+
+* I ran into a disk where some of the FM write splices looked like
+  address marks and caused bogus errors.  Added a heuristic that
+  suppresses the FM address mark detection for 32 bit times after each
+  data CRC computation.
+
+* There was a bug in cw2dmk's wrapround detection that could
+  erroneously delete the final good sector on a track.  If we wrapped
+  around and saw the IDAM of the first sector again just as the track
+  was filling up, dmk_idam() would not put a pointer to this IDAM
+  into the DMK track header, but its caller would still set ibyte=0 to
+  indicate it was decoding a sector ID block.  This made us think we
+  had a partially decoded ID block at the end of the track whose IDAM
+  pointer needed to be erased, causing us to erase the IDAM pointer to
+  the final good sector on the track.  I fixed this by moving the
+  setting of ibyte=0 up into dmk_idam() so that it happens if and only
+  if an IDAM pointer is placed into the DMK header.
+
 3.4 -- Fri Jun  4 22:47:03 PDT 2004 -- Tim Mann
 
 * Bugfix: the -e option to cw2dmk was broken; using it would prevent

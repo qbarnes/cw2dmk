@@ -108,12 +108,12 @@ Diagnostics
               small a value.
 
 Authors
-       jv2dmk  was written by Timothy Mann <tim@tim-mann.org>.  jv2dmk is free
-       software, released under the GNU General  Public  License.   Thanks  to
-       David Keil for designing and documenting the DMK file format for floppy
-       disk images, and to Jeff Vavasour for designing and documenting the JV3
-       format.
+       jv2dmk  was  written  by Timothy Mann, http://tim-mann.org/.  jv2dmk is
+       free software, released under the GNU General Public  License.   Thanks
+       to  David  Keil  for  designing and documenting the DMK file format for
+       floppy disk images, and to Jeff Vavasour for designing and  documenting
+       the JV3 format.
 
-       $Id: jv2dmk.man,v 1.4 2004/05/30 08:53:03 mann Exp $
+       $Id: jv2dmk.man,v 1.5 2005/03/29 07:13:40 mann Exp $
 
                                                                      jv2dmk(1)

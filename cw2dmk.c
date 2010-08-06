@@ -1,7 +1,7 @@
 /*
  * cw2dmk: Dump floppy disk from Catweasel to .dmk format.
  * Copyright (C) 2000 Timothy Mann
- * $Id: cw2dmk.c,v 1.31 2004/06/05 08:39:05 mann Exp $
+ * $Id: cw2dmk.c,v 1.32 2005/03/29 07:13:40 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -60,6 +60,11 @@ char *enc_name[] = { "autodetect", "FM", "MFM", "RX02" };
    drive.  However, many drives can't step that far. */
 #define TRACKS_GUESS 86
 
+/* Suppress FM address mark detection for a few bit times after each
+   data CRC is seen.  Helps prevent seening bogus marks in write
+   splices. */
+#define WRITE_SPLICE 32
+
 int kind = -1;
 int maxsize = 3;  /* 177x/179x look at only low-order 2 bits */
 unsigned long long accum, taccum;
@@ -76,6 +81,7 @@ unsigned short crc;
 int sizecode;
 unsigned char premark;
 int mark_after;
+int write_splice; /* bit counter, >0 if we may be in a write splice */
 int errcount;
 int good_sectors;
 int total_errcount;
@@ -236,6 +242,7 @@ dmk_idam(unsigned char byte, int encoding)
       errcount++;
     } else {
       *dmk_idam_p++ = idamp;
+      ibyte = 0;
       dmk_data(byte, encoding);
     }
   }
@@ -352,6 +359,7 @@ dmk_init_track()
   if (dmk_iam_pos >= 0) {
     dmk_awaiting_iam = 1;
   }
+  write_splice = 0;
 }
 
 void
@@ -441,6 +449,10 @@ decode_init()
 int
 fm_mark(unsigned long long bitvec)
 {
+  if (write_splice) {
+    write_splice--;
+    return 0;
+  }
   switch (bitvec & 0xffff) {
   case 0xf77a:  /* Index address mark, 0xfc with 0xd7 clock */
   case 0xf57e:  /* ID address mark, 0xfe with 0xc7 clock */
@@ -520,7 +532,6 @@ fm_bit(int bit)
       dmk_idam(0xfe, FM);
       bits = 16;
       crc = calc_crc1(0xffff, 0xfe);
-      ibyte = 0;
       dbyte = -1;
       break;
 
@@ -626,6 +637,7 @@ fm_bit(int bit)
     msg(OUT_HEX, "\n");
     dbyte = -1;
     dmk_valid_id = 0;
+    write_splice = WRITE_SPLICE;
   }
 
   bits = 16;
@@ -789,7 +801,6 @@ mfm_bit(int bit)
 	dmk_idam(val, MFM);
 	bits = 32;
 	crc = calc_crc1(crc, val);
-	ibyte = 0;
 	dbyte = -1;
 	premark = 0;
 	mark_after = -1;
@@ -890,6 +901,7 @@ mfm_bit(int bit)
       msg(OUT_HEX, "\n");
       dbyte = -1;
       dmk_valid_id = 0;
+      write_splice = WRITE_SPLICE;
     }
 
     bits = 32;
@@ -1111,7 +1123,6 @@ rx02_bit(int bit)
 	dmk_idam(0xfe, FM);
 	bits = 32;
 	crc = calc_crc1(0xffff, 0xfe);
-	ibyte = 0;
 	dbyte = -1;
 	break;
 
@@ -1255,6 +1266,7 @@ rx02_bit(int bit)
     msg(OUT_HEX, "\n");
     dbyte = -1;
     dmk_valid_id = 0;
+    write_splice = WRITE_SPLICE;
   }
 
   bits = 32;
@@ -1773,7 +1785,8 @@ main(int argc, char** argv)
 #if linux
   /* Get port access and drop other root privileges */
   /* We avoid opening files and calling msg() before this point */
-  if ((cw_mk == 1 && ioperm(port, 8, 1) == -1) ||
+  if ((cw_mk == 1 &&
+       ioperm(port == -1 ? MK1_DEFAULT_PORT : port, 8, 1) == -1) ||
       (cw_mk == 3 && iopl(3) == -1)) {
     fprintf(stderr, "cw2dmk: No access to I/O ports\n");
     return 1;

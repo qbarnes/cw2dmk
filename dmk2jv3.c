@@ -1,7 +1,7 @@
 /*
  * dmk2jv3: Convert a DMK format emulated floppy to JV3 format if possible
  * Copyright (C) 2002 Timothy Mann
- * $Id: dmk2jv3.c,v 1.8 2004/05/30 08:53:03 mann Exp $
+ * $Id: dmk2jv3.c,v 1.9 2005/03/29 07:13:40 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -112,8 +112,8 @@ jv3_id(unsigned char track, unsigned char side,
     return;
   }
   if (jv3.next == JV3_SECSMAX/2 && out_fmt >= OUT_WARNINGS) {
-    printf("[Warning: too many total sectors for some emulators (%d)]\n",
-	   jv3.next + 1);
+    printf("[Warning: too many total sectors for some emulators (> %d)]\n",
+	   jv3.next);
     jv3.warncount++;
   }
 
@@ -435,17 +435,19 @@ main(int argc, char** argv)
     }
   }
 
-  /* Write out id blocks */
+  /* Write out id blocks and writeprot flag */
   fseek(jv3_file, 0, 0);
-  ret = fwrite(jv3.id, JV3_SECSTART, 1, jv3_file);
+  ret = fwrite(jv3.id, JV3_SECSTART - 1, 1, jv3_file);
   if (ret != 1) {
     fprintf(stderr, "dmk2jv3: Error writing to JV3 file\n");
     perror("dmk2jv3");
     exit(1);
   }
+  fputc(0xff, jv3_file);
   if (jv3.id2addr) {
     fseek(jv3_file, jv3.id2addr, 0);
-    fwrite(((unsigned char*)jv3.id)+JV3_SECSTART, JV3_SECSTART, 1, jv3_file);
+    fwrite(((unsigned char*) jv3.id) + JV3_SECSTART - 1,
+	   JV3_SECSTART, 1, jv3_file);
   }
   if (out_fmt > OUT_QUIET || jv3.errcount > 0 || jv3.warncount > 0) {
     printf("%d total errors, %d total warnings\n",

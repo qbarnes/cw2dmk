@@ -5,7 +5,7 @@
  *
  * Copyright (C) 1998 Michael Krause
  * Modifications by Timothy Mann for use with cw2dmk
- * $Id: catweasl.c,v 1.18 2004/05/30 08:53:03 mann Exp $
+ * $Id: catweasl.c,v 1.19 2005/03/29 07:13:40 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -270,7 +270,7 @@ catweasel_fillmem(catweasel_contr *c, unsigned char byte)
     catweasel_reset_pointer(c);
     for (i=0; i<MEMSIZE; i++) {
 	if (INREG(c, CatMem) != byte) {
-	    printf("error at %d\n", i);
+	    printf("catweasel memory fill error at address %#x\n", i);
 	}
     }
 }
@@ -347,8 +347,9 @@ catweasel_detect_drive(catweasel_drive *d)
 	return;
     }
 	
-    /* select drive */
+    /* select drive and start motor */
     catweasel_select(c, d->number == 0, d->number == 1);
+    catweasel_set_motor(d, 1);
 
     /* assume track 0 sensor works until proven otherwise below */
     d->type = 1;
@@ -377,7 +378,8 @@ catweasel_detect_drive(catweasel_drive *d)
 	d->type = 0;
     }
     
-    /* deselect all drives */
+    /* deselect all drives, stop motor */
+    catweasel_set_motor(d, 0);
     catweasel_select(c, 0, 0);
 }
 

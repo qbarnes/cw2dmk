@@ -1,7 +1,7 @@
 /*
  * jv2dmk: Convert a JV1 or JV3 format emulated floppy to DMK format.
  * Copyright (C) 2002 Timothy Mann
- * $Id: jv2dmk.c,v 1.4 2004/05/30 08:53:03 mann Exp $
+ * $Id: jv2dmk.c,v 1.5 2005/03/29 07:13:40 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -157,7 +157,8 @@ dotrack(FILE* fin, SectorId** curidp, int track, int side,
   }
   if (verbosity == OUT_TRACKS) printf("\n");
   if (secs > DMK_TKHDR_SIZE/2) {
-    fprintf(stderr, "jv2dmk: Too many sectors per track (%d)\n", secs);
+    fprintf(stderr, "jv2dmk: Too many sectors (%d) on track %d\n",
+	    secs, track);
     exit(1);
   }
 
@@ -194,8 +195,8 @@ dotrack(FILE* fin, SectorId** curidp, int track, int side,
   /* Divide remaining space into gap3's */
   lenleft -= gap1 + gap4;
   if (lenleft < 0) {
-    fprintf(stderr, "jv2dmk: Physical track too long by %d bytes\n",
-	    -lenleft);
+    fprintf(stderr, "jv2dmk: Physical track %d too long by %d bytes\n",
+	    track, -lenleft);
     exit(1);
   }
   gap3 = lenleft / secs;
