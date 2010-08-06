@@ -1,7 +1,7 @@
 /*
  * dmk2cw: Write a .dmk to a real floppy disk using the Catweasel.
  * Copyright (C) 2001 Timothy Mann
- * $Id: dmk2cw.c,v 1.15 2005/05/16 04:31:03 mann Exp $
+ * $Id: dmk2cw.c,v 1.16 2005/06/25 07:22:05 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -385,8 +385,12 @@ main(int argc, char** argv)
   signal(SIGPIPE, handler);
   signal(SIGTERM, handler);
 
+
+  if (out_fmt > OUT_QUIET) {
+    printf("dmk2cw %s\n", VERSION);
+  }
   if (out_fmt > OUT_NORMAL) {
-    printf("Version: %s  Command line:\n", VERSION);
+    printf("Command line: ");
     for (i = 0; i < argc; i++) {
       printf("%s ", argv[i]);
     }

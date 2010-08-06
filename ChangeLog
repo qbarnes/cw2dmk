@@ -1,3 +1,18 @@
+4.3 -- Sat Jun 25 00:21:23 PDT 2005 -- Tim Mann
+
+* By popular demand, print more stuff at the default verbosity levels.
+  cw2dmk -v2 now prints its version number, and it prints a count of
+  good sectors and errors when a track read with errors is about to be
+  retried.  dmk2cw -v1 now prints its version number too.  Both can be
+  suppressed by going to the next lower -v level.
+
+* Fixed a cw2dmk problem where the RX02 flag would get turned on in
+  the header if we ever saw what looked like an RX02 DAM, even if it
+  was just noise.  Now we turn on the flag only if there was a good
+  RX02 sector (valid ID, ID CRC, and data CRC), or the user specified
+  -e3.  Also added a count of good sectors in each encoding to the
+  summary.
+
 4.2 -- Sun May 15 21:00:44 PDT 2005 -- Tim Mann
 
 * Fixed a couple of places where we could fail to stop the drive when

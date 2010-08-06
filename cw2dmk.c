@@ -1,7 +1,7 @@
 /*
  * cw2dmk: Dump floppy disk from Catweasel to .dmk format.
  * Copyright (C) 2000 Timothy Mann
- * $Id: cw2dmk.c,v 1.35 2005/05/16 04:31:03 mann Exp $
+ * $Id: cw2dmk.c,v 1.36 2005/06/25 07:22:05 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -52,6 +52,7 @@ FILE *dmk_file;
 #define RX02 3
 #define MIXED 0
 char *enc_name[] = { "autodetect", "FM", "MFM", "RX02" };
+int enc_count[4];
 
 /* Note: if track guess is too low, we won't notice, so we go very
    high.  I actually have seen a 43-track disk made in a 40-track
@@ -93,7 +94,6 @@ int hole = 1;
 int backward_am, flippy = 0;
 int first_encoding;  /* first encoding to try on next track */
 int curenc;
-int rx02_secs = 0;
 int uencoding = MIXED;
 
 char* plu(val)
@@ -481,9 +481,6 @@ change_enc(int newenc)
     msg(OUT_ERRORS, "[%s->%s] ", enc_name[curenc], enc_name[newenc]);
     curenc = newenc;
   }
-  if (newenc == RX02) {
-    rx02_secs++;
-  }
 }
 
 
@@ -722,7 +719,7 @@ process_bit(int bit)
       dmk_data(val, curenc);
       if ((uencoding == MIXED || uencoding == RX02) &&
 	  (val == 0xfd ||
-	   (val == 0xf9 && (rx02_secs > 0 || uencoding == RX02)))) {
+	   (val == 0xf9 && (enc_count[RX02] > 0 || uencoding == RX02)))) {
 	change_enc(RX02);
       }
       /* For MFM, premark a1a1a1 is included in the CRC */
@@ -803,14 +800,12 @@ process_bit(int bit)
   crc = calc_crc1(crc, val);
 
   if (dbyte == 0) {
-    if (curenc == RX02) {
-      change_enc(FM);
-    }
     if (crc == 0) {
       msg(OUT_IDS, "[good data CRC] ");
       if (dmk_valid_id) {
 	if (good_sectors == 0) first_encoding = curenc;
 	good_sectors++;
+	enc_count[curenc]++;
 	cylseen = curcyl;
       }
     } else {
@@ -821,6 +816,9 @@ process_bit(int bit)
     dbyte = -1;
     dmk_valid_id = 0;
     write_splice = WRITE_SPLICE;
+    if (curenc == RX02) {
+      change_enc(FM);
+    }
   }
 
   /* Predetect bad MFM clock pattern.  Can't detect at decode time
@@ -1336,8 +1334,9 @@ main(int argc, char** argv)
     }
   }
 
-  /* Log the command line and version number */
-  msg(OUT_ERRORS, "Version: %s  Command line: ", VERSION);
+  /* Log the version number and command line */
+  msg(OUT_TSUMMARY, "cw2dmk %s\n", VERSION);
+  msg(OUT_ERRORS, "Command line: ");
   for (i = 0; i < argc; i++) {
     msg(OUT_ERRORS, "%s ", argv[i]);
   }
@@ -1489,7 +1488,8 @@ main(int argc, char** argv)
 	for (i=0; i<128; i++) histogram[i] = 0;
 #endif
 	if (retry) {
-	  msg(OUT_TSUMMARY, "[retry %d] ", retry);
+	  msg(OUT_TSUMMARY, "[%d good, %d error%s; retry %d] ",
+	      good_sectors, errcount, plu(errcount), retry);
 	} else {
 	  msg(OUT_TSUMMARY, "Track %d, side %d: ", track, side);
 	}
@@ -1640,7 +1640,7 @@ main(int argc, char** argv)
  done:
 
   cleanup();
-  if (rx02_secs > 0 && uencoding != RX02) {
+  if (enc_count[RX02] > 0 && uencoding != RX02) {
     // XXX What if disk had some 0xf9 DAM sectors misinterpreted as
     // WD1771 FM instead of RX02-MFM before we detected RX02?  Ugh.
     // Should at least detect this and give an error.  Maybe
@@ -1651,9 +1651,11 @@ main(int argc, char** argv)
     dmk_write_header();
   }
   msg(OUT_SUMMARY, "\nTotals:\n");
-  msg(OUT_SUMMARY, "%d good track%s, %d good sector%s\n",
+  msg(OUT_SUMMARY,
+      "%d good track%s, %d good sector%s (%d FM + %d MFM + %d RX02)\n",
       good_tracks, plu(good_tracks),
-      total_good_sectors, plu(total_good_sectors));
+      total_good_sectors, plu(total_good_sectors),
+      enc_count[FM], enc_count[MFM], enc_count[RX02]);
   msg(OUT_SUMMARY, "%d bad track%s, %d unrecovered error%s, %d retr%s\n",
       err_tracks, plu(err_tracks), total_errcount, plu(total_errcount),
       total_retries, (total_retries == 1) ? "y" : "ies");
