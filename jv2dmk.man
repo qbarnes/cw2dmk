@@ -1,0 +1,119 @@
+.TH jv2dmk 1
+.SH Name
+jv2dmk \- Convert a JV1 or JV3 floppy disk image file to DMK format
+.SH Syntax
+.B jv2dmk [options] filename.dsk [filename.dmk]
+.SH Description
+The jv2dmk program converts a floppy disk image in the JV1 or JV3
+format to the DMK format.  All of these formats were originally
+developed for TRS-80 Model I/III/4/4P emulators, though the DMK format
+is useful more broadly.
+
+For more information about the DMK and JV3 file formats and the
+emulators that use them, see:
+.nf
+    http://discover-net.net/~dmkeil/
+    http://www.tim-mann.org/xtrs.html
+.fi
+.SH Options
+If only filename.dsk is given on the command line, filename.dmk is
+formed by deleting any extension from filename.dsk and appending ".dmk".
+.TP
+.B \-v \fIverbosity\fP
+Specify how much output is printed.  Larger numbers select more output.
+The default setting is 0.
+.RS
+.TP
+0
+No output.
+.TP
+1
+Print a line for each track, listing the sector numbers found.
+.TP
+2
+Print a line of data about each sector.
+.RE
+.TP
+.B \-j \fIwhich\fP
+Specify whether the input disk image is JV1 (-j1) or JV3 (-j3).  
+The default is 3.
+.TP
+.B \-k \fIkind\fP
+Specify the type of media in use.  The default is 1.  Possible values:
+.RS
+.TP
+1
+5.25-inch or 3.5-inch SD/DD disk
+.TP
+2
+Same as 1; accepted for compatibility with cw2dmk.
+.TP
+3
+5.25-inch HD disk or 8-inch SD/DD disk
+.TP
+4
+3.5-inch HD disk
+.RE
+.TP
+.B \-i \fIiamark\fP
+If this option is set to 1, jv2dmk writes an IBM gap0 and 
+index address mark at the start of each track.  If the option is set to 0
+(the default), jv2dmk uses an ISO format with no gap0 or
+index address mark.
+With very tightly-packed formats, setting the -i1 option could cause
+a track to be too long to fit on the disk.
+.TP
+.B \-w \fIfmtimes\fP
+Normally, FM bytes are written into the DMK file twice (-w2),
+so that they take up the correct proportion of the space on mixed-density
+tracks.  You can set -w1 to cause FM bytes to be written only once.
+This does not save space in the DMK file unless you also reduce the track
+length with the -l option.
+.TP
+.B \-l \fIbytes\fP
+DMK track length in bytes, overriding the default setting established
+by the -k option.  This option is not effective unless given after 
+the -k option.
+.SH Limitations
+It would be nice if jv2dmk could guess the right value for the -k flag.
+Although the JV3 format doesn't record this value, one could probably
+do a good job of guessing by using the smallest -k for which the JV3's
+track 0 data fits.  A JV1 image is always -k1.
+
+In rare cases a JV3 can be unrepresentable in DMK format.  This
+happens if the JV3 has too much data or too many sectors on one
+track.  A real copy-protected disk can be written with sectors that
+overlap, making it appear when the disk is converted to JV3 that there
+is more data on the track than is physically possible, and/or that
+there are more sectors on the track than the DMK limit of 64.
+
+On extremely tightly-packed formats (unlikely to occur in practice),
+jv2dmk's gap computation might fail to produce usable results.  It
+might complain that the track is too long when a clever human could
+have made it fit, or worse, it might make gap3 (the gap immediately
+after a sector's data and CRC) too small to allow for safely
+overwriting a sector later.  If gap3 is too small, overwriting one
+sector can destroy the sector ID of the next sector.
+
+jv2dmk does not support the xtrs-only "non-IBM" extension to JV3 format.
+.SH Diagnostics
+.TP 
+.B jv2dmk: Too many sectors per track (n)
+The DMK format has a limit of 64 sectors per track.
+.TP
+.B jv2dmk: Physical track too long by n bytes
+The JV3 file had too much data on the track to fit on the specified
+kind of disk.  You may have used the wrong value for the -k flag, or
+jv2dmk may not have been clever enough to work out how to fit the
+track; see Limitations above.
+.TP
+.B jv2dmk: DMK track too long by n bytes
+This error should occur only if you gave the -l flag with too small a value.
+.SH Authors
+jv2dmk was written by Timothy Mann <tim@tim-mann.org>.
+jv2dmk is free software, released under the GNU General Public License.
+Thanks to David Keil for designing and
+documenting the DMK file format for floppy disk images,
+and to Jeff Vavasour for designing and documenting the JV3 format.
+
+$Id: jv2dmk.man,v 1.4 2004/05/30 08:53:03 mann Exp $

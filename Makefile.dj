@@ -1,0 +1,13 @@
+#
+# Makefile for use with DJGPP on MS-DOS or Windows
+#
+E=.exe
+O=obj
+#RM=del
+
+.SUFFIXES: .obj
+
+.c.obj:
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+include common.mk

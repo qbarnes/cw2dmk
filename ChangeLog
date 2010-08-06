@@ -1,0 +1,399 @@
+3.4 -- Fri Jun  4 22:47:03 PDT 2004 -- Tim Mann
+
+* Bugfix: the -e option to cw2dmk was broken; using it would prevent
+  disks from being read at all.  I think this was first broken in 3.2.
+
+* Log the version number in cw2dmk and dmk2cw if the verbosity level
+  is set any higher than the default value.
+
+3.3 -- Sun May 30 01:52:37 PDT 2004 -- Tim Mann
+
+* jv2dmk and dmk2jv3 now default the output filename to be the same as
+  the input filename but with the extension changed to dmk or dsk as
+  appropriate.
+
+* Changed the -v flag to optionally take a two-digit value, with the
+  first digit giving the verbosity level to write to a logfile and the
+  second digit giving the level to go to the screen.  Added the -u
+  option to allow specifying the logfile name.
+
+* Deleted the -r flag because reading time is always determined
+  automatically now, and it's not useful to let the user mess with it.
+
+* Changed the -h1 reading strategy so that we always have hole edges
+  marked in the data stream.  On CW MK1, the hardware hole-to-hole
+  read will do this for us, but on MK3 it won't, so instead we
+  manually wait for the index hole and then do a timed read for 110%
+  of the nominal time for a revolution.  This should get rid of the
+  wraparound problems on MK3 for good (e.g., reading a 10-sector disk
+  and getting "10 good sectors, 1 error" due to seeing the start of
+  the next sector again).  Both kinds of wraparound detection (3rd
+  index edge and 95% of DMK track length) are still active for -h1
+  even though we should need the latter only for -h0 now.
+
+* Added a heuristic where if we are guessing the number of tracks, and
+  we get to track 80 or beyond, and we see a logical track number that
+  is half the physical track number, we stop.  This helps if you have
+  a disk that was formatted for 40+ tracks in a 40-track drive, then
+  reformatted for 80 tracks in an 80-track drive.  Without the
+  heuristic, you may see a copy of the data from the old tracks beyond
+  40 on the new tracks beyond 80.
+
+* catweasel_seek had code in it to prevent seeking past track #79, so
+  we could never have read disks with more than 80 tracks!  I upped
+  the maximum to track #85, allowing for 86 tracks.  The normal case
+  will now be (as I had intended) to try to seek to track #80, notice
+  there is no data there, and give up without going farther, so we
+  should not be damaging any drives by trying to go way too far.
+
+* Changed cw2dmk's default for -d to try drive 0 first, then drive 1
+  if drive 0 is not detected.  Also, if -d is used to specify a
+  particular drive, only that drive is tried, and failing to detect it
+  gives a warning, not a fatal error.  The latter change allows a
+  drive without a working track 0 sensor to be used with cw2dmk.
+
+* Changed the "approx()" in dmk2cw to recognize lengths within 4% of
+  nominal instead of 2%, to make sure that the new longer default DMK
+  track lengths are recognized.
+
+* Created a ToDo file to hold ideas for future improvements.
+
+* Changed catweasel_detect_drive so that even if the drive has no
+  working track 0 sensor, it will always attempt to step out to track
+  0.  I've lost track of who suggested this change.
+
+* Bug fix: dmk2jv3 was not checking for false track numbers, which the
+  JV3 format can't handle.  Instead, it was silently putting the
+  sectors on the JV3 logical/physical track that matches their
+  *logical* track number.  I've now changed it to print a message and
+  put the sectors on the JV3 track that matches their *physical* track
+  number, which should produce a somewhat less useless JV3.
+
+* Made the default DMK track lengths in cw2dmk about 2% longer, so
+  that we don't cut off the end of a track that was written in a drive
+  that was running a little too slow.
+
+* We now check that the user doesn't set a DMK track length greater
+  than the hard maximum (0x4000) in cw2dmk and jv2dmk.
+
+* Restructured cw2dmk message printing to use a common msg() function,
+  in preparation for making it more capable.
+
+3.2 -- Tue Jun 17 22:43:51 PDT 2003 -- Tim Mann
+
+Thanks to David Sutherland for trying the new features in version 3.1
+and reporting problems reading various strange disks.  Many of the
+changes in 3.2 are inspired by his experiences.
+
+* Removed the heuristic added in 3.1 that tries to deal with track
+  wraparound by cutting off sectors that begin beyond the nominal
+  track length for the kind of disk being read.  This was bad because
+  the nominal length was hardwired, making it impossible to read disks
+  that have a lot more than the nominal track length -- for example,
+  as Atari 800 disks, which are written in drives that rotate at 288
+  RPM instead of 300 RPM.  It also failed to cut off enough data on
+  disks with a little less than the nominal track length.
+
+* Added new heuristics to deal better with wraparound.  We base these
+  on the DMK track length, which is settable with the -l flag, so
+  disks written at slow speeds can be read.  The new heuristics are:
+  (1) After we've read 95% of the DMK track length, if we see a new
+  sector ID that is the same as the first sector ID on the track,
+  ignore it and cut off.  (2) If there is an incomplete sector ID at
+  the end of a track, ignore it instead of counting it as an error.
+  (3) In -h0 -i mode, if we see a second IAM after having read 95% of
+  the track and having seen at least one IDAM, ignore the second IAM
+  and cut off.  Heuristic (3) is similar to one that was in 3.1; the
+  others are new.
+
+* Made the -r and -h options independent instead of mutually
+  exclusive.  Specificially: (1) Removed the feature that a negative
+  -r value starts reading without waiting for the index hole; the -h0
+  option does this in a more useful way now. (2) If -r is used
+  together with -h0, this now overrides the default readtime of 2
+  revolutions instead of being forbidden as before.
+
+* Added the -r1 and -r2 options to specify 1 or 2 revolutions.  Larger
+  values still give a time in ms.
+
+* Fixed a possible bug in drive detection.  We would have failed to
+  detect a drive that was initially stepped out to track 82 or so and
+  was capable of going to 85.
+
+* One more try at taming the RX02 detector.  Now it fires only if we
+  see a 0xfd DAM following a sector ID *with a good CRC*.  Hopefully
+  this will stop it firing on garbage.  If not, the next step is to
+  kill it and require people reading RX02 disks to specify -e3
+  explicitly.  That wouldn't be so bad, really.
+
+* Taking a histogram to autodetect whether side 1 is formatted now
+  works in -h0 mode too.
+
+* Added a heuristic to detect reading a flippy disk on the wrong side.
+  It works by recognizing what MFM ID address marks and FM data
+  address marks look like when read backward.  Some care was needed to
+  prevent it from firing on garbage.
+
+* At the start of each track, the FM/MFM encoding detector now uses
+  the encoding of the first good sector from the previous track as its
+  initial guess.  Formerly it used the encoding of the end of the
+  previous track.  The new heuristic works better on disks where every
+  track has an FM part followed by an MFM part (or vice versa).  It
+  should work just as well for the case the old heuristic was meant to
+  handle, where every track except track 0 is MFM but the tracks start
+  so close to the index hole that if the detector is initialized to
+  guess FM, it doesn't correct itself in time.
+
+3.1 -- Sat Jun  7 19:36:15 PDT 2003 -- Tim Mann
+
+* Added the -h0 flag to cw2dmk.  This will read a disk without using
+  the index hole to decide where to start.  It is useful for reading
+  the back side of a disk that was made in a flippy drive, provided
+  that either you have a drive that will deliver data to the
+  controller even if it doesn't see any index pulses, or you cut an
+  extra jacket hole in the disk.  Original TRS-80 drives should work,
+  but modern drives won't.  Some modern drives may possibly be
+  jumperable to work, but definitely not all.  Another use for the -h0
+  flag would be if you have a strange format where a sector crosses
+  over the index hole location and is cut in half by cw2dmk's normal
+  reading method.
+
+* Modified the -i flag of cw2dmk so that it works no matter where the
+  IAM is on the track.  Formerly it worked only if the IAM appeared
+  before the first IDAM.  Now sectors that come before the IAM will be
+  ignored.  The flag is still useful for its old purpose, and it now
+  is also useful in conjuction with the -h0 flag -- if your disks have
+  an IAM at the start of every track, you can align the tracks in the
+  DMK output to start at the right place by using -i.  To make gap0
+  large enough to be in spec, -i96 is recommended, but you can use a
+  smaller value if -i96 cuts off the end of the last sector on the
+  track.  Note that using -i will cut off a track prematurely if the
+  IAM appears somewhere in the middle of the track and you haven't
+  arranged to read the track for two revolutions by setting -r or -h0,
+  and it will prevent the track from being read at all if it has no IAM.
+
+* Changed cw2dmk to end a track that's longer than the nominal length
+  as soon as we are in a gap.  This fixes a problem when reading disks
+  with the Catweasel MK3, where you could get an extra partial copy of
+  the first sector header repeated at the end of the track.  This
+  happened because of a change to the way index-hole-to-index-hole
+  reading works between the MK1 and the MK3.
+
+* Made the Catweasel MK1 memory error test more reluctant to fire and
+  less verbose.  It now fires only on the 16th apparent error.  This
+  was needed because the test can detect false errors when reading an
+  unformatted track.
+
+* Added error checking to detect confused people misusing the -p flag
+  to cw2dmk and dmk2cw.
+
+* Improved some man pages and error messages.
+
+3.0 -- Sat Dec  7 21:46:19 PST 2002 -- Tim Mann
+
+* Rewrote catweasl.c to support Catweasel MK3 PCI as well as MK1 ISA.
+
+* Added cwpci.c, containing routines to query the PCI bus and detect
+the MK3, one set for Linux, one for Windows 95 and MS-DOS.
+
+* Generalized and altered the -p and -c options of cw2dmk and dmk2cw
+and clock argument of testhist to mesh well with both cards.
+
+* Reversed drive 0 vs. drive 1 numbering with Catweasel MK1 from the
+way I had it previous releases.  It now matches the numbering used
+by the bundled Catweasel tools.
+	
+* Made cw2dmk quicker to give up on finding more tracks when it is
+guessing the number of tracks.  The old algorithm had a bug if you
+tried to read a disk in a 40-track drive; it wouldn't consider
+stopping at track 40 unless you were double-stepping.
+
+* Included the MS-DOS DPMI host cwsdpmi.exe by Charles W. Sandmann
+in the package instead of requiring users to download it separately.
+
+* General code cleanup and reorganization.
+
+2.8 -- Unreleased: checkpoint before adding Catweasel MK3 support.
+
+* Added an option to cw2dmk to start reading without waiting for an
+  index hole.  This needs more work; see the man page.
+
+* Added checking for read error to testhist.
+
+* Deleted some unused structures left over from the Linux driver.
+
+2.7b -- Mon Aug 19 21:37:40 PDT 2002 -- Tim Mann
+
+* Added some checking to help detect when input supplied to dmk2cw or
+dmk2jv3 is not a DMK file.
+
+* Removed !'s from error messages.  Some had them, some didn't, and
+having them is a very outdated style.
+
+2.7a -- Sun Jun 30 00:15:10 PDT 2002 -- Tim Mann
+
+* Fixed some documentation wording errors and did some minor cleanup.
+	
+2.7 -- Sat Jun 29 00:03:05 PDT 2002 -- Tim Mann
+
+* Wrote jv2dmk and added it to the package.  Like dmk2jv3, it is
+independent of the other tools and does not require Catweasel
+hardware; it simply converts between two different emulator formats.
+
+* Minor tweaks to documentation and messages for the other tools.
+
+2.6 -- Sat Jan 19 13:36:53 PST 2002 -- Tim Mann
+
+* Wrote dmk2jv3 and added it to the package.  This program is
+independent of the others and does not require Catweasel hardware;
+it simply converts between two different emulator formats.
+
+* Added -s flag to dmk2cw for safety in dealing with 1-sided drives.
+
+2.5 -- Wed Jan  9 20:12:54 PST 2002 -- Tim Mann
+
+The following changes were motivated by a problem reading certain
+TRS-80 DOSPLUS disks, where track 0 side 0 is FM, track 0 side 1 is
+unformatted, and the remaining tracs are MFM.  The only way to read
+such a disk with cw2dmk is to specify -s2 and let encoding be
+autodetected, but the RX02 detector was (still) overeager and would
+sometimes fire on the garbage read from unformatted track 0 side 1.
+
+* Disabled RX02 autodetection on side 1.  In order to autodetect RX02,
+we now have to see an RX02-MFM sector on side 0, track 0 or 1, This
+seems likely to work perfectly, and if it should fail, you can always
+use -e3 to force RX02 anyway.
+
+* Previously, the RX02 detector was willing to fire if it saw a 0xfd
+DAM following an ID block with a bad CRC.  This made it too prone to
+fire on unformatted tracks.  It now requires a good CRC on the ID
+block preceding the 0xfd DAM.  This change also fixes another bug:
+when counting good sectors, we had erroneously been including sectors
+with bad ID CRC but good data CRC.
+
+2.4 -- Wed Aug 29 23:39:52 PDT 2001 -- Tim Mann
+
+* Changed my email address.  I have left Compaq.
+
+* In encoding autodetect mode, the detector now starts each track
+(including retries) guessing the previously detected encoding.
+Formerly it always reverted to guessing FM at the start.  This will
+help in reading disks that have an extremely short gap between the
+first sector header, such as some Newdos disks.
+
+2.3 -- Sat Jul 14 18:01:38 PDT 2001 -- Tim Mann
+
+* Disabled looking for drive ready entirely.  Evidently some older
+drives do not provide this signal.
+
+2.2 -- Fri Jul 13 23:23:24 PDT 2001 -- Tim Mann
+
+* All catweasel read/write/await-index routines that look for drive
+ready (=no disk change) now wait 5 seconds for the signal to appear
+instead of erroring out immediately if it is not present.
+
+* Added a 5-second timeout to all catweasel routines that look for the
+index hole.
+
+* Fixed the RX02 autodetector; it would sometime fire when it shouldn't.
+Also, detecting RX02 sets the current stepping guess to single.
+
+2.1 -- Sat Jun 30 21:31:26 PDT 2001 -- Tim Mann
+
+* Added autodetection of RX02 double density to cw2dmk.
+
+* Changed cw2dmk to pre-detect address marks so that it can byte-align
+the data stream earlier.  Before this change, the byte written to the
+DMK file before an FM address mark would often be garbage, as would
+the byte before and the first byte of a 3-byte MFM premark sequence.
+Also added a heuristic to byte-align on 4e4e and 0000 sequences in MFM
+gaps.  These changes make the contents of the DMK file cleaner-looking
+and a bit more amenable to changing with a hex editor.  They also
+remove the need for some cleanup that is done in dmk2cw, but I am
+leaving the cleanup in so that DMK files made with older versions of
+cw2dmk can still be written back to disk.
+
+2.0 -- Sat Jun 23 00:48:14 PDT 2001 -- Tim Mann
+
+* Initial release of dmk2cw.
+
+* Added peak detection to testhist instead of using fixed windows.
+
+* Minor tweaks to cw2dmk.
+
+1.6 -- Tue Jun 12 00:17:12 PDT 2001 -- Tim Mann
+
+* Changed DMK_MARK_IAM to 0 (see changes for 1.5 below), but left the
+code in for possible future use.  The extra pointer does cause a minor
+problem with both David Keil's emulator and xtrs -- both of them see
+it as a bad ID on Read Address commands, though they manage to ignore
+it otherwise.
+
+1.5 -- Mon Jun 11 11:08:32 PDT 2001 -- Tim Mann
+
+* Added -a flag.
+	
+* Use catweasel_memtest (formerly debugging code) to detect whether a
+Catweasel is present at the specified address; error out if not there.
+
+* Error out if catweasel_init_controller did not detect the specified drive.
+	
+* If an index address mark is found, we now put a pointer to it in the
+DMK track header, just as with ID address marks.  David Keil told me
+that this won't confuse his emulator; since the pointer points to an
+0xfc instead of an 0xfe, he won't think it's an ID block.  You can
+turn off this behavior by #defining DMK_MARK_IAM to 0 instead of 1 and
+recompiling.
+
+* Added -e3 flag to support DEC RX02 floppies, which use a strange
+encoding when in double density.
+
+* Added missing documentation of -v7 flag.
+
+* Added -w flag.
+
+1.4 -- Sun Mar 11 21:45:34 PST 2001 -- Tim Mann
+
+* The .txt version of the man page was truncated in 1.3.  This was
+caused by an obnoxious feature in the current Linux nroff -man macros
+of using '\255' as a hyphen at line breaks, combined with a bug in
+colcrt (and col) that makes them consider this (or presumably any
+character with bit 8 set) as EOF.
+
+1.3 -- Wed Oct 11 00:59:14 PDT 2000 -- Tim Mann
+
+* Fixed a garble in the Diagnostics section of the man page.
+
+* Changed open mode on .dmk from "w" to "wb", which is required for the
+MS-DOS version.  That's why the MS-DOS version produced bad disks before.
+Thanks to Amardeep S. Chana.
+
+1.2 -- Sat Aug 12 16:08:18 PDT 2000 -- Tim Mann
+
+* Corrected read-postcompensation to work even if user selects a
+  non-default Catweasel clock rate.
+
+* Tweaked some autodetection constants.
+
+* Added "Diagnostics" section to man page.
+
+* Added memory error detection.
+
+1.1 -- Tue Jul  4 21:05:58 PDT 2000 -- Tim Mann
+
+* Added read-postcompensation (-o flag).
+
+* Added verbosity level 7.
+
+* Added bit resynchronization heuristic for MFM clock violations,
+  previously only implemented for FM.
+
+* Fixed some minor errors in what verbosity level things were printed at.
+
+* Moved usage message to stdout so that it can be easily piped into more.
+
+* Corrected some minor errors in man page.
+
+1.0 -- Thu Jun 22 02:32:00 PDT 2000 -- Tim Mann
+
+* Initial public release.

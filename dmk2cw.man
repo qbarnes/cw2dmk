@@ -1,0 +1,258 @@
+.TH dmk2cw 1
+.SH Name
+dmk2cw \- Write a DMK floppy disk image file onto a disk
+using a Catweasel controller
+.SH Syntax
+.B dmk2cw [options] filename.dmk
+.SH Description
+The dmk2cw program uses the Catweasel universal floppy disk controller
+to write a floppy disk image to an actual disk.  The image file is
+expected to be in the DMK format first used by some TRS-80 Model
+I/III/4/4P emulators.  If you have a JV1 or JV3 image to write to disk,
+run jv2dmk on it first.
+
+The DMK image is exactly reproduced on disk, as far as
+possible, including the positioning and spacing of sectors and the
+content of gaps.  Thus even so-called copy protected disks can be
+written correctly and should work on the hardware they were made for.
+Currently, dmk2cw can write all formats that can be written by the
+Western Digital 177x/179x disk controllers used in the original TRS-80
+machine, all formats that can be written by the NEC 765-compatible
+floppy disk controllers used in PCs, and the Digital Equipment
+Corporation RX02 format.  Even formats that mix FM (single density)
+and MFM (double/high density) on the same track can be written.
+
+The dmk2cw program usually guesses the drive type and disk format to
+be written by measuring the rotational speed of the drive (300 or 360
+RPM) and checking the track length and other fields in the DMK file,
+but you can override this with command line arguments if needed.  
+The program does not automatically double-step if you are writing
+a 40-track disk in an 80-track drive, however; see the -m flag for this.
+Also, if you are using a single sided drive, see the -s flag.
+
+Versions of dmk2cw exist for both Linux and MS-DOS.  On Linux, dmk2cw
+must be run as root.  If the program is made setuid to root, it drops
+its root privileges as soon as it has obtained access to the block of
+I/O ports it needs to directly access the Catweasel.  On Windows 95,
+dmk2cw.exe can be run in an MS-DOS Prompt box.  On plain MS-DOS,
+cw2dmk.exe needs the program cwsdpmi.exe (included) to provide DPMI
+functionality; make sure it is in the same directory as cw2dmk.exe or
+in another directory on your path.
+
+dmk2cw accesses the hardware directly, so it must not be used at the
+same time as any other Catweasel software.  In particular, on Linux,
+do not load Michael Krause's "cwfloppy" driver at the same time, and
+on MS-DOS, do not load the "catbase" driver that comes with the
+Catweasel.
+
+For more information about the Catweasel controller and other
+software that works with it, see:
+.nf
+    http://www.jschoenfeld.com/
+    http://www.soundtracker.org/raw/
+.fi
+
+For information about
+the DMK file format and the emulators that use it, see:
+.nf
+    http://discover-net.net/~dmkeil/
+    http://www.tim-mann.org/xtrs.html
+.fi
+.SH Options
+.TP
+.B \-d \fIdrive\fP
+Specify the drive unit number, 0 or 1.  Default: 0.
+.TP
+.B \-v \fIverbosity\fP
+Specify how much output is printed.  Larger numbers select more output.
+The default setting is 1.
+.RS
+.TP
+0
+No output.
+.TP
+1
+Print progress information.
+.TP
+2
+Also dump the bytes being written, prefixing each with the encoding used.
+This option is primarily for debugging purposes.
+The prefixes used are as follows: "-" means the byte is skipped
+(it was padding in the DMK file), "F" encoded as FM data,
+"I" encoded as an FM index address mark, "A" encoded as an FM data address
+mark or ID address mark, "M" encoded as MFM data, "J" encoded as an MFM
+pre-index address mark, "B" as an MFM pre-data or pre-ID address mark,
+and "X" as RX02-modified MFM data.
+.TP
+3
+Like 2, but also dump the Catweasel samples generated for each byte.
+This option is primarily for debugging purposes.
+.RE
+.TP
+.B \-p \fIport\fP
+For the Catweasel MK1 (ISA), port should be the I/O port base, or
+0 to default to the factory setting of 0x320.  For the Catweasel MK3 (PCI),
+port should be 0 for the first Catweasel card in the machine, 1 for the
+second, etc.  The default is 0.
+.TP
+.B \-k \fIkind\fP
+Specify the type of drive and type of media in use.  This option is
+usually not needed, as dmk2cw will typically guess correctly.
+.RS
+.TP
+1
+5.25-inch SD/DD disk in 1.2MB drive
+.TP
+2
+5.25-inch SD/DD disk in 360KB/720KB drive, or 3.5-inch SD/DD disk 
+.TP
+3
+5.25-inch HD disk, or 8-inch SD/DD disk
+.TP
+4
+3.5-inch HD disk
+.RE
+.TP
+.B \-m \fIsteps\fP
+Step multiplier, 1 or 2.  A step multiplier of 2 is used when writing
+a 40-track (or 35-track) disk in an 80-track drive.  Default: 1.  If
+you set -m2, you should bulk-erase the media first to eliminate
+residual magnetization from the odd numbered tracks that may cause
+problems when the disk is read in a 40-track drive.
+.TP
+.B \-s \fIsides\fP
+Maximum number of sides, 1 or 2.  Use -s1 if your physical floppy drive
+has only one head (that is, if it can only write to side 0 of the disk).
+If you forget to do this and the DMK file has space reserved for side 1
+data (even if there are no valid sectors in that space), dmk2cw will
+overwrite the side 0 data on each track of the media with the side 1 data.
+.P
+The remaining options usually do not need to be changed from their
+default values.
+.TP
+.B \-c \fIclock\fP
+Catweasel sample rate multiplier.  1 selects 7.080 MHz (about 140 ns),
+2 selects 14.161 MHz (about 70 ns), and (on Catweasel MK3 only) 4
+selects 28.322 MHz (about 35 ns).  Default: 2.
+.TP
+.B \-o \fIprecomp\fP
+Specifies the number of nanoseconds to advance or retard
+transitions for write precompensation.  The actual distance
+between transitions is always rounded to a multiple of the Catweasel
+clock period (-c option), so it is pointless to make adjustments
+much finer than that value.  Default: 140 ns.
+
+Exactly what does this option do?  The magnetic flux transitions on a
+floppy disk tend to move slightly farther apart if they are recorded
+very close together, thus lengthening the short intervals and
+shortening the long ones, a phenomenon sometimes called
+bit-shifting.  When a disk is recorded, the disk controller
+ordinarily applies write precompensation to reduce this effect;
+that is, it makes the short intervals extra short and the long ones
+correspondingly longer, especially on the inner, higher-numbered
+tracks.  Currently dmk2cw uses a very simple write precompensation
+algorithm that is not dependent on track number.  If the shortest
+legal interval appears immediately to the left (right) of a longer
+one, the flux transition between them is moved to the left (right)
+by precomp Catweasel clocks.
+.TP
+.B \-h \fIhdline\fP
+Set the HD line on the floppy bus to the indicated value.  If hd=2 (the
+default), the value is set according to the disk kind (see -k flag).
+.TP 
+.B \-g \fIigno\fP
+Causes dmk2cw to ignore the first igno bytes 
+in the DMK image of each track.  If igno is negative, an extra -igno bytes
+of padding are inserted at the beginning of each track.
+.TP
+.B \-i \fIipos\fP
+If this option is given, dmk2cw forces the first IAM
+(index address mark) encountered on each track to be exactly ipos bytes from
+the physical start of the track, by ignoring bytes or adding padding 
+at the start of the track as with the -g flag.  The default is -1, which
+disables this feature, instead recording the gap exactly as in the image.
+Note that if you set ipos too small, there will not be enough bytes in the
+initial gap for the IAM to be recognized when the disk is read.
+.TP
+.B \-y \fItestmode\fP
+Set various undocumented test modes for debugging.
+.SH Diagnostics
+.TP
+dmk2cw: Error reading from DMK file
+The DMK file was opened successfully, but a read from it failed.
+.TP
+dmk2cw: File is not in DMK format
+The specified disk image file was opened successfully, but it was not in
+DMK format.  If you have disk images in JV1 or JV3 format, use
+jv2dmk to convert them to DMK format before using them with dmk2cw.
+.TP 
+.B dmk2cw: No access to I/O ports
+On Linux, dmk2cw must be made setuid to root or be run as root, or it
+will not be able to access the Catweasel's I/O ports and this error
+message will appear.
+.TP
+.B dmk2cw: Failed to detect Catweasel
+A Catweasel card was not detected at the specified I/O ports.
+.TP
+.B dmk2cw: Drive 0 was not detected, but drive 1 was
+.PD 0
+.TP
+.B dmk2cw: Drive 1 was not detected, but drive 0 was
+.TP
+.B dmk2cw: Failed to detect any drives
+.PD
+The specified drive (see -d option) was not detected, or no drives
+were detected.  Cabling and drive selection can be confusing, so try
+the other drive number before giving up, especially if you saw some
+drive activity before this message was printed.  Note: In versions
+prior to 3.0, dmk2cw used the opposite drive numbering convention from
+the bundled Catweasel software supplied by Individual Computers.  This
+has now been corrected.
+.TP
+.B dmk2cw: Disk is write-protected
+This message usually means what it says.  A 3.5-inch disk should have its
+write-enable slider closed.  A 5.25-inch disk should not have a write-protect
+tab covering its notch.  An 8-inch disk should have a write-enable tab
+covering the appropriate notch.
+It might also appear in some cases if the drive is not connected
+properly, the door is not closed, the disk is inserted upside-down, etc.
+.TP
+.B dmk2cw: Failed to guess drive kind; use -k
+This message is printed if drive/media autodetection fails.  Either
+the drive speed could not be measured, or the track length was not
+one of the common values used in most DMK files.  You can
+specify the kind of drive and media in use with the -k flag.
+.TP
+.B dmk2cw: No disk in drive
+This message usually means what it says, that there is no disk in the
+drive.  It might also appear in some cases if the drive is not connected
+properly, the door is not closed, the disk is inserted upside-down, etc.
+.TP
+.B dmk2cw: Write error
+Either the drive reported that it was not ready when the Catweasel tried to 
+write to it, or no index hole was detected.
+This message usually means that there is no disk in the
+drive.  It might also appear in some cases if the drive is not connected
+properly, the door is not closed, the disk is inserted upside-down, etc.
+.TP
+.B dmk2cw: Drive is 1-sided but DMK file is 2-sided
+This message means that there is space reserved in the DMK file for
+two sides, and some apparently valid data was found on side 1, but you
+gave the -s1 flag to say that your disk drive is only one-sided.
+.SH Authors
+dmk2cw was written by Timothy Mann <tim@tim-mann.org>.  It
+uses low-level Catweasel access routines written by Michael Krause.
+dmk2cw is free software, released under the GNU General Public License.
+Thanks to Jens Schoenfeld for providing documentation on programming
+the Catweasel hardware.  Thanks to David Keil for designing and
+documenting the DMK file format for floppy disk images.
+
+The DPMI host cwsdpmi.exe is free software, written and copyrighted by
+Charles W. Sandmann and released under the GNU General Public license.
+You can download the source code and/or binary updates for this
+program from ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.
+Look for files with names of the form csdpmi*.zip.  Note: the highest
+version that has been tested with dmk2cw at this writing is 5.
+
+$Id: dmk2cw.man,v 1.12 2004/06/05 08:39:05 mann Exp $
+

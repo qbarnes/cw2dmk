@@ -1,0 +1,84 @@
+Ideas for furture improvements.  Not all are necessarily good or
+feasible.
+
+1) Done.
+
+2) ** In dmk2cw, what if the DMK track buffer is a little too long to
+   fit on the disk?  This is especially an issue now that cw2dmk uses
+   a slightly longer buffer for reading and (in -h0 mode) might not
+   put the original gap3 at the end of the buffer.  It's clear we
+   should check whether any known non-gap bytes got cut off, and maybe
+   whether enough of gap3 made it out to disk.  Can we really tell how
+   much the CW wrote out, though?
+
+3) In -h0 mode, we'd really like to find gap3 and start right after
+   that, not with the first sector we see.  That would duplicate the
+   original registration better, and also alleviate the worries in
+   (2).  This is most easily and reliably done using a 2-pass
+   algorithm: in pass 1, find the largest gap and deem it gap3; in
+   pass 2, decode starting after gap3.
+
+4) Copy the raw samples out of the CW into a buffer, then parse the
+   buffer.  This allows us to do multi-pass algorithms in the future.
+   (I'm not sure this is needed; calling catweasel_reset_pointer may
+   already work.  However, it would be nice to change the interface to
+   work this way anyway, as it fits better with using a real driver in
+   the future instead of touching the hardware directly in
+   catweasl.c.  It's a tiny change, really.)
+
+5) Done.
+
+6) Consider printing sector numbers in TSUMMARY log.  (This is not
+   quite trivial.  Have to buffer them up until we get a good read or
+   we give up on retries.  Should also remember which ones have errors
+   and flag them.)  D.S. requested this, seems reasonably useful.
+
+7) Done.
+
+8) Check the timing under MS-DOS.  Stepping rate seems to be slow, and
+   David Sutherland was having it miss steps (?) when restoring to 0.
+   I think some drives can do that if you step at too wrong a speed.
+
+9) The drive detection issue DS had could be something else too.  What
+   if track0 output from his drive is invalid (perhaps always saying
+   it *is* track 0) until the drive spins up and is ready?  Then we
+   might get confused if we look at it too soon.  Just a wild guess.
+
+10) Done.
+
+11) Do we check properly for trying to read past the end of CW RAM and
+    wrapping around (or whatever the CW does in that case)?
+
+12) Change cw2dmk and dmk2cw to work with a real device driver in the
+    future.  Possibly they could even fit into the Arjuna framework
+    and thus run on all Windows versions, not just Linux and plain
+    MS-DOS.
+
+13) dmk2cw might benefit from a more sophisticated write-precomp
+    algorithm, if I can find one described anywhere.
+
+14) Done.
+
+15) Done.
+
+16) Allow -h0 without -k.  This would mean to try to detect the drive
+    kind using the index hole even though we're going to do the actual
+    read without it.  It would fail, obviously, if there is no index
+    hole.  Sounds trivial but will require a little bit of code reorg
+    to work.
+
+17) Done.
+
+18) Read additional command line options out of a file.  Say, .cw2dmk
+    or cw2dmk.ini.  Ira and D.S. keep bugging me for this.
+
+19) When the FM/MFM detector starts out guessing MFM at the beginning
+    of a track but it's really FM there, it can't help reading much of
+    the initial gap incorrectly (that is, in MFM) before it figures
+    out the problem and switches.  That results in the track being
+    recorded in the DMK file as if the gap started with a long run of
+    00 00 00...  instead of FF FF FF....  This doesn't hurt the sector
+    headers and user data any, but if some software is looking at gap
+    contents, the initial gap will have the wrong thing in it.  This
+    case gets triggered if track N is (or starts with) MFM and track
+    N+1 is (or starts with) FM.  I don't have any ideas on fixing it.

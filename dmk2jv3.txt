@@ -1,0 +1,125 @@
+dmk2jv3(1)                                                          dmk2jv3(1)
+
+Name
+       dmk2jv3 - Convert a DMK floppy disk image file to JV3 format
+
+Syntax
+       dmk2jv3 [options] filename.dmk [filename.dsk]
+
+Description
+       The  dmk2jv3  program converts a floppy disk image in the DMK format to
+       the JV3 format.  Both  these  formats  were  originally  developed  for
+       TRS-80 Model I/III/4/4P emulators, though the DMK format is useful more
+       broadly.  This converter is needed because  some  older  emulators  and
+       tools do not support DMK but do support JV3.
+
+       The  DMK format is more general than JV3; it can represent error condi-
+       tions and other properties of the original disks that  are  not  repre-
+       sentable  in  the  JV3  format.   The converter prints an error message
+       whenever an important property of the DMK image cannot  be  represented
+       in the JV3 image, but when possible, it continues the conversion.  Some
+       less important properties of the DMK format are silently lost, such  as
+       the exact width and content of inter-sector gaps.
+
+       A  few  features of the JV3 format that were added as extensions to the
+       original definition are not supported by some emulators.  The converter
+       uses these extensions when needed, but prints a warning message.
+
+       For  more information about the DMK and JV3 file formats and the emula-
+       tors that use them, see:
+           http://discover-net.net/~dmkeil/
+           http://www.tim-mann.org/xtrs.html
+
+Options
+       If only filename.dmk is given on  the  command  line,  filename.dsk  is
+       formed  by  deleting  any  extension  from  filename.dmk  and appending
+       ".dsk".
+
+       -v verbosity
+              Specify how much output is printed.  Larger numbers select  more
+              output.  The default setting is 1.
+
+              0      No output except for error messages.
+
+              1      Also print warning messages.
+
+              2      Also  print  the sector numbers found.  Print a "?" after
+                     each sector recorded with a CRC error.
+
+Diagnostics
+       dmk2jv3: Error reading from DMK file
+              The DMK file could not be read.
+
+       dmk2jv3: File is not in DMK format
+              The specified input file was not in DMK format.
+
+       dmk2jv3: Error writing to JV3 file
+              The JV3 file could not be written.
+
+       dmk2jv3: JV3 does not support RX02 encoding
+              DMK files of disks written in the DEC RX02 format cannot be con-
+              verted to JV3 format at all.  No JV3 file is written.
+
+       Too many total sectors
+              The  extended JV3 format has a limit of 5802 total sectors.  Any
+              sectors beyond this are not written to the JV3 file.
+
+       Warning: too many total sectors for some emulators
+              The original JV3 format has a limit of 2901 total sectors.  Sec-
+              tors  beyond  this  point  are written to the JV3 file, but some
+              emulators will not be able to read them.
+
+       Track number xx too large, using yy
+              The JV3 format can only record  track  numbers  less  than  255.
+              Track 255 is written to the JV3 file with track number 254.
+
+       Sector size code xx too large, using yy
+              The extended JV3 format can only record sector size codes 0 (128
+              bytes) through 3 (1024 bytes).  The  JV3  is  written  with  the
+              higher-order bits of the size code masked off.
+
+       Warning: sector size xx not supported by some emulators
+              The  original  JV3  format  can only record sectors of size 256.
+              The sector is recorded at its correct size,  but  the  resulting
+              JV3 will not work with some emulators.
+
+       Single density DAM xx not supported, using yy
+       Double density DAM xx not supported, using yy
+              The  JV3 format can support only a limited range of data address
+              marks.
+
+       False track number xx not supported
+              The JV3 format requires the logical track number recorded  in  a
+              sector's  id  to match the true physical track number.  The true
+              physical track number is recorded on the JV3  in  place  of  the
+              false  one.  The result will probably not work as desired.  This
+              error is typical of many copy-protected disks.
+
+       Warning: False side number xx not supported, using yy
+       Side number xx too large, using yy
+              The JV3 format requires the logical side number  recorded  in  a
+              sector's  id  to  match  the true physical side number (0 or 1).
+              The JV3 is written with the true side number.  This is generally
+              not  a  problem unless the false side number was part of a copy-
+              protection scheme.
+
+       Recording ID CRC error as data CRC error
+              The JV3 format has no way to indicate that a sector ID has a CRC
+              error,  so  we  record  this  condition as if it were a data CRC
+              error.
+
+       Recording missing DAM as data CRC error
+              The JV3 format has no way to indicate that a sector  ID  has  no
+              matching data address mark, so we record this condition as if it
+              were a data CRC error.
+
+Author
+       dmk2jv3 was written by Timothy  Mann  <tim@tim-mann.org>.   dmk2jv3  is
+       free  software,  released under the GNU General Public License.  Thanks
+       to David Keil for designing and documenting the  DMK  file  format  for
+       floppy  disk images, and to Jeff Vavasour for designing and documenting
+       the JV3 format.
+
+       $Id: dmk2jv3.man,v 1.6 2004/05/30 08:53:03 mann Exp $
+
+                                                                    dmk2jv3(1)

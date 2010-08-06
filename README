@@ -1,0 +1,46 @@
+Tim Mann's Catweasel Floppy Read/Write Tools
+
+* cw2dmk is a program that uses a Catweasel MK1 or MK3 universal
+floppy controller to read several kinds of floppy disk, some of which
+ordinary PC controllers have trouble with, and write it out in the DMK
+disk image format used by David Keil's TRS-80 emulator and by xtrs.
+Versions for both Linux and MS-DOS (or Windows 95/98) are included.
+See cw2dmk.txt for documentation.
+
+cw2dmk does not just read TRS-80 disks.  It can make an exact image of
+any disk written using a Western Digital 177x/179x floppy disk
+controller, a PC-style, NEC765-compatible controller, or the Digital
+Equipment Corporation RX02 controller.
+
+* dmk2cw uses a Catweasel to write a DMK image back to a real floppy
+disk.  It can handle the same kinds of disks as cw2dmk.  See
+dmk2cw.txt for documentation.
+
+* dmk2jv3 and jv2dmk are independent of the other programs and do not
+require Catweasel hardware.  dmk2jv3 converts a DMK-format disk image
+to the JV3 format used in older TRS-80 emulators.  See dmk2jv3.txt for
+documentation.  jv2dmk converts a JV1 or JV3 disk image to the DMK
+format.
+
+* testhist is a test program for the Catweasel that shows a
+histogram of the data returned by the Catweasel for a given track.
+
+These programs are free software, copyrighted by their authors and
+released under the GNU General Public License.  See the file COPYING
+for details.  cw2dmk, dmk2cw, dmk2jv3, and jv2dmk were written by
+Timothy Mann.  testhist and the low-level driver routines in
+catweasl.c were originally written by Michael Krause for his Linux
+catweasel driver package cwfloppy-0.2.1.  The versions in this package
+were extensively modified for use with cw2dmk and dmk2cw and to add
+Catweasel MK3 support.
+
+The DPMI host cwsdpmi.exe is free software, written and copyrighted by
+Charles W. Sandmann and released under the GNU General Public license.
+You can download the source code and/or binary updates for this
+program from ftp://ftp.delorie.com/pub/djgpp/v2misc/.  Look for files
+with names of the form csdpmi*.zip.  Note: the highest version that
+has been tested with the Catweasel tools at this writing is 5.
+
+For more information, see:
+http://www.tim-mann.org/trs80.html
+http://www.jschoenfeld.com/
