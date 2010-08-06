@@ -3,7 +3,7 @@
  * PCI detection routines
  *
  * Copyright (C) 2002 by Timothy Mann
- * $Id: cwpci.c,v 1.5 2005/04/24 04:18:29 mann Exp $
+ * $Id: cwpci.c,v 1.6 2010/01/15 19:28:46 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,11 +23,11 @@
 /*#define DEBUG_PCI(stmt) stmt*/
 #define DEBUG_PCI(stmt)
 
+#include <stdio.h>
 #include "cwpci.h"
 
 #if __DJGPP__
 #include <dpmi.h>
-#include <stdio.h>
 #include <string.h>
 
 typedef unsigned short uint16;
@@ -271,10 +271,13 @@ pci_find_catweasel(int index, int *cw_mk)
       /* Find the I/O space */
       pci_fill_info(pd, PCI_FILL_BASES);
       for (i = 0; i < 6; i++) {
-	if (pd->base_addr[i] & 1) {
+	unsigned flg = pci_read_long(pd, PCI_BASE_ADDRESS_0 + 4 * i);
+	if (flg != 0xffffffff && (flg & PCI_BASE_ADDRESS_SPACE_IO)) {
 	  *cw_mk = mk;
 	  return pd->base_addr[i] & PCI_ADDR_IO_MASK;
 	}
+	DEBUG_PCI( printf("baseAddr %d 0x%llx not I/O space\n",
+			  i, pd->base_addr[i]); )
       }
     }
 

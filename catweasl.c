@@ -5,7 +5,7 @@
  *
  * Copyright (C) 1998 Michael Krause
  * Modifications by Timothy Mann for use with cw2dmk
- * $Id: catweasl.c,v 1.21 2005/04/24 04:16:45 mann Exp $
+ * $Id: catweasl.c,v 1.22 2010/01/15 22:55:20 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -249,7 +249,7 @@ CWAwaitCReg(catweasel_contr *c, int clear, int set)
 	  if ((v & clear) == 0 && (v & set) == set) return 1;
       }
       gettimeofday(&tv2, NULL);
-      if ((tv2.tv_sec - tv1.tv_sec)*1000000 + tv2.tv_usec - tv2.tv_usec
+      if ((tv2.tv_sec - tv1.tv_sec)*1000000 + tv2.tv_usec - tv1.tv_usec
 	  > 5000000) return 0;
   }
 }
@@ -703,11 +703,10 @@ catweasel_read(catweasel_drive *d, int side, int clockmult, int time, int idx)
     CWSetCReg(c, CBIT(c, CatSideSelect), (!side) ? CBIT(c, CatSideSelect) : 0);
 
     /* select clock */
-    catweasel_reset_pointer(c);
+    catweasel_reset_pointer(c);  /* pointer = 0 */
     OUTREG(c, CatOption, CWEncodeClock(c, clockmult));
 
     /* store or don't store index pulse in high-order bit */
-    catweasel_reset_pointer(c);  /* pointer = 0 */
     INREG(c, CatMem);            /* pointer++ (=1) */
     INREG(c, CatMem);            /* pointer++ (=2) */
     OUTREG(c, CatOption, idx ? 0x80 : 0);
@@ -770,13 +769,13 @@ catweasel_write(catweasel_drive *d, int side, int clockmult, int time)
     CWSetCReg(c, CBIT(c, CatSideSelect), (!side) ? CBIT(c, CatSideSelect) : 0);
 
     /* select clock */
-    catweasel_reset_pointer(c);
+    catweasel_reset_pointer(c); /* pointer = 0 */
     OUTREG(c, CatOption, CWEncodeClock(c, clockmult));
 
-    /* enable writing */
-    catweasel_reset_pointer(c);
+    /* enable writing (0x80),
+       and on MK4 set write pulse width (0x0a = standard) */
     INREG(c, CatMem);           /* pointer++ (=1) */
-    OUTREG(c, CatOption, 0x80);
+    OUTREG(c, CatOption, 0x80 | (c->mk == 4 ? 0x0a : 0x00));
 
     INREG(c, CatMem);           /* pointer++ (=2) */
     INREG(c, CatMem);           /* pointer++ (=3) */

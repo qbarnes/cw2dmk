@@ -1,3 +1,36 @@
+4.4 -- Sat Nov 28 11:45:01 PST 2009 -- Tim Mann
+
+* The Linux binaries included in this distribution are compiled on a
+  32-bit Ubuntu 8.04.3 LTS system.  The MS-DOS binaries are still
+  compiled with a version of djgpp from the year 2000, under djgpp.
+  The MS-DOS binaries are untested at the time of this release.
+	
+* Updated to the current Catweasel MK4 firmware from Individual
+  Computers, moving from pre29.cw4 to rel2f2.cw4.  Changed catweasl.c
+  slightly to work with the new firmware -- the write pulse width now
+  must be set.
+
+* Fixed cw2dmk bug where the total sectors read in each encoding
+  counted all retries, not just the last one.
+	
+* Added -r option to cw2dmk and dmk2cw to reverse the sides.  This is
+  mostly to help split/join disks that have a separate one-sided image
+  on each side but were written with a double-sided drive (that is,
+  they are not flippy) to/from two separate DMK images.
+	
+* Fixed an incompatibility with newer versions of libpci that had
+  prevented recompiled Linux binaries from recognizing a PCI
+  Catweasel.
+
+* Added a dmk2cw option to use only a prefix of the track in the DMK
+  file.
+
+* Changed the way dmk2cw generates fill data when the DMK track is
+  shorter than needed to fill the disk.  Added an option to select
+  some alternative fill methods.
+
+* Some small fixes and cleanups, mostly in documentation and messages.
+
 4.3 -- Sat Jun 25 00:21:23 PDT 2005 -- Tim Mann
 
 * By popular demand, print more stuff at the default verbosity levels.

@@ -175,22 +175,54 @@ Options
               set  the HD line on the floppy bus to 1 for tracks 0 to 43, to 0
               for tracks greater than 43.  For -h4 (the default), the line  is
               set  according to the disk kind (-k flag); to 0 for -k1 and -k2;
-              to 1 for -k2 and -k3.
+              to 1 for -k3 and -k4.
+
+       -l len Causes dmk2cw to ignore any data beyond the first len  bytes  in
+              the  DMK  image of each track.  This option is applied before -g
+              or -i.  It has no effect if len is greater than the  track  data
+              length recorded in the DMK image.
 
        -g igno
               Causes dmk2cw to ignore the first igno bytes in the DMK image of
-              each  track.   If igno is negative, an extra -igno bytes of pad-
-              ding are inserted at the beginning of each track.
+              each track.  If igno  is  negative,  an  extra  -igno  bytes  of
+              padding are inserted at the beginning of each track.
 
        -i ipos
-              If this option is given, dmk2cw  forces  the  first  IAM  (index
+              If  this  option  is  given,  dmk2cw forces the first IAM (index
               address mark) encountered on each track to be exactly ipos bytes
-              from the physical start of  the  track,  by  ignoring  bytes  or
-              adding  padding  at  the start of the track as with the -g flag.
-              The default is -1, which disables this feature, instead  record-
-              ing  the gap exactly as in the image.  Note that if you set ipos
+              from  the  physical  start  of  the  track, by ignoring bytes or
+              adding padding at the start of the track as with  the  -g  flag.
+              The  default is -1, which disables this feature, instead record-
+              ing the gap exactly as in the image.  Note that if you set  ipos
               too small, there will not be enough bytes in the initial gap for
               the IAM to be recognized when the disk is read.
+
+       -r reverse
+              If reverse is 1, dmk2cw reverses the sides of the disk; that is,
+              it  writes side 0 of the DMK file to physical side 1 of the disk
+              and side 1 of the DMK (if any) to physical side 0 of  the  disk.
+              The default is 0, which does not reverse the sides.  This option
+              is most likely to be useful if you  want  to  write  a  separate
+              1-sided DMK image to each side of a disk in a double-side drive.
+              You can do this by running dmk2cw twice, first writing the  head
+              0 image using -s1 -r0, then the head 1 image using -s1 -r1.
+
+       -f fill
+              If  the track data being written (after possibly being shortened
+              by the above options) is not sufficient  to  fill  the  physical
+              track,  dmk2cw writes the rest of the physical track with a fill
+              pattern.  By default (with fill = 0), if the last data  byte  of
+              the  track  was  encoded in FM or RX02, the fill pattern is 0xff
+              encoded in FM; if the last data byte was  encoded  in  MFM,  the
+              fill  pattern  is  0x4e  encoded  in MFM.  With fill = 1, dmk2cw
+              erases the remainder of the track and writes nothing (not avail-
+              able  on Catweasel MK1 or MK3).  With fill = 2, the fill pattern
+              is a sequence of very long transitions, which  also  effectively
+              erases  the  remainder of the track.  With fill = 3, there is no
+              fill; the Catweasel stops writing at the end of  track,  leaving
+              whatever  was previously on the disk intact.  With fill = 0x1nn,
+              the fill pattern is 0xnn encoded in FM.  With fill = 0x2nn,  the
+              fill pattern is 0xnn encoded in MFM.
 
        -y testmode
               Set various undocumented test modes for debugging.
@@ -276,6 +308,6 @@ Authors
        files with names of the form csdpmi*.zip.  Note:  the  highest  version
        that has been tested with dmk2cw at this writing is 5.
 
-       $Id: dmk2cw.man,v 1.15 2005/05/16 04:31:03 mann Exp $
+       $Id: dmk2cw.man,v 1.16 2010/01/15 19:28:46 mann Exp $
 
                                                                      dmk2cw(1)

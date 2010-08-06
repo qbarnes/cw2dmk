@@ -1,7 +1,7 @@
 /*
  * cw2dmk: Dump floppy disk from Catweasel to .dmk format.
  * Copyright (C) 2000 Timothy Mann
- * $Id: cw2dmk.c,v 1.36 2005/06/25 07:22:05 mann Exp $
+ * $Id: cw2dmk.c,v 1.38 2010/01/15 20:32:56 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -51,8 +51,10 @@ FILE *dmk_file;
 #define MFM 2
 #define RX02 3
 #define MIXED 0
+#define N_ENCS 4
 char *enc_name[] = { "autodetect", "FM", "MFM", "RX02" };
-int enc_count[4];
+int enc_count[N_ENCS];
+int total_enc_count[N_ENCS];
 
 /* Note: if track guess is too low, we won't notice, so we go very
    high.  I actually have seen a 43-track disk made in a 40-track
@@ -95,6 +97,7 @@ int backward_am, flippy = 0;
 int first_encoding;  /* first encoding to try on next track */
 int curenc;
 int uencoding = MIXED;
+int reverse = 0;
 
 char* plu(val)
 {
@@ -320,6 +323,8 @@ dmk_write_header(void)
 void
 dmk_write(void)
 {
+  int i;
+
   msg(OUT_TSUMMARY, " %d good sector%s, %d error%s\n",
       good_sectors, plu(good_sectors), errcount, plu(errcount));
   msg(OUT_IDS, "\n");
@@ -331,6 +336,9 @@ dmk_write(void)
   } else if (good_sectors > 0) {
     good_tracks++;
   }
+  for (i = 0; i < N_ENCS; i++) {
+    total_enc_count[i] += enc_count[i];
+  }
   fwrite(dmk_track, dmk_header.tracklen, 1, dmk_file);
 }
 
@@ -338,6 +346,8 @@ dmk_write(void)
 void
 dmk_init_track(void)
 {
+  int i;
+
   memset(dmk_track, 0, dmk_header.tracklen);
   dmk_idam_p = (unsigned short*) dmk_track;
   dmk_data_p = dmk_track + DMK_TKHDR_SIZE;
@@ -345,11 +355,14 @@ dmk_init_track(void)
   dmk_valid_id = 0;
   dmk_full = 0;
   good_sectors = 0;
+  for (i = 0; i < N_ENCS; i++) {
+    enc_count[i] = 0;
+  }
   errcount = 0;
   backward_am = 0;
   dmk_ignored = 0;
   if (dmk_ignore < 0) {
-    int i = dmk_ignore;
+    i = dmk_ignore;
     while (i++) *dmk_data_p++ = 0xff;
   }
   cylseen = -1;
@@ -719,7 +732,8 @@ process_bit(int bit)
       dmk_data(val, curenc);
       if ((uencoding == MIXED || uencoding == RX02) &&
 	  (val == 0xfd ||
-	   (val == 0xf9 && (enc_count[RX02] > 0 || uencoding == RX02)))) {
+	   (val == 0xf9 && (total_enc_count[RX02] + enc_count[RX02] > 0 ||
+			    uencoding == RX02)))) {
 	change_enc(RX02);
       }
       /* For MFM, premark a1a1a1 is included in the CRC */
@@ -942,7 +956,7 @@ do_histogram(int drive, int track, int side, int histogram[128],
    * this does count the width of the index pulse twice, it's fast and
    * quite accurate enough for a histogram.
    */
-  if (!catweasel_read(&c.drives[drive], side, 1, 0, 0)) {
+  if (!catweasel_read(&c.drives[drive], side ^ reverse, 1, 0, 0)) {
     return 0;
   }
   while ((b = catweasel_get_byte(&c)) != -1 && b < 0x80) {
@@ -1141,6 +1155,7 @@ void usage(void)
 	 "if -1, don't [%d]\n", dmk_iam_pos);
   printf(" -z maxsize    Allow sector sizes up to 128<<maxsize [%d]\n",
 	 maxsize);
+  printf(" -r reverse    0 = normal, 1 = reverse sides [%d]\n", reverse);
   printf("\n Fine-tuning options; effective only after the -k option\n");
   printf(" -c clock      Catweasel clock multipler [%d]\n", cwclock);
   printf(" -1 threshold  MFM threshold for short vs. medium [%d]\n",
@@ -1164,7 +1179,7 @@ main(int argc, char** argv)
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:c:1:2:f:l:");
+    ch = getopt(argc, argv, "p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1172,7 +1187,7 @@ main(int argc, char** argv)
       if (port < 0 || (port >= MK3_MAX_CARDS && port < MK1_MIN_PORT) ||
 	  (port > MK1_MAX_PORT)) {
 	fprintf(stderr,
-		"cw2dmk: -p must be between %d and %d for MK3/4 cards,\n"
+		"cw2dmk: -p must be between 0x%x and 0x%x for MK3/4 cards,\n"
 		"  or between 0x%x and 0x%x for MK1 cards.\n",
 		0, MK3_MAX_CARDS-1, MK1_MIN_PORT, MK1_MAX_PORT);
 	exit(1);
@@ -1243,6 +1258,10 @@ main(int argc, char** argv)
     case 'z':
       maxsize = strtol(optarg, NULL, 0);
       if (maxsize < 0 || maxsize > 255) usage();
+      break;
+    case 'r':
+      reverse = strtol(optarg, NULL, 0);
+      if (reverse < 0 || reverse > 1) usage();
       break;
     case 'c':
       cwclock = strtol(optarg, NULL, 0);
@@ -1456,6 +1475,9 @@ main(int argc, char** argv)
   total_errcount = 0;
   total_retries = 0;
   total_good_sectors = 0;
+  for (i = 0; i < N_ENCS; i++) {
+    total_enc_count[i] = 0;
+  }
   good_tracks = 0;
   err_tracks = 0;
   first_encoding = (uencoding == RX02 ? FM : uencoding);
@@ -1521,7 +1543,8 @@ main(int argc, char** argv)
 	 * Do read.  Always store index holes in the data stream; this
 	 * helps avoid duplicating data due to undetected wraparound.
 	 */
-	if (!catweasel_read(&c.drives[drive], side, cwclock, readtime, 1)) {
+	if (!catweasel_read(&c.drives[drive], side ^ reverse, cwclock,
+			    readtime, 1)) {
 	  fprintf(stderr, "cw2dmk: Read error\n");
 	  cleanup();
 	  exit(1);
@@ -1640,7 +1663,7 @@ main(int argc, char** argv)
  done:
 
   cleanup();
-  if (enc_count[RX02] > 0 && uencoding != RX02) {
+  if (total_enc_count[RX02] > 0 && uencoding != RX02) {
     // XXX What if disk had some 0xf9 DAM sectors misinterpreted as
     // WD1771 FM instead of RX02-MFM before we detected RX02?  Ugh.
     // Should at least detect this and give an error.  Maybe
@@ -1655,7 +1678,7 @@ main(int argc, char** argv)
       "%d good track%s, %d good sector%s (%d FM + %d MFM + %d RX02)\n",
       good_tracks, plu(good_tracks),
       total_good_sectors, plu(total_good_sectors),
-      enc_count[FM], enc_count[MFM], enc_count[RX02]);
+      total_enc_count[FM], total_enc_count[MFM], total_enc_count[RX02]);
   msg(OUT_SUMMARY, "%d bad track%s, %d unrecovered error%s, %d retr%s\n",
       err_tracks, plu(err_tracks), total_errcount, plu(total_errcount),
       total_retries, (total_retries == 1) ? "y" : "ies");

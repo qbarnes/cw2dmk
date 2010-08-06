@@ -1,7 +1,7 @@
 /*
  * dmk2jv3: Convert a DMK format emulated floppy to JV3 format if possible
  * Copyright (C) 2002 Timothy Mann
- * $Id: dmk2jv3.c,v 1.9 2005/03/29 07:13:40 mann Exp $
+ * $Id: dmk2jv3.c,v 1.10 2010/01/15 19:28:46 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -295,7 +295,7 @@ main(int argc, char** argv)
 	  printf("[End of file on input]\n");
 	  break;
 	}
-	fprintf(stderr, "dmk2cw: Error reading from DMK file\n");
+	fprintf(stderr, "dmk2jv3: Error reading from DMK file\n");
 	perror("dmk2jv3");
 	exit(1);
       }

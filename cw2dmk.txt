@@ -41,94 +41,94 @@ Description
        not load Michael Krause's "cwfloppy" driver at the same  time,  and  on
        MS-DOS, do not load the "catbase" driver that comes with the Catweasel.
 
-       For more information about the Catweasel controller and other  software
+       For  more information about the Catweasel controller and other software
        that works with it, see:
            http://www.jschoenfeld.com/
            http://www.soundtracker.org/raw/
 
-       For  information  about  the DMK file format and the emulators that use
+       For information about the DMK file format and the  emulators  that  use
        it, see:
            http://discover-net.net/~dmkeil/
            http://www.tim-mann.org/xtrs.html
 
 Options
        -d drive
-              Specify the drive unit number, 0  or  1.   Specify  -1  to  have
-              cw2dmk  try drive 0 first, then drive 1 if drive 0 does not seem
+              Specify  the  drive  unit  number,  0  or 1.  Specify -1 to have
+              cw2dmk try drive 0 first, then drive 1 if drive 0 does not  seem
               to exist.  The default setting is -1.
 
        -v verbosity
-              Specify how much output is printed.  Larger numbers select  more
-              output.   The  default  setting is 2.  You can ask for different
-              amounts of output to be logged to a logfile and  to  the  screen
-              (i.e.,  stdout)  by  giving a two-digit number.  The first digit
-              specifies how much output to log to the logfile, the second  how
+              Specify  how much output is printed.  Larger numbers select more
+              output.  The default setting is 2.  You can  ask  for  different
+              amounts  of  output  to be logged to a logfile and to the screen
+              (i.e., stdout) by giving a two-digit number.   The  first  digit
+              specifies  how much output to log to the logfile, the second how
               much to log to the screen.
 
               0      No output.
 
               1      Print a summary at the end of conversion.
 
-              2      Also  print the number of good sectors and errors on each
-                     track.  When a retry  is  needed,  print  the  number  of
+              2      Also print the number of good sectors and errors on  each
+                     track.   When  a  retry  is  needed,  print the number of
                      errors on the previous try and the retry number.
 
-              3      Also  print  the  sector numbers, plus a short message in
-                     brackets when an  error  is  encountered  or  the  FM/MFM
+              3      Also print the sector numbers, plus a  short  message  in
+                     brackets  when  an  error  is  encountered  or the FM/MFM
                      encoding detector fires.
 
               4      Also print the track IDs and DAMs (data address marks).
 
               5      Also print all data in hexadecimal.  Print "{" and "}" to
-                     indicate where the index hole sensor  went  on  and  off.
-                     Print  "(-N)"  or  "(+N)"  where  the  decoder dropped or
-                     duplicated N clock/data bits in an attempt to  resynchro-
+                     indicate  where  the  index  hole sensor went on and off.
+                     Print "(-N)" or  "(+N)"  where  the  decoder  dropped  or
+                     duplicated  N clock/data bits in an attempt to resynchro-
                      nize itself with the data bit and byte boundaries.  Print
-                     a "?" before any byte  where  a  clock  was  unexpectedly
+                     a  "?"  before  any  byte  where a clock was unexpectedly
                      missing or unexpectedly present even after the resynchro-
                      nization heuristics were applied.
 
               6      Like 4, but also print the data as raw characters.
 
-              7      Like 5, but  also  print  the  histogram  generated  when
-                     autodetecting  the  drive  and media type, and print each
-                     Catweasel sample and its  classification  as  short  (s),
+              7      Like  5,  but  also  print  the  histogram generated when
+                     autodetecting the drive and media type,  and  print  each
+                     Catweasel  sample  and  its  classification as short (s),
                      medium (m), or long (l).  Enclose the decoded hexadecimal
-                     data bytes in angle brackets ("< >") to distinguish  them
+                     data  bytes in angle brackets ("< >") to distinguish them
                      from the samples.
 
        -u logfile
-              Specify  the  filename  to log output to.  The default is not to
-              log to a file unless you give a two-digit  -v  option.   If  you
-              give  a  two-digit  -v option and do not give the -u option, the
-              default logfile name is formed by stripping  any  extension  off
-              the  DMK  file name and appending .log instead.  If you give the
-              -u option with a one-digit -v option, the same output is  logged
+              Specify the filename to log output to.  The default  is  not  to
+              log  to  a  file  unless you give a two-digit -v option.  If you
+              give a two-digit -v option and do not give the  -u  option,  the
+              default  logfile  name  is formed by stripping any extension off
+              the DMK file name and appending .log instead.  If you  give  the
+              -u  option with a one-digit -v option, the same output is logged
               to the file and to the screen.
 
-       The  remaining  options are usually not needed.  cw2dmk will ordinarily
+       The remaining options are usually not needed.  cw2dmk  will  ordinarily
        detect or guess the correct values.
 
        -p port
-              For the Catweasel MK1 (ISA), port should be the I/O  port  base,
-              or  0  to  default  to  the  factory  setting of 0x320.  For the
-              Catweasel MK3 or MK4 (PCI), port  should  be  0  for  the  first
-              Catweasel  card  in  the  machine,  1  for the second, etc.  The
+              For  the  Catweasel MK1 (ISA), port should be the I/O port base,
+              or 0 to default to  the  factory  setting  of  0x320.   For  the
+              Catweasel  MK3  or  MK4  (PCI),  port  should be 0 for the first
+              Catweasel card in the machine,  1  for  the  second,  etc.   The
               default is 0.
 
        -k kind
               Specify the type of drive and type of media in use.  This option
-              is  generally  not needed, as cw2dmk should always autorecognize
-              the correct value.  You can use it if you want to eliminate  the
+              is generally not needed, as cw2dmk should  always  autorecognize
+              the  correct value.  You can use it if you want to eliminate the
               slight delay for autodetection, or in the special case where you
-              want to treat a 3.5-inch high density disk  as  an  8-inch  disk
-              (ignoring  the  last 1/6 of each track) by giving the -k3 option
-              where -k4 would have been the  autorecognized  value.   Possible
+              want  to  treat  a  3.5-inch high density disk as an 8-inch disk
+              (ignoring the last 1/6 of each track) by giving the  -k3  option
+              where  -k4  would  have been the autorecognized value.  Possible
               values:
 
               1      5.25-inch SD/DD disk in 1.2MB drive
 
-              2      5.25-inch  SD/DD  disk  in 360KB/720KB drive, or 3.5-inch
+              2      5.25-inch SD/DD disk in 360KB/720KB  drive,  or  3.5-inch
                      SD/DD disk
 
               3      5.25-inch HD disk, or 8-inch SD/DD disk
@@ -136,69 +136,69 @@ Options
               4      3.5-inch HD disk
 
        -m steps
-              Step multiplier, 1 or 2.  A step multiplier of 2  is  used  when
-              reading  a 40-track (or 35-track) disk in an 80-track drive.  If
-              this option is not given, cw2dmk  guesses  a  likely  value  and
+              Step  multiplier,  1  or 2.  A step multiplier of 2 is used when
+              reading a 40-track (or 35-track) disk in an 80-track drive.   If
+              this  option  is  not  given,  cw2dmk guesses a likely value and
               checks its guess by trying to read the first few tracks.  If the
-              guess appears to have been wrong, cw2dmk will use  the  opposite
+              guess  appears  to have been wrong, cw2dmk will use the opposite
               value instead.  Giving this option will speed up cw2dmk slightly
-              by eliminating the time to check the guess, and will remove  the
+              by  eliminating the time to check the guess, and will remove the
               small possibility that the guess is wrong even after having been
-              checked (which can happen only with  copy-protected  disks  that
-              are  formatted  with  nonstandard  track  numbers).  The initial
+              checked  (which  can  happen only with copy-protected disks that
+              are formatted with  nonstandard  track  numbers).   The  initial
               guess is 2 if the drive/media type (-k option) is set or autode-
               tected to be 1; otherwise the initial guess is 1.
 
        -t tracks
-              Specifies  the number of tracks per side.  If this option is not
+              Specifies the number of tracks per side.  If this option is  not
               given, cw2dmk will guess 43 if the -m option is set (or guessed)
-              to  be  2,  otherwise 86.  If cw2dmk is operating with a guessed
-              value for -t, and the next track after one of  the  more  likely
+              to be 2, otherwise 86.  If cw2dmk is operating  with  a  guessed
+              value  for  -t,  and the next track after one of the more likely
               ending places (35, 40, 77, or 80 tracks) has no valid sectors or
               has the same logical track number as the previous track, it will
               lower its guess and immediately stop reading at that point.
 
        -s sides
-              Specifies  the  number  of  sides.  If this option is not given,
-              cw2dmk will guess 2 sides if the second side appears to be  for-
-              matted,  then  revise  its guess to 1 side if there are no valid
-              sectors on the first track or two of the  second  side.   Giving
-              the  -s1  option explictly for a single-sided disk will save the
+              Specifies the number of sides.  If this  option  is  not  given,
+              cw2dmk  will guess 2 sides if the second side appears to be for-
+              matted, then revise its guess to 1 side if there  are  no  valid
+              sectors  on  the  first track or two of the second side.  Giving
+              the -s1 option explictly for a single-sided disk will  save  the
               time needed for this autodetection.
 
        -w fmtimes
               Normally, FM bytes are written into the DMK file twice (-w2), so
-              that  they take up the correct proportion of the space on mixed-
+              that they take up the correct proportion of the space on  mixed-
               density tracks.  You can set -w1 to cause FM bytes to be written
-              only  once.  This does not save space in the DMK file unless you
+              only once.  This does not save space in the DMK file unless  you
               also reduce the track length with the -l option.
 
        -e encoding
-              Overrides the normal FM/MFM/RX02 autodetection.  To try only  FM
+              Overrides  the normal FM/MFM/RX02 autodetection.  To try only FM
               decoding, specify -e1; to try only MFM, specify -e2; to try only
-              RX02, specify -e3.  Using this option does not speed  up  cw2dmk
-              appreciably;  however,  it  can  help  on  noisy disks where the
-              decoder occasionally makes an error because it has to  take  all
+              RX02,  specify  -e3.  Using this option does not speed up cw2dmk
+              appreciably; however, it can  help  on  noisy  disks  where  the
+              decoder  occasionally  makes an error because it has to take all
               three possible encodings into account.
 
-              Additional  notes  on DEC RX02 disks: These disks use a nonstan-
+              Additional notes on DEC RX02 disks: These disks use  a  nonstan-
               dard encoding for double density.  A slight extension to the DMK
-              format  is  used to represent them: Bit 5 (previously unused) is
-              set in the DMK header's options byte (byte 4).  The  DMK  double
-              density  flag  (bit  15 of the IDAM pointer) is not set for RX02
-              double density sectors, on the grounds that only  the  data  and
-              CRC  are in MFM, not the ID, DAM, gap, etc.  A program reading a
-              DMK with the RX02 option bit set should expect a sector to  con-
+              format is used to represent them: Bit 5 (previously  unused)  is
+              set  in  the DMK header's options byte (byte 4).  The DMK double
+              density flag (bit 15 of the IDAM pointer) is not  set  for  RX02
+              double  density  sectors,  on the grounds that only the data and
+              CRC are in MFM, not the ID, DAM, gap, etc.  A program reading  a
+              DMK  with the RX02 option bit set should expect a sector to con-
               tain twice as many valid data bytes as its sizecode indicates if
               the sector's DAM is 0xf9 (deleted RX02 MFM data) or 0xfd (normal
-              RX02  MFM  data).   Note that as with other disk types, FM bytes
+              RX02 MFM data).  Note that as with other disk  types,  FM  bytes
               are written to the DMK file twice unless you set the -w1 option,
-              while  MFM bytes are written only once.  RX02 autodetection will
-              fail if the first track with RX02 sectors has only deleted  data
+              while MFM bytes are written only once.  RX02 autodetection  will
+              fail  if the first track with RX02 sectors has only deleted data
               (0xf9 DAMs).  This is unlikely to occur, but using -e3 will work
               around the problem if it does.
 
-       The following are special options for dealing with hard to read  disks.
+       The following are special options for dealing with hard to read disks.
 
        -x retries
               While  reading a track, cw2dmk tries to recognize sector IDs and
@@ -265,23 +265,37 @@ Options
               a  track  wraps  around far past the index hole and is partially
               cut off by cw2dmk's normal reading method.
 
-              More importantly, the -h0 option can be useful for  reading  the
-              back  of a disk that was written in a "flippy" drive; that is, a
-              drive with two index hole and write protect notch  sensors  that
-              allows  you  to  insert  an ordinary floppy disk upside down and
-              write a single-sided format on the back.  Ordinarily  you  can't
-              flip  over  such a disk and read the back in a non-flippy drive.
-              Even with cw2dmk, you can't do this unless either you  punch  an
-              extra  hole  in  the  disk's  jacket  (as flippy disks that were
-              designed for non-flippy drives have), or you have a  drive  that
-              will permit reading a disk even if it sees no index holes.  Most
-              modern floppy drives will not let you read any data from a  disk
-              unless  they  have  seen  some  index  holes  going by since you
+              The -h0 option can also be useful  with  one  type  of  "flippy"
+              disk.   Generally,  a  flippy disk is a disk that has a separate
+              single sided format written on each side, where  the  format  on
+              the  back was written by flipping the disk over and inserting it
+              into the drive upside-down.  You can't read the back of a flippy
+              disk using the side 1 head of a double-sided drive; cw2dmk could
+              compensate for the disk rotating the wrong way, but a more seri-
+              ous  problem  is that the side 1 head on a double-sided drive is
+              offset inward a few tracks from the side 0 head,  so  it  cannot
+              reach the first few tracks on the back of a flippy.  This is not
+              a problem if your disk was written on flippy media, which has an
+              index  hole on each side of the jacket and a write protect notch
+              on each edge; such media can be flipped over  and  read  in  any
+              drive.   But  some flippy disks consist of non-flippy media that
+              was written in a flippy drive; that is, the disk  has  only  one
+              index  hole and write protect notch in the jacket, but the drive
+              that was used to write it had two index  hole  sensors  and  two
+              write  protect sensors, one for each side.  If you have the lat-
+              ter kind of flippy disk but no flippy drive,  the  disk  can  be
+              difficult  to read.  You could punch an extra hole in the disk's
+              jacket, thus converting it to flippy media, or you can read  the
+              disk  with  cw2dmk  using  the  -h0 option.  However, there is a
+              catch with trying to use the -h0 option: although cw2dmk  itself
+              does  not  need  to  see an index hole in that case, most modern
+              floppy drives will not let you read any data from a disk  unless
+              the  drive  itself  has seen some index holes going by since you
               inserted it.  Older drives may work,  or  you  may  be  able  to
               rejumper  or  modify  a  newer drive.  On a Mitsubishi MF504B or
               MF504C drive, remove the RD jumper.  For drives that don't  have
-              such  a  jumper,  see http://home.t-online.de/home/indcomp/flip-
-              side.html for a modification idea.
+              such  a jumper, see http://siliconsonic.de/t/flipside.html for a
+              modification idea.
 
        -g igno
               Causes cw2dmk to ignore the first igno  bytes  decoded  on  each
@@ -289,11 +303,11 @@ Options
               inserted at the beginning of each track.
 
        -i ipos
-              If this option is given, cw2dmk  forces  the  first  IAM  (index
-              address  mark)  encountered  to  be  exactly ipos bytes from the
-              physical start of the track, by ignoring bytes or adding padding
-              at  the  start  of the track as with the -g option.  The default
-              value is -1, which disables this feature.
+              If this option is given, cw2dmk forces the first IAM (index  ad-
+              dress mark) encountered to be exactly ipos bytes from the physi-
+              cal start of the track, by ignoring bytes or adding  padding  at
+              the start of the track as with the -g option.  The default value
+              is -1, which disables this feature.
 
               This feature can be useful in conjuction with  the  -h0  option.
               If  your  disk was originally formatted with an IAM at the start
@@ -320,8 +334,8 @@ Options
               written  by  Western  Digital  WD177x/179x  controllers  used in
               TRS-80s.  On most of these controllers, only the  two  low-order
               bits  of  the  code are ever significant, and the sector size is
-              given by 128 << (code & 3).  On  the  1771,  there  is  also  an
-              optional "non-IBM" feature that can be selected when a sector is
+              given by 128 << (code & 3).  On the 1771, there is also  an  op-
+              tional  "non-IBM"  feature that can be selected when a sector is
               read or written.  When this feature is used, the sector size  is
               given  by 16 * code (or 16 * 256 if code is zero).  As a heuris-
               tic, cw2dmk assumes the non-IBM feature was used if a sector  is
@@ -333,169 +347,191 @@ Options
               cw2dmk to correctly determine the sector sizes and avoid report-
               ing false CRC errors.
 
+       -r reverse
+              If reverse is 1, cw2dmk reverses the sides of the disk; that is,
+              it reads side 0 of the DMK file from physical side 1 of the disk
+              and side 1 of the DMK (if any) from physical side 0 of the disk.
+              The default is 0, which does not reverse the sides.  This option
+              is most likely to be useful if you have a disk that was recorded
+              in a double-sided drive with a separate single-sided  filesystem
+              on  each side.  Reading such a disk twice, once with -s1 -r0 and
+              once with -s1 -r1, gives you a separate  1-sided  DMK  image  of
+              each  side  of  the  disk.  (Note: this option is not useful for
+              reading the back of a flippy disk; see the -h0 option.)
+
        The next few options modify individual parameters that are normally set
-       correctly by the -k option (or by autodetection of  the  correct  value
-       for  the  -k  option).   These  options  can be given only after the -k
-       option.  To see the default values for a particular disk kind  N,  type
-       the command "cw2dmk -kN" with no other arguments; they will be shown in
+       correctly  by  the  -k option (or by autodetection of the correct value
+       for the -k option).  These options can be given only after the  -k  op-
+       tion.  To see the default values for a particular disk kind N, type the
+       command "cw2dmk -kN" with no other arguments; they  will  be  shown  in
        brackets in the usage message.
 
        -c clock
-              Catweasel sample  rate  multiplier.   1  selects  7.080  MHz,  2
-              selects  14.161  MHz,  and  (on  Catweasel  MK3  and MK4 only) 4
-              selects 28.322 MHz.
+              Catweasel  sample  rate  multiplier.  1 selects 7.080 MHz, 2 se-
+              lects 14.161 MHz, and (on Catweasel MK3 and MK4 only) 4  selects
+              28.322 MHz.
 
        -1 threshold
               MFM threshold for short (10) vs. medium (100), in number of sam-
               ples.
 
        -2 threshold
-              MFM  threshold  for  medium  (100) vs. long (1000), in number of
+              MFM threshold for medium (100) vs. long  (1000),  in  number  of
               samples.
 
        -f threshold
-              FM threshold for short (1) vs. long (10), in number of  samples.
-              Used  only  in  -e1  mode; in the default mode where encoding is
-              autodetected on the fly, FM samples must lie outside  the  range
-              between the two MFM thresholds to be decoded correctly.
+              FM  threshold for short (1) vs. long (10), in number of samples.
+              Used only in -e1 mode; in the default mode where encoding is au-
+              todetected on the fly, FM samples must lie outside the range be-
+              tween the two MFM thresholds to be decoded correctly.
 
        -l bytes
-              DMK  track  length in bytes.  The maximum is 0x4000 hex or 16384
-              decimal.  Note that cw2dmk  uses  this  value  as  part  of  its
-              heuristic  to  determine when it has read one complete track and
-              is starting to see wraparound back to the start  of  the  track.
-              If  the DMK track buffer is more than 95% full and a sector with
-              the same header as the first sector on the track is seen  again,
-              cw2dmk  assumes  it has wrapped around to the start of the track
+              DMK track length in bytes.  The maximum is 0x4000 hex  or  16384
+              decimal.   Note  that  cw2dmk  uses  this  value  as part of its
+              heuristic to determine when it has read one complete  track  and
+              is  starting  to  see wraparound back to the start of the track.
+              If the DMK track buffer is more than 95% full and a sector  with
+              the  same header as the first sector on the track is seen again,
+              cw2dmk assumes it has wrapped around to the start of  the  track
               again and stops reading.  This heuristic will be defeated if you
-              set  the  track  length to a huge value, so set it at most a few
-              percent higher than the default for the disk  kind  (-k  option)
+              set the track length to a huge value, so set it at  most  a  few
+              percent  higher  than  the default for the disk kind (-k option)
               you are using.
 
 Limitations
-       Here  are  some  cases  where  the results may not be correct unless an
-       additional command line option is given.
+       Here are some cases where the results may not be correct unless an  ad-
+       ditional command line option is given.
 
        If the disk has a defect but can be successfully read by using a larger
        number of retries than normal, use the -x option.
 
        If the disk is noisy, cw2dmk's decoder may sometimes misclassify a sam-
-       ple or even misdetect the encoding (FM, MFM, or RX02), usually  result-
-       ing  in a CRC error or a missing sector.  You can sometimes work around
-       this (especially for FM-only disks) by using the  -e  option  to  force
-       only  one  encoding to be considered.  Another workaround that can help
-       is the -o option.  In rare cases, tweaking thresholds with the -1,  -2,
-       and  -f options may help.  The histogram displayed by the -v7 option or
-       the separate testhist program may help you find the best thresholds.
+       ple  or even misdetect the encoding (FM, MFM, or RX02), usually result-
+       ing in a CRC error or a missing sector.  You can sometimes work  around
+       this (especially for FM-only disks) by using the -e option to force on-
+       ly one encoding to be considered.  Another workaround that can help  is
+       the -o option.  In rare cases, tweaking thresholds with the -1, -2, and
+       -f options may help.  The histogram displayed by the -v7 option or  the
+       separate testhist program may help you find the best thresholds.
 
        If the disk was formatted with more than 43 tracks in a 40-track drive,
        or more than 86 tracks in an 80-track drive, use the -t option.
 
-       Double-stepping  is  used  to read 35- or 40-track disks in an 80-track
-       drive.  If a copy-protected disk has  nonstandard  track  numbers  that
-       fool  cw2dmk when it tries to detect whether the drive needs to be sin-
+       Double-stepping is used to read 35- or 40-track disks  in  an  80-track
+       drive.   If  a  copy-protected  disk has nonstandard track numbers that
+       fool cw2dmk when it tries to detect whether the drive needs to be  sin-
        gle or double-stepped, use the -s option.
 
-       If the TRS-80 program on a copy-protected disk does a Read  Track  when
-       it  is  run, and it expects the raw track data to be precisely aligned,
-       but the data comes out shifted a few bytes  forward  or  backward  when
+       If  the  TRS-80 program on a copy-protected disk does a Read Track when
+       it is run, and it expects the raw track data to be  precisely  aligned,
+       but  the  data  comes  out shifted a few bytes forward or backward when
        read with the Catweasel, use the -g or -i option.
 
-       If  the  last sector on a track wraps around through the index hole and
-       extends too far past it, cw2dmk's normal -h1 reading strategy  may  cut
-       off  the end of it, resulting in a CRC error.  Using the -h0 option may
+       If the last sector on a track wraps around through the index  hole  and
+       extends  too  far past it, cw2dmk's normal -h1 reading strategy may cut
+       off the end of it, resulting in a CRC error.  Using the -h0 option  may
        take care of the problem.
 
-       If the disk was made by a NEC765-compatible controller and has  sectors
+       If  the disk was made by a NEC765-compatible controller and has sectors
        longer than 1024 bytes, use the -z7 option.
 
-       If  a disk has fewer tracks than cw2dmk guesses, reading will sometimes
+       If a disk has fewer tracks than cw2dmk guesses, reading will  sometimes
        continue past the last valid track.  It is harmless for extra tracks of
-       garbage  to  be written to the end of the DMK file, but if you know the
-       correct number of tracks, you can use the -t option to force cw2dmk  to
-       stop  at the right place.  Remember that track numbers start from zero,
+       garbage to be written to the end of the DMK file, but if you  know  the
+       correct  number of tracks, you can use the -t option to force cw2dmk to
+       stop at the right place.  Remember that track numbers start from  zero,
        so (for example) giving the option -t35 will cause tracks numbered 0 to
        34 to be read.
 
        Atari 800 floppy disk drives typically rotate at 288 RPM instead of 300
-       RPM, allowing for somewhat more data per track  than  standard  drives,
-       and  they write data to the disk without regard for the position of the
-       index hole.  To read one of these  disks  with  cw2dmk  in  a  standard
-       floppy  drive,  give  the -h0 option to ignore the index hole position,
-       the -k1 or -k2 option as needed to specify the kind of drive and  media
-       in use, and the -l 0x1A40 option to increase the DMK track length.
+       RPM,  allowing  for  somewhat more data per track than standard drives,
+       and they write data to the disk without regard for the position of  the
+       index hole.  To read one of these disks with cw2dmk in a standard flop-
+       py drive, give the -h0 option to ignore the index  hole  position,  the
+       -k1  or  -k2 option as needed to specify the kind of drive and media in
+       use, and the -l 0x1A40 option to increase the DMK track length.
 
 Diagnostics
        cw2dmk: Must be setuid to root or be run as root
        cw2dmk: No access to I/O ports
-              On  Linux, cw2dmk must be made setuid to root or be run as root,
-              or it will not be able to access the Catweasel's I/O  ports  and
+              On Linux, cw2dmk must be made setuid to root or be run as  root,
+              or  it  will not be able to access the Catweasel's I/O ports and
               this error message will appear.
 
        cw2dmk: Failed to detect Catweasel
               A Catweasel card was not detected at the specified I/O ports.
 
        cw2dmk: Failed to detect any drives
-              You  did  not  specify  a drive to use with the -d opion, and no
-              drives were detected.  The track 0 sensor is used to detect  the
-              presence  of  a drive, so you may get this message if your drive
+              You did not specify a drive to use with the  -d  opion,  and  no
+              drives  were detected.  The track 0 sensor is used to detect the
+              presence of a drive, so you may get this message if  your  drive
               has a broken track 0 sensor.  In that case, use the -d option to
               select which drive to use.
 
        cw2dmk: Drive d not detected; proceeding anyway
-              You  specified a drive for cw2dmk to use with the -d option, but
-              it was not detected.  The track 0 sensor is used to  detect  the
-              presence  of  a  drive,  so you may get this message for a drive
+              You specified a drive for cw2dmk to use with the -d option,  but
+              it  was  not detected.  The track 0 sensor is used to detect the
+              presence of a drive, so you may get this  message  for  a  drive
               with a broken track 0.  However, it's more likely that the spec-
-              ified  drive number does not exist.  Cabling and drive selection
-              can be confusing, so before giving up, try the other drive  num-
-              ber  or  leave  out  the -d option and let cw2dmk autodetect the
-              drive number.  Note: In versions prior to 3.0, cw2dmk  used  the
-              opposite  drive  numbering convention from the bundled Catweasel
-              software supplied by Individual Computers.  This  has  now  been
+              ified drive number does not exist.  Cabling and drive  selection
+              can  be confusing, so before giving up, try the other drive num-
+              ber or leave out the -d option and  let  cw2dmk  autodetect  the
+              drive  number.   Note: In versions prior to 3.0, cw2dmk used the
+              opposite drive numbering convention from the  bundled  Catweasel
+              software  supplied  by  Individual Computers.  This has now been
               corrected.
 
        cw2dmk: Track 0 side 0 is unformatted
-              For  drive/media  autodetection to work, track 0 of the diskette
+              For drive/media autodetection to work, track 0 of  the  diskette
               must be formatted.  This message is printed if the track appears
               not to be formatted.
 
        cw2dmk: Failed to detect drive and media type
-              This  message  is printed if drive/media autodetection fails for
-              some unknown reason.  The detector's estimate of the data  clock
-              rate  and  disk  rotation  speed  are  also printed; if they are
-              wildly wrong, the disk may be unformatted.
+              This message is printed if drive/media autodetection  fails  for
+              some  unknown reason.  The detector's estimate of the data clock
+              rate and disk rotation speed are also printed; if they are wild-
+              ly wrong, the disk may be unformatted.
 
        cw2dmk: Read error
        cw2dmk: No index hole detected
        cw2dmk: No index hole; can't detect drive and media type
        cw2dmk: No index hole; can't detect if side 1 is formatted
-              Either the drive  reported  that  it  was  not  ready  when  the
-              Catweasel  tried to read from it, or no index hole was detected.
-              These messages usually mean that there is no disk in the  drive.
-              They  might  also  appear in some cases if the drive is not con-
-              nected properly, the door is not closed, the  disk  is  inserted
+              Either  the  drive  reported  that  it  was  not  ready when the
+              Catweasel tried to read from it, or no index hole was  detected.
+              These  messages usually mean that there is no disk in the drive.
+              They might also appear in some cases if the drive  is  not  con-
+              nected  properly,  the  door is not closed, the disk is inserted
               upside-down, etc.
 
               If the disk really does not have an index hole -- in particular,
-              if you are reading the back of a disk  that  was  written  in  a
-              flippy  drive by inserting it upside-down into a normal drive --
-              cw2dmk cannot autodetect the drive and media type or if  side  1
-              is  formatted,  so  you will have to give the -k and -s flags to
-              tell it the correct type and number of sides.
+              if  you  are  reading  the  back of a disk that was written in a
+              flippy drive by inserting it upside-down  into  a  normal  drive
+              (see  the  -h0 option) -- cw2dmk cannot autodetect the drive and
+              media type or if side 1 is formatted, so you will have  to  give
+              the  -k  and  -s flags to tell it the correct type and number of
+              sides.
+
+       Possibly a flippy disk; check reverse side too
+              This message is not an error.  It means that you are  reading  a
+              disk  in a double-sided drive and cw2dmk detected there might be
+              "flippy" data on the back of the disk in addition to the  normal
+              data  on  the front.  cw2dmk cannot read all of this data unless
+              you flip the disk over (see the -h0 option for details), but  it
+              can  usually  read  enough  to  detect  that  there is some data
+              present and print this message.
 
        cw2dmk: Catweasel memory error?! See cw2dmk.txt
-              If you receive this message  on  an  unformatted  track,  please
-              ignore it; nothing is wrong.
+              If you receive this message on an unformatted track, please  ig-
+              nore it; nothing is wrong.
 
               If  you receive the message on a formatted track, and you have a
               Catweasel MK1 card that was manufactured before July 2000,  con-
-              tact  Individual  Computers  for  information  on  obtaining  an
-              updated version of the MACH chip  in  your  Catweasel.   If  you
-              never see this message, the update is not needed.
+              tact Individual Computers for information on obtaining an updat-
+              ed version of the MACH chip in your Catweasel.  If you never see
+              this message, the update is not needed.
 
-              Alternatively,  you  may  be  able to work around the problem by
-              using the Catweasel's lower clock rate (-c1) with  appropriately
+              Alternatively, you may be able to work around the problem by us-
+              ing the Catweasel's lower clock rate  (-c1)  with  appropriately
               reduced  values  for the threshold parameters (-1 and -2 or -f).
               The thresholds for -c1 should be about half the  default  values
               used  with  -c2.   To  see the default threshold values for disk
@@ -517,6 +553,6 @@ Authors
        files with names of the form csdpmi*.zip.  Note:  the  highest  version
        that has been tested with cw2dmk at this writing is 5.
 
-       $Id: cw2dmk.man,v 1.27 2005/05/16 04:31:03 mann Exp mann $
+       $Id: cw2dmk.man,v 1.31 2010/01/15 23:11:54 mann Exp $
 
                                                                      cw2dmk(1)

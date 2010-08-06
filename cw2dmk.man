@@ -271,22 +271,37 @@ One case where the -h0 option is useful is if the last sector on a
 track wraps around far past the index hole and is partially cut off by
 cw2dmk's normal reading method.
 
-More importantly, the -h0 option can be useful for reading the back of
-a disk that was written in a "flippy" drive; that is, a drive with two
-index hole and write protect notch sensors that allows you to insert
-an ordinary floppy disk upside down and write a single-sided format on
-the back.  Ordinarily you can't flip over such a disk and read the
-back in a non-flippy drive.  Even with cw2dmk, you can't do this
-unless either you punch an extra hole in the disk's jacket (as flippy
-disks that were designed for non-flippy drives have), or you have a
-drive that will permit reading a disk even if it sees no index holes.
-Most modern floppy drives will not let you read any data from a disk
-unless they have seen some index holes going by since you inserted it.
+The -h0 option can also be useful with one type of "flippy" disk.
+Generally, a flippy disk is a disk that has a separate single sided
+format written on each side, where the format on the back was written
+by flipping the disk over and inserting it into the drive upside-down.
+You can't read the back of a flippy disk using the side 1 head of a
+double-sided drive; cw2dmk could compensate for the disk rotating the
+wrong way, but a more serious problem is that the side 1 head on a
+double-sided drive is offset inward a few tracks from the side 0
+head, so it cannot reach the first few tracks on the back of a
+flippy.  This is not a problem if your disk was written on flippy
+media, which has an index hole on each side of the jacket and a write
+protect notch on each edge; such media can be flipped over and read in
+any drive.  But some flippy disks consist of non-flippy media that was
+written in a flippy drive; that is, the disk has only one index hole
+and write protect notch in the jacket, but the drive that was used to
+write it had two index hole sensors and two write protect sensors, one
+for each side.  If you have the latter kind of flippy disk but no
+flippy drive, the disk can be difficult to read.  You could punch an
+extra hole in the disk's jacket, thus converting it to flippy media,
+or you can read the disk with cw2dmk using the -h0 option.  However,
+there is a catch with trying to use the -h0 option: although cw2dmk
+itself does not need to see an index hole in that case, most modern
+floppy drives will not let you read any data from a disk unless the
+drive itself has seen some index holes going by since you inserted it.
 Older drives may work, or you may be able to rejumper or modify a
 newer drive.  On a Mitsubishi MF504B or MF504C drive, remove the RD
 jumper.  For drives that don't have such a jumper, see
-http://home.t-online.de/home/indcomp/flipside.html for a modification
-idea.
+.nh
+http://siliconsonic.de/t/flipside.html
+.hy 1
+for a modification idea.
 .TP 
 .B \-g \fIigno\fP
 Causes cw2dmk to ignore the first igno bytes 
@@ -333,6 +348,18 @@ controllers as used in PCs, the sector size is given by 128 << (code &
 7).  Thus if you have a disk written by a PC with sectors larger than
 1024 bytes, setting maxsize to 7 will allow cw2dmk to correctly
 determine the sector sizes and avoid reporting false CRC errors.
+.TP
+.B \-r \fIreverse\fP
+If reverse is 1, cw2dmk reverses the sides of the disk; that is, it
+reads side 0 of the DMK file from physical side 1 of the disk and side
+1 of the DMK (if any) from physical side 0 of the disk.  The default
+is 0, which does not reverse the sides.  This option is most likely to
+be useful if you have a disk that was recorded in a double-sided drive
+with a separate single-sided filesystem on each side.  Reading such a
+disk twice, once with -s1 -r0 and once with -s1 -r1, gives you a
+separate 1-sided DMK image of each side of the disk.  (Note: this
+option is not useful for reading the back of a flippy disk; see the
+-h0 option.)
 .P
 The next few options modify individual
 parameters that are normally set correctly by the -k option (or by
@@ -485,10 +512,18 @@ properly, the door is not closed, the disk is inserted upside-down, etc.
 
 If the disk really does not have an index hole -- in particular, if
 you are reading the back of a disk that was written in a flippy drive
-by inserting it upside-down into a normal drive -- cw2dmk cannot
-autodetect the drive and media type or if side 1 is formatted,
-so you will have to give the -k and -s flags to tell it the correct
-type and number of sides.
+by inserting it upside-down into a normal drive (see the -h0 option) --
+cw2dmk cannot autodetect the drive and media type or if side 1 is
+formatted, so you will have to give the -k and -s flags to tell it the
+correct type and number of sides.
+.TP
+.B Possibly a flippy disk; check reverse side too
+This message is not an error.  It means that you are reading a disk in
+a double-sided drive and cw2dmk detected there might be "flippy" data
+on the back of the disk in addition to the normal data on the front.
+cw2dmk cannot read all of this data unless you flip the disk over (see
+the -h0 option for details), but it can usually read enough to detect
+that there is some data present and print this message.
 .TP
 .B cw2dmk: Catweasel memory error?! See cw2dmk.txt
 If you receive this message on an unformatted track, please ignore it;
@@ -522,4 +557,4 @@ program from ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.
 Look for files with names of the form csdpmi*.zip.  Note: the highest
 version that has been tested with cw2dmk at this writing is 5.
 
-$Id: cw2dmk.man,v 1.28 2005/06/25 07:22:05 mann Exp $
+$Id: cw2dmk.man,v 1.31 2010/01/15 23:11:54 mann Exp $

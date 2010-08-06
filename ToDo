@@ -17,7 +17,7 @@ feasible.
    algorithm: in pass 1, find the largest gap and deem it gap3; in
    pass 2, decode starting after gap3.
 
-4) **Copy the raw samples out of the CW into a buffer, then parse the
+4) Copy the raw samples out of the CW into a buffer, then parse the
    buffer.  This allows us to do multi-pass algorithms in the future.
    (This is not strictly needed; calling catweasel_reset_pointer would
    already work.  However, it would be better to change the interface
@@ -31,8 +31,8 @@ feasible.
 
 5) Done.
 
-6) Done.  (Almost.  We now print sector numbers in -v3.  This item
-   had suggested doing it in -v2, but I prefer -v3.)
+6) Done.  (Approximately.  We now print sector numbers in -v3.  This
+   item had suggested doing it in -v2, but I prefer -v3.)
 
 7) Done.
 
@@ -49,22 +49,22 @@ feasible.
 
 11) Done.
 
-12) Change cw2dmk and dmk2cw to work with a real device driver in the
-    future.  Possibly they could even fit into the Arjuna framework
-    and thus run on all Windows versions, not just Linux and plain
-    MS-DOS.
+12) Change cw2dmk and dmk2cw to work with a real device driver.
 
-    * Check what the existing Windows driver provides; can it do what
-      cw2dmk and dmk2cw need?  Answer: Not clear; not enough doc.  I
-      don't know which type of raw read it does.  For -h1, I want
-      index to index with index marks in the stream (which MK3 won't
-      do fully in HW, sigh).  For -h0, I want about 2 revs by time
-      with index marks in the stream.
+    * On Linux, use the cw driver from Karsten Scheibler.  May need to
+      add MK1 and possibly also MK3 support to this driver.
 
-    * For Linux, look at merging my changes back into Michael Krause's
-      kernel-resident driver and adding the ability to read/write raw catweasel
-      tracks. (Maybe also pull his code to parse sample buffers for
-      Amiga, etc., into a separate module.)
+    * On Windows, the driver from Tobias at Individual Computers
+      should be adequate.  He has done a port that I can adapt.
+      However, I need to check if anything is broken there.  There is
+      a kludge that rejects tracks with 16 or 17 good sectors but no
+      errors, and I'm wondering what necessitated that.  Also, do both
+      -h0 and -h1 modes work?  Does this driver have MK1 support?  MK3?
+
+    * Tim Lindner did a Mac port, and Tobias's sources seem to be
+      based on that, but I think the Mac-specific code is missing.
+      Can try to roll that in too, but will need help (perhaps from
+      Tim L.) to test it.
 
 13) dmk2cw might benefit from a still more sophisticated write-precomp
     algorithm, if I can find one described anywhere.  Right now only
@@ -187,5 +187,56 @@ feasible.
     sometimes miss some data right after the index hole if the OS
     takes an interrupt or otherwise deschedules cw2dmk while it's
     spinning waiting for the hole to show up.  (It would also be good
-    to have a way to avoid this problem on the MK3.)
+    to have a way to avoid this problem on the MK3.)  Maybe this idea
+    is obsolete if I'm going to use a real driver; have to see what
+    the driver provides.
 
+28) Done.
+
+29) dmk2cw could use a way to vary the data rate slightly to adjust
+    the track length.  Basically, a flag to alter the mfmshort value
+    read from the kind descriptor would do it.  How can this be done
+    most conveniently?  Exact track length doesn't matter for any
+    TRS-80 disks I know of, but it does for some Amiga copy
+    protections, and I'm not sure if it does for PC Everlock's
+    wraparound sector.  So it's worth some thought.
+
+30) cw2dmk could maybe use a flag to always cut off at index edge 3
+    and log the exact track length found.  In DMK format, track length
+    is global to the whole disk, unfortunately, but we could at least
+    log it.  For Amiga and other formats where exact track length may
+    be critical, we'll need at least the ability for the user to tweak
+    it, and possible also algorithms to find the correct overlap
+    automatically from the data, with finer grain than just "where the
+    index edge is" (hard to do).
+
+31) Done.
+
+32) When retries are needed, should keep the "best" read so far and
+    save that one if we never get an error-free read.  
+
+33) Even better (but harder), we may occasionally be able to piece
+    together a better track by taking sectors from different retries.
+
+34) When the physical track ends, cw2dmk fills the rest of the DMK
+    track with zeros.  Is this best?  It could be important because
+    that data will be written out again by dmk2cw if the drive speed
+    is slower (or data rate is faster) on writing.  Using 00 is
+    inconsistent with the new fill feature in dmk2cw when the DMK
+    track is too short.
+
+35) The limitations of DMK format are a problem at times.  Partial list:
+
+    * No way to record the actual length read from a physical track.
+      This makes it impossible to represent formats where that matters
+      or to even try to get dmk2cw to write them back out exactly.
+
+    * The IDAM pointers are a very limited way to indicate where the
+      format has missing clocks.  In dmk2cw, we already just guess
+      where IAMs are.
+
+    * Obviously unsuitable for formats that stray far from FM/MFM.
+
+    I'm not sure what's best to do about this, if anything.  In
+    general, I would rather use a good file format that someone else
+    is using than invent a new one or make incompatible changes to DMK.

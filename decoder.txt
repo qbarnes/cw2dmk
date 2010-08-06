@@ -220,7 +220,7 @@ Standard MFM
 ------------
 
 Standard MFM is a modified version of FM, in which a clock bit is
-normally 0 unless the data bits on both sides of it are 1.  With this
+normally 0 unless the data bits on both sides of it are 0.  With this
 scheme, two 1 bits never appear consecutively (so it can be recorded
 on the same media as FM at twice the bit rate), and at most three 0
 bits appear consecutively (so it's not difficult for a decoder to stay

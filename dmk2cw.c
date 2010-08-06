@@ -1,7 +1,7 @@
 /*
  * dmk2cw: Write a .dmk to a real floppy disk using the Catweasel.
  * Copyright (C) 2001 Timothy Mann
- * $Id: dmk2cw.c,v 1.16 2005/06/25 07:22:05 mann Exp $
+ * $Id: dmk2cw.c,v 1.17 2010/01/15 19:28:46 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *
@@ -65,6 +65,9 @@ int hd = 4;
 int ignore = 0;
 int iam_pos = -1;
 int testmode = -1;
+int fill = 0;
+int reverse = 0;
+int datalen = -1;
 
 void usage()
 {
@@ -92,9 +95,18 @@ void usage()
 	 precomplo, precomphi);
   printf(" -h hd         HD; 0=lo, 1=hi, 2=lo/hi, 3=hi/lo, 4=by kind [%d]\n",
 	 hd);
+  printf(" -l len        Use only first len bytes of track [%d]\n", datalen);
   printf(" -g ign        Ignore first ign bytes of track [%d]\n", ignore);
   printf(" -i ipos       Force IAM to ipos from track start; "
 	 "if -1, don't [%d]\n", iam_pos);
+  printf(" -r reverse    0 = normal, 1 = reverse sides [%d]\n", reverse);
+  printf(" -f fill       Fill type [0x%x]\n", fill);
+  printf("               0x0 = 0xff if in FM, 0x4e if in MFM\n");
+  printf("               0x1 = erase only\n");
+  printf("               0x2 = write very long transitions\n");
+  printf("               0x3 = stop with no fill; leave old data intact\n");
+  printf("               0x1nn = nn in FM\n");
+  printf("               0x2nn = nn in MFM\n");
 #if DEBUG6
   printf(" -y testmode   Activate various test modes [%d]\n", testmode);
 #endif
@@ -148,7 +160,7 @@ cw_measure_rpm(catweasel_drive *d)
 
 #define CW_BIT_INIT -1
 #define CW_BIT_FLUSH -2
-/* !!Could also dither to get more exact average clock rate */
+
 int
 cw_bit(int bit, double mult)
 {
@@ -187,7 +199,7 @@ cw_bit(int bit, double mult)
       if (out_fmt >= OUT_SAMPLES) {
 	printf("/%d:%d", len, val);
       }
-      if (val >= 0 && val <= 127) {
+      if (val >= 0 && val <= 126) {
 	res = catweasel_put_byte(&c, val);
 	if (res < 0) return res;
       }
@@ -197,14 +209,8 @@ cw_bit(int bit, double mult)
     nextlen = 0;
     break;
   case CW_BIT_FLUSH:
-    val = 129 - (int) (nextlen * mult - prevadj + 0.5);
-    if (out_fmt >= OUT_SAMPLES) {
-      printf("/%d:%d", nextlen, val);
-    }
-    if (val >= 0 && val <= 127) {
-      res = catweasel_put_byte(&c, val);
-      if (res < 0) return res;
-    }
+    cw_bit(1, mult);
+    cw_bit(1, mult);
     cw_bit(CW_BIT_INIT, mult);
     break;
   }
@@ -262,6 +268,55 @@ rx02_bitpair(int bit, double mult)
   }
 }
 
+/*
+ * MFM with missing clock, or normal MFM if missing_clock = -1.
+ * On entry, *prev_bit is the previous bit encoded;
+ * on exit, the last bit encoded.
+ */
+int
+mfm_byte(int byte, int missing_clock, double mult, int *prev_bit)
+{
+  int i, bit, res = 0;
+
+  for (i=0; i<8; i++) {
+    bit = (byte & 0x80) != 0;
+    res = cw_bit(*prev_bit == 0 && bit == 0 && i != missing_clock, mult);
+    if (res < 0) break;
+    res = cw_bit(bit, mult);
+    if (res < 0) break;
+    byte <<= 1;
+    *prev_bit = bit;
+  }
+  return res;
+}
+
+/*
+ * FM with specified clock pattern.
+ * On exit, *prev_bit is 0, in case the next byte is MFM.
+ */
+int
+fm_byte(int byte, int clock_byte, double mult, int *prev_bit)
+{
+  int i, bit, res = 0;
+
+  for (i=0; i<8; i++) {
+    bit = (clock_byte & 0x80) != 0;
+    clock_byte <<= 1;
+    res = cw_bit(bit, mult);
+    if (res < 0) break;
+    res = cw_bit(0, mult);
+    if (res < 0) break;
+    bit = (byte & 0x80) != 0;
+    byte <<= 1;
+    res = cw_bit(bit, mult);
+    if (res < 0) break;
+    res = cw_bit(0, mult);
+    if (res < 0) break;
+  }
+  *prev_bit = 0;
+  return res;
+}
+
 int
 approx(int a, int b)
 {
@@ -298,14 +353,15 @@ main(int argc, char** argv)
   int idampp, first_idamp, idamp, next_idamp, datap;
   int encoding, next_encoding;
   int dam_min, dam_max, got_iam, skip;
-  int byte, clock_byte, bit, prev_bit;
+  int byte, bit;
   double mult;
   int rx02_data = 0;
   int cw_mk = 1;
+  int tracklen;
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "p:d:v:k:m:s:o:c:h:g:i:y:");
+    ch = getopt(argc, argv, "p:d:v:k:m:s:o:c:h:l:g:i:r:f:y:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -353,11 +409,24 @@ main(int argc, char** argv)
       hd = strtol(optarg, NULL, 0);
       if (hd < 0 || hd > 4) usage();
       break;
+    case 'l':
+      datalen = strtol(optarg, NULL, 0);
+      break;
     case 'g':
       ignore = strtol(optarg, NULL, 0);
       break;
     case 'i':
       iam_pos = strtol(optarg, NULL, 0);
+      break;
+    case 'r':
+      reverse = strtol(optarg, NULL, 0);
+      if (reverse < 0 || reverse > 1) usage();
+      break;
+    case 'f':
+      fill = strtol(optarg, NULL, 0);
+      if (fill < 0 || (fill > 3 && fill < 0x100) || fill > 0x2ff) {
+	usage();
+      }
       break;
 #if DEBUG6
     case 'y':
@@ -437,6 +506,10 @@ main(int argc, char** argv)
     fprintf(stderr, "dmk2cw: Catweasel MK1 does not support 4x clock\n");
     exit(1);
   }
+  if (cw_mk < 4 && fill == 1) {
+    fprintf(stderr, "dmk2cw: Catweasel MK%d does not support fill type %d\n",
+	    cw_mk, fill);
+  }
   catweasel_detect_drive(&c.drives[drive]);
 
   /* Error if drive not detected */
@@ -472,8 +545,13 @@ main(int argc, char** argv)
   sides = (dmk_header.options & DMK_SSIDE_OPT) ? 1 : 2;
   fmtimes = (dmk_header.options & DMK_SDEN_OPT) ? 1 : 2;
   rx02 = (dmk_header.options & DMK_RX02_OPT) ? 1 : 0;
-  dmk_track = (unsigned char*) malloc(dmk_header.tracklen);
-  dmk_encoding = (unsigned char*) malloc(dmk_header.tracklen);
+  if (datalen < 0 || datalen > dmk_header.tracklen - DMK_TKHDR_SIZE) {
+    tracklen = dmk_header.tracklen;
+  } else {
+    tracklen = DMK_TKHDR_SIZE + datalen;
+  }
+  dmk_track = (unsigned char*) malloc(tracklen);
+  dmk_encoding = (unsigned char*) malloc(tracklen);
 
   /* Select drive, start motor, wait for spinup */
   catweasel_select(&c, !drive, drive);
@@ -491,7 +569,7 @@ main(int argc, char** argv)
     double rpm = cw_measure_rpm(&c.drives[drive]);
 #if DEBUG8
     printf("drive rpm approx %f\n", rpm);
-    printf("dmk track length %d\n", dmk_header.tracklen);
+    printf("dmk track length %d (using %d)\n", dmk_header.tracklen, tracklen);
 #endif
     if (rpm > 342.0 && rpm < 378.0) {
       /* about 360 RPM */
@@ -537,7 +615,9 @@ main(int argc, char** argv)
     /* Loop through sides */
     for (side=0; side<sides; side++) {
       /* Read DMK track data */
-      ret = fread(dmk_track, dmk_header.tracklen, 1, dmk_file);
+      fseek(dmk_file, sizeof(dmk_header_t) +
+	    (track * sides + side) * dmk_header.tracklen, 0);
+      ret = fread(dmk_track, tracklen, 1, dmk_file);
       if (ret != 1) {
 	fprintf(stderr, "dmk2cw: Error reading from DMK file\n");
 	perror("dmk2cw");
@@ -545,8 +625,8 @@ main(int argc, char** argv)
 	exit(1);
       }
       if (testmode >= 0 && testmode <= 0xff) {
-	memset(dmk_track + sizeof(dmk_header), testmode,
-	       dmk_header.tracklen - sizeof(dmk_header));
+	/* Fill with constant value instead of actual data; for testing */
+	memset(dmk_track + DMK_TKHDR_SIZE, testmode, tracklen - DMK_TKHDR_SIZE);
       }
 
       /* Determine encoding for each byte and clean up */
@@ -593,7 +673,7 @@ main(int argc, char** argv)
       }
 
       /* Loop through data bytes */
-      for (datap = DMK_TKHDR_SIZE; datap < dmk_header.tracklen; datap++) {
+      for (datap = DMK_TKHDR_SIZE; datap < tracklen; datap++) {
 	if (datap >= next_idamp) {
 	  /* Read next IDAM pointer */
 	  idamp = next_idamp;
@@ -772,8 +852,7 @@ main(int argc, char** argv)
 	    ignore = got_iam - DMK_TKHDR_SIZE - iam_pos;
 	  }
 	}
-	for (datap = DMK_TKHDR_SIZE + ignore;
-	     datap < dmk_header.tracklen; datap++) {
+	for (datap = DMK_TKHDR_SIZE + ignore; datap < tracklen; datap++) {
 	  if (datap >= DMK_TKHDR_SIZE) {
 	    byte = dmk_track[datap];
 	    encoding = dmk_encoding[datap];
@@ -786,69 +865,31 @@ main(int argc, char** argv)
 	  switch (encoding) {
 	  case SKIP:    /* padding byte in FM area of a DMK */
 	    break;
+
 	  case FM:      /* FM with FF clock */
-	    for (i=0; i<8; i++) {
-	      cw_bit(1, mult);
-	      cw_bit(0, mult);
-	      bit = (byte & 0x80) ? 1 : 0;
-	      byte <<= 1;
-	      cw_bit(bit, mult);
-	      cw_bit(0, mult);
-	    }
+	    fm_byte(byte, 0xff, mult, &bit);
 	    break;
+
 	  case FM_IAM:  /* FM with D7 clock (IAM) */
-	    clock_byte = 0xd7;
-	    for (i=0; i<8; i++) {
-	      bit = (clock_byte & 0x80) != 0;
-	      clock_byte <<= 1;
-	      cw_bit(bit, mult);
-	      cw_bit(0, mult);
-	      bit = (byte & 0x80) != 0;
-	      byte <<= 1;
-	      cw_bit(bit, mult);
-	      cw_bit(0, mult);
-	    }
+	    fm_byte(byte, 0xd7, mult, &bit);
 	    break;
+
 	  case FM_AM:   /* FM with C7 clock (IDAM or DAM) */
-	    clock_byte = 0xc7;
-	    for (i=0; i<8; i++) {
-	      bit = (clock_byte & 0x80) != 0;
-	      clock_byte <<= 1;
-	      cw_bit(bit, mult);
-	      cw_bit(0, mult);
-	      bit = (byte & 0x80) != 0;
-	      byte <<= 1;
-	      cw_bit(bit, mult);
-	      cw_bit(0, mult);
-	    }
+	    fm_byte(byte, 0xc7, mult, &bit);
 	    break;
+
 	  case MFM:     /* MFM with normal clocking algorithm */
-	    for (i=0; i<8; i++) {
-	      prev_bit = bit;
-	      bit = (byte & 0x80) != 0;
-	      cw_bit(prev_bit == 0 && bit == 0, mult);
-	      cw_bit(bit, mult);
-	      byte <<= 1;
-	    }
+	    mfm_byte(byte, -1, mult, &bit);
 	    break;
-	  case MFM_IAM: /* MFM C2 with missing clock */
-	    for (i=0; i<8; i++) {
-	      prev_bit = bit;
-	      bit = (byte & 0x80) != 0;
-	      cw_bit(prev_bit == 0 && bit == 0 && i != 4, mult);
-	      cw_bit(bit, mult);
-	      byte <<= 1;
-	    }
+
+	  case MFM_IAM: /* MFM with missing clock 4 */
+	    mfm_byte(byte, 4, mult, &bit);
 	    break;
-	  case MFM_AM:  /* MFM A1 with missing clock */
-	    for (i=0; i<8; i++) {
-	      prev_bit = bit;
-	      bit = (byte & 0x80) != 0;
-	      cw_bit(prev_bit == 0 && bit == 0 && i != 5, mult);
-	      cw_bit(bit, mult);
-	      byte <<= 1;
-	    }
+
+	  case MFM_AM:  /* MFM with missing clock 5 */
+	    mfm_byte(byte, 5, mult, &bit);
 	    break;
+
 	  case RX02:    /* DEC-modified MFM as in RX02 */
 	    if (dmk_encoding[datap-1] != RX02) {
 	      rx02_bitpair(RX02_BITPAIR_INIT, mult);
@@ -866,8 +907,76 @@ main(int argc, char** argv)
 	}
 
 	rx02_bitpair(RX02_BITPAIR_FLUSH, mult);
-	cw_bit(1, mult);
-	cw_bit(CW_BIT_FLUSH, mult);
+
+	/* In case the DMK buffer is shorter than the physical track,
+	   fill the rest of the Catweasel's memory with a fill
+	   pattern. */
+	switch (fill) {
+	case 0:
+	  /* Fill with a standard gap byte in most recent encoding */
+	  switch (encoding) {
+	  case FM:
+	  case FM_IAM:
+	  case FM_AM:
+	  case RX02:
+	    for (;;) {
+	      if (fm_byte(0xff, 0xff, mult, &bit) < 0) break;
+	    }
+	    break;
+	  case MFM:
+	  case MFM_IAM:
+	  case MFM_AM:
+	    for (;;) {
+	      if (mfm_byte(0x4e, -1, mult, &bit) < 0) break;
+	    }
+	    break;
+	  }
+	  break;
+
+	case 1:
+	  /* Erase remainder of track and write nothing. */
+	  /* Note: when reading back a track like this, my drives
+	     appear to see garbage there, not a lack of transitions.
+	     Maybe the drive just isn't happy not seeing a transition
+	     for a long time and it ends up manufacturing them from
+	     noise? */
+	  cw_bit(CW_BIT_FLUSH, mult);
+	  for (;;) {
+	    if (catweasel_put_byte(&c, 0x81) < 0) break;
+	  }
+	  break;
+
+	case 2:
+	  /* Fill with a pattern of very long transitions. */
+	  cw_bit(CW_BIT_FLUSH, mult);
+	  for (;;) {
+	    if (catweasel_put_byte(&c, 0) < 0) break;
+	  }
+	  break;
+
+	case 3:
+	  /* Stop writing, leaving whatever was there before. */
+	  cw_bit(CW_BIT_FLUSH, mult);
+	  catweasel_put_byte(&c, 0xff);
+	  break;
+
+	default:
+	  switch (fill >> 8) {
+	  case 1:
+	  default:
+	    /* Fill with a specified byte in FM */
+	    for (;;) {
+	      if (fm_byte(fill & 0xff, 0xff, mult, &bit) < 0) break;
+	    }
+	    break;
+	  case 2:
+	    /* Fill with a specified byte in MFM */
+	    for (;;) {
+	      if (mfm_byte(fill & 0xff, -1, mult, &bit) < 0) break;
+	    }
+	    break;
+	  }
+	}
       }
 
       if (out_fmt >= OUT_BYTES) {
@@ -877,15 +986,7 @@ main(int argc, char** argv)
 
       catweasel_set_hd(&c, (hd & 1) ^ ((hd > 1) && (track > 43)));
 
-      /* In case the DMK buffer is shorter than the physical track,
-	 fill the rest of the Catweasel's memory with a run-out
-	 pattern that could be either FM ff or MFM ff or 00. */
-      for (;;) {
-	if (cw_bit(0, mult) < 0) break;
-	if (cw_bit(1, mult) < 0) break;
-      }
-
-      if (!catweasel_write(&c.drives[drive], side, cwclock, -1)) {
+      if (!catweasel_write(&c.drives[drive], side ^ reverse, cwclock, -1)) {
 	fprintf(stderr, "dmk2cw: Write error\n");
 	cleanup();
 	exit(1);

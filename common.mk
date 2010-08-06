@@ -1,4 +1,4 @@
-# $Id: common.mk,v 1.8 2005/05/16 04:31:03 mann Exp $
+# $Id: common.mk,v 1.11 2010/01/15 22:55:20 mann Exp $
 
 CFLAGS= -O3 -Wall
 #CFLAGS= -g -O -Wall
@@ -7,7 +7,7 @@ CWEXE= cw2dmk$E dmk2cw$E testhist$E
 EXE= $(CWEXE) dmk2jv3$E jv2dmk$E
 TXT= cw2dmk.txt dmk2cw.txt dmk2jv3.txt jv2dmk.txt
 NROFFFLAGS= -c -Tascii
-FIRMWARE=pre29.cw4
+FIRMWARE=rel2f2.cw4
 
 .SUFFIXES: .man .txt
 
@@ -40,7 +40,7 @@ testhist$E: testhist.c catweasl.$O cwpci.$O cwfloppy.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB) -lm
 
 cwsdpmi.exe:
-	cp $(HOME)/djgpp/csdpmi5b/bin/cwsdpmi.exe cwsdpmi.exe
+	$(CP) $(HOME)/djgpp/csdpmi5b/bin/cwsdpmi.exe cwsdpmi.exe
 
 firmware.h: $(FIRMWARE)
 	(echo 'unsigned char firmware[] = { ' ;\

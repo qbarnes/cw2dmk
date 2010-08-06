@@ -3,7 +3,8 @@
 #
 E=
 O=o
-#RM=rm
-PCILIB=-lpci
+RM=rm -f
+CP=cp
+PCILIB=-lpci -lz
 
 include common.mk

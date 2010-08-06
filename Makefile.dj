@@ -3,7 +3,8 @@
 #
 E=.exe
 O=obj
-#RM=del
+RM=deltree /y
+CP=rem cp
 
 .SUFFIXES: .obj
 
