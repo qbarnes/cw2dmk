@@ -14,7 +14,7 @@ FIRMWARE=rel2f2.cw4
 .man.txt:
 	nroff -man $(NROFFFLAGS) $< | colcrt - | cat -s > $*.txt
 
-all: $(EXE) $(TXT) cwsdpmi.exe
+all: $(EXE) $(TXT) # cwsdpmi.exe
 
 progs: $(EXE)
 
