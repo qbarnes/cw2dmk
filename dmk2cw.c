@@ -148,7 +148,7 @@ double
 cw_measure_rpm(catweasel_drive *d)
 {
   struct timeval t1, t2;
-  long usec;
+  long long usec;
 
   catweasel_await_index(d);
   gettimeofday(&t1, NULL);

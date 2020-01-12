@@ -24,14 +24,12 @@
 #define DEBUG_PCI(stmt)
 
 #include <stdio.h>
+#include <stdint.h>
 #include "cwpci.h"
 
 #if __DJGPP__
 #include <dpmi.h>
 #include <string.h>
-
-typedef unsigned short uint16;
-typedef unsigned long uint32;
 
 /* Translate PCI BIOS error code to string.
  * See http://www.delorie.com/djgpp/doc/rbinter/it/29/7.html
@@ -142,7 +140,7 @@ pci_find(int vendorID, int deviceID, int index,
  */
 int
 pci_read_config_dword(int bus, int device, int func,
-		      int reg, uint32 *value)
+		      int reg, uint32_t *value)
 {
   __dpmi_regs r;
 
@@ -180,7 +178,7 @@ pci_find_catweasel(int index, int *cw_mk)
 {
   int i = 0, j = 0, res;
   int bus, device, func, mk = 0;
-  uint32 subsysID, baseAddr;
+  uint32_t subsysID, baseAddr;
 
   if (pci_install_check() != 0) return -1;
 
