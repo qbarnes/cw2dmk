@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 /* Some constants for DMK format */
 #define DMK_WRITEPROT     0
 #define DMK_NTRACKS       1
@@ -47,10 +49,10 @@
 #define DMK_IDAMP_BITS    0x3fff
 
 typedef struct {
-  unsigned char writeprot;
-  unsigned char ntracks;
-  unsigned short tracklen;
-  unsigned char options;
-  unsigned char padding[7];
-  unsigned long mbz;
+  uint8_t	writeprot;
+  uint8_t	ntracks;
+  uint16_t	tracklen;
+  uint8_t	options;
+  uint8_t	padding[7];
+  uint32_t	mbz;
 } dmk_header_t;
