@@ -273,11 +273,15 @@ pci_find_catweasel(int index, int *cw_mk)
       for (i = 0; i < 6; i++) {
 	unsigned flg = pci_read_long(pd, PCI_BASE_ADDRESS_0 + 4 * i);
 	if (flg != 0xffffffff && (flg & PCI_BASE_ADDRESS_SPACE_IO)) {
+	  u16 sval;
+	  sval = pci_read_word(pd, PCI_COMMAND);
+	  sval |= PCI_COMMAND_MEMORY | PCI_COMMAND_IO;
+	  pci_write_word(pd, PCI_COMMAND, sval);
 	  *cw_mk = mk;
 	  return pd->base_addr[i] & PCI_ADDR_IO_MASK;
 	}
 	DEBUG_PCI( printf("baseAddr %d 0x%llx not I/O space\n",
-			  i, pd->base_addr[i]); )
+			  i, (long long)pd->base_addr[i]); )
       }
     }
 
