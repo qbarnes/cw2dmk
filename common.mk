@@ -3,7 +3,7 @@
 CFLAGS= -O3 -Wall
 #CFLAGS= -g -O -Wall
 CC= gcc
-CWEXE= cw2dmk$E dmk2cw$E testhist$E
+CWEXE= cw2dmk$E dmk2cw$E testhist$E t_cw2dmk$E t_cw2dmk2$E
 EXE= $(CWEXE) dmk2jv3$E jv2dmk$E
 TXT= cw2dmk.txt dmk2cw.txt dmk2jv3.txt jv2dmk.txt
 NROFFFLAGS= -c -Tascii
@@ -38,6 +38,16 @@ jv2dmk$E: jv2dmk.c crc.c dmk.h jv3.h
 
 testhist$E: testhist.c catweasl.$O cwpci.$O cwfloppy.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB) -lm
+
+cw_test.$O: cw_test.c cwfloppy.h cwpci.h dmk.h
+
+t_cw2dmk$E: cw2dmk.c test_cw.$O crc.c  \
+    cwfloppy.h kind.h dmk.h version.h
+	$(CC) $(CFLAGS) -DMOCK_CATWEASEL=1 -o $@ $< test_cw.$O -lm
+
+t_cw2dmk2$E: cw2dmk.c test_cw2.$O crc.c  \
+    cwfloppy.h kind.h dmk.h version.h
+	$(CC) $(CFLAGS) -DMOCK_CATWEASEL=2 -o $@ $< test_cw2.$O -lm
 
 cwsdpmi.exe:
 	$(CP) $(HOME)/djgpp/csdpmi5b/bin/cwsdpmi.exe cwsdpmi.exe

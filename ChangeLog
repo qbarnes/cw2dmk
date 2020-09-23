@@ -1,3 +1,24 @@
+4.5.1 -- Tue Aug  4 11:15:07 PST 2015 -- George Phillips
+
+* Bug fix to '-j' option.  It was truncating tracks in certain cases.
+
+* Pressing space-bar will give up retrying the current track (MS-DOS only).
+
+4.5 -- Sun May 19 13:10:03 PST 2014 -- George Phillips
+
+* The Linux binaries in this distribution have NOT BEEN UPDATED.
+  The MS-DOS binaries have been updated and tested.
+
+* Integrated David Cooper's work adding the '-y' option and a check to
+  skip the 2nd side if MS-DOS formatted and not matching the first side
+  (indicating single-sided use of a pre-formatted diskette)
+
+* Added the '-j' option to re-use good sectors from previous track read
+  attempts to increase the liklihood of getting a full, error-free track.
+
+* Add '-D' option to dump raw track data.  This is mostly useful for
+  debugging cw2dmk itself but could also be a reasonable preservation format.
+
 4.4 -- Sat Nov 28 11:45:01 PST 2009 -- Tim Mann
 
 * The Linux binaries included in this distribution are compiled on a

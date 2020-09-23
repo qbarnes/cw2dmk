@@ -222,6 +222,12 @@ copy-protected disk with intentional CRC errors, or other strange
 formatting that cw2dmk interprets as a possible error, you might want
 to reduce or eliminate the retries to speed up the conversion.
 .TP
+.B \-y \fIretrymode\fP
+Allows prompts for additional retries.  No effect if \fIretrymode\fP is 0.
+If \fIretrymode\fP is 1, then the user will be prompted for additional
+retries after a track has used up all its retries.  This option is not
+availble on Linux.
+.TP
 .B \-a \fIalternate\fP
 This option is used only when when reading a 40-track disk in an
 80-track drive (-m2).  If -a is set to 0 (the default) cw2dmk reads
@@ -232,6 +238,16 @@ head position.  If you set -a to 1, cw2dmk will always read at odd
 positions (2n+1).  If -a is 2 or 3, cw2dmk will alternate
 between even and odd positions when retries are needed to read a track,
 trying even positions first if -a is 2; odd if -a is 3.
+.TP
+.B \-j
+Join sectors between retries.  In the case of errors cw2dmk will re-use
+good sector reads from previous attempts to replace corresponding bad sectors
+in the current read attempt.  This allows it to recover a track even if it
+can never read all the sectors in a single pass.  Not recommended for
+copy protected disks and has only been tested on TRS-80 format disks but
+should work on other formats.  It does depend on a track being mostly readable
+as it uses the current track read to know what sectors to copy.  If the
+tracks reads are too damaged it may never know that sectors are still missing.
 .TP
 .B \-o \fIpostcomp\fP
 If you have a disk that shows a lot of CRC errors, you can try
@@ -360,6 +376,22 @@ disk twice, once with -s1 -r0 and once with -s1 -r1, gives you a
 separate 1-sided DMK image of each side of the disk.  (Note: this
 option is not useful for reading the back of a flippy disk; see the
 -h0 option.)
+.TP
+.B \-D
+Turn on debug/archive dumping of raw track data.  The command line arguments
+of cw2dmk are written to "c_args.txt".  The raw track data of every track
+read attempt is written to "c_s%dt%02d.%03d" indicating the side, track and
+retry-attempt numbers.  All these "c_" files are silently overwritten on each
+run so some care must be taken in using -D.
+This option has been used for cw2dmk debugging purposes
+allowing a developer to fix bugs without access to catweasel hardware (the
+t_cw2dmk2 program is a test version of cw2dmk that can read the -D dumps
+based on code in test_cw2.c).  However, these dumps may also be useful for
+archive purposes or later recovery efforts as they do represent the raw data
+on the diskette which may become less readable as more attempts are made to
+extract the from it.  For instance, if cw2dmk gets better bit-level detection
+algorithms then t_cw2dmk2 could be used on an old dump to extract previously
+unreadable data.
 .P
 The next few options modify individual
 parameters that are normally set correctly by the -k option (or by
@@ -549,6 +581,11 @@ cw2dmk is free software, released under the GNU General Public License.
 Thanks to Jens Schoenfeld for providing documentation on programming
 the Catweasel hardware.  Thanks to David Keil for designing and
 documenting the DMK file format for floppy disk images.
+
+George Phillips added the '-j' and '-D' options and integrated the '-y'
+option from David Cooper and his code to detect when a second side should
+be skipped because it is a different format (for when a single-sided format
+is done of a pre-formatted diskette).
 
 The DPMI host cwsdpmi.exe is free software, written and copyrighted by
 Charles W. Sandmann and released under the GNU General Public license.
