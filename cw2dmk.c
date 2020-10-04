@@ -99,7 +99,7 @@ int curenc;
 int uencoding = MIXED;
 int reverse = 0;
 
-char* plu(val)
+char* plu(int val)
 {
   return (val == 1) ? "" : "s";
 }
