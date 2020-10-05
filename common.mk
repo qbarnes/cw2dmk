@@ -14,7 +14,7 @@ FIRMWARE=rel2f2.cw4
 .man.txt:
 	nroff -man $(NROFFFLAGS) $< | colcrt - | cat -s > $*.txt
 
-all: $(EXE) $(TXT) cwsdpmi.exe
+all:: $(EXE) $(TXT)
 
 progs: $(EXE)
 
@@ -38,9 +38,6 @@ jv2dmk$E: jv2dmk.c crc.c dmk.h jv3.h
 
 testhist$E: testhist.c catweasl.$O cwpci.$O cwfloppy.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB) -lm
-
-cwsdpmi.exe:
-	$(CP) $(HOME)/djgpp/csdpmi5b/bin/cwsdpmi.exe cwsdpmi.exe
 
 firmware.h: $(FIRMWARE)
 	(echo 'unsigned char firmware[] = { ' ;\

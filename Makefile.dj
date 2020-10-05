@@ -11,4 +11,9 @@ CP=rem cp
 .c.obj:
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+all:: cwsdpmi.exe
+
+cwsdpmi.exe:
+	$(CP) $(HOME)/djgpp/csdpmi5b/bin/cwsdpmi.exe cwsdpmi.exe
+
 include common.mk
