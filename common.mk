@@ -12,7 +12,7 @@ FIRMWARE=rel2f2.cw4
 .SUFFIXES: .man .txt
 
 .man.txt:
-	nroff -man $(NROFFFLAGS) $< | colcrt - | cat -s > $*.txt
+	nroff -man $(NROFFFLAGS) $< | col -b | cat -s > $*.txt
 
 all:: $(EXE) $(TXT)
 
