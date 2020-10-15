@@ -62,7 +62,7 @@ int total_enc_count[N_ENCS];
 #define TRACKS_GUESS 86
 
 /* Suppress FM address mark detection for a few bit times after each
-   data CRC is seen.  Helps prevent seening bogus marks in write
+   data CRC is seen.  Helps prevent seeing bogus marks in write
    splices. */
 #define WRITE_SPLICE 32
 
