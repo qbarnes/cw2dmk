@@ -177,6 +177,24 @@ revise its guess to 1 side if there are no valid sectors on the first
 track or two of the second side.  Giving the -s1 option explictly for
 a single-sided disk will save the time needed for this autodetection.
 .TP
+.B \-b \fIcheck_sides\fP
+Check sides of track 0 for pre-formatted (blank) sectors.
+
+Option -b3 (default) will check both sides.  Option -b0 will disable
+the check.  Option -b1 will check only side 0.  Option -b2 will
+check only side 1.
+
+This option assumes a side has been pre-formatted and contains no
+useful data if all sectors of that side's track 0 read good and all
+have the same data CRC value.
+
+If the check is enabled for both sides and both sides of the disk
+are found pre-formatted, or if the disk is single-sided and it is
+pre-formatted, the read will stop and the program will exit.
+
+If the disk is double-sided and the check is enabled for side 1 and
+it is found pre-formatted, the read will restart as single-sided.
+.TP
 .B \-w \fIfmtimes\fP
 Normally, FM bytes are written into the DMK file twice (-w2),
 so that they take up the correct proportion of the space on mixed-density
