@@ -251,6 +251,16 @@ positions (2n+1).  If -a is 2 or 3, cw2dmk will alternate
 between even and odd positions when retries are needed to read a track,
 trying even positions first if -a is 2; odd if -a is 3.
 .TP
+.B \-j
+Join sectors between retries.  In the case of errors cw2dmk will re-use
+good sector reads from previous attempts to replace corresponding bad sectors
+in the current read attempt.  This allows it to recover a track even if it
+can never read all the sectors in a single pass.  Not recommended for
+copy protected disks and has only been tested on TRS-80 format disks but
+should work on other formats.  It does depend on a track being mostly readable
+as it uses the current track read to know what sectors to copy.  If the
+tracks reads are too damaged it may never know that sectors are still missing.
+.TP
 .B \-o \fIpostcomp\fP
 If you have a disk that shows a lot of CRC errors, you can try
 re-reading it with different values for this parameter.  The default

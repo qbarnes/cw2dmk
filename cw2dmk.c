@@ -44,6 +44,9 @@ struct catweasel_contr c;
 
 dmk_header_t dmk_header;
 unsigned char* dmk_track = NULL;
+unsigned char* dmk_merged_track = NULL;
+int dmk_merged_track_len;
+unsigned char* dmk_tmp_track = NULL;
 FILE *dmk_file;
 
 /* Constants and globals for decoding */
@@ -54,6 +57,7 @@ FILE *dmk_file;
 #define N_ENCS 4
 char *enc_name[] = { "autodetect", "FM", "MFM", "RX02" };
 int enc_count[N_ENCS];
+int enc_sec[DMK_TKHDR_SIZE / 2];
 int total_enc_count[N_ENCS];
 
 /* Note: if track guess is too low, we won't notice, so we go very
@@ -65,6 +69,16 @@ int total_enc_count[N_ENCS];
    data CRC is seen.  Helps prevent seeing bogus marks in write
    splices. */
 #define WRITE_SPLICE 32
+
+struct TrackStat {
+	int errcount;
+	int good_sectors;
+	int reused_sectors;
+	int enc_count[N_ENCS];
+	int enc_sec[DMK_TKHDR_SIZE / 2];
+};
+
+struct TrackStat merged_stat;
 
 int kind = -1;
 int maxsize = 3;  /* 177x/179x look at only low-order 2 bits */
@@ -85,6 +99,7 @@ int mark_after;
 int write_splice; /* bit counter, >0 if we may be in a write splice */
 int errcount;
 int good_sectors;
+int reused_sectors;
 int matching_data_crcs;
 int total_errcount;
 int total_retries;
@@ -99,6 +114,7 @@ int first_encoding;  /* first encoding to try on next track */
 int curenc;
 int uencoding = MIXED;
 int reverse = 0;
+int accum_sectors = 0;
 
 char* plu(int val)
 {
@@ -250,6 +266,8 @@ dmk_idam(unsigned char byte, int encoding)
       msg(OUT_ERRORS, "[too many AMs on track] ");
       errcount++;
     } else {
+      if (accum_sectors)
+        enc_sec[(dmk_idam_p - (unsigned short *)dmk_track)] = encoding;
       *dmk_idam_p++ = idamp;
       ibyte = 0;
       dmk_data(byte, encoding);
@@ -326,8 +344,13 @@ dmk_write(void)
 {
   int i;
 
-  msg(OUT_TSUMMARY, " %d good sector%s, %d error%s\n",
-      good_sectors, plu(good_sectors), errcount, plu(errcount));
+  if (accum_sectors)
+    good_sectors += reused_sectors;
+
+  msg(OUT_TSUMMARY, " %d good sector%s", good_sectors, plu(good_sectors));
+  if (accum_sectors && reused_sectors > 0)
+    msg(OUT_TSUMMARY, " (%d reused)", reused_sectors);
+  msg(OUT_TSUMMARY, ", %d error%s\n", errcount, plu(errcount));
   msg(OUT_IDS, "\n");
 
   total_good_sectors += good_sectors;
@@ -356,6 +379,8 @@ dmk_init_track(void)
   dmk_valid_id = 0;
   dmk_full = 0;
   good_sectors = 0;
+  if (accum_sectors)
+    reused_sectors = 0;
   for (i = 0; i < N_ENCS; i++) {
     enc_count[i] = 0;
   }
@@ -377,12 +402,19 @@ dmk_init_track(void)
 void
 check_missing_dam(void)
 {
-  if (!dmk_awaiting_dam) return;
+  if (dmk_awaiting_dam)
+    msg(OUT_ERRORS, "[missing DAM] ");
+  else if (dbyte > 0)
+    msg(OUT_ERRORS, "[incomplete sector data] ");
+  else
+    return;
+
   dmk_awaiting_dam = 0;
   dmk_valid_id = 0;
   dbyte = ibyte = -1;
   errcount++;
-  msg(OUT_ERRORS, "[missing DAM] ");
+  if (accum_sectors)
+    dmk_idam_p[-1] |= DMK_EXTRA_FLAG;
 }
 
 
@@ -420,6 +452,244 @@ dmk_check_wraparound(void)
   return 0;
 }
 
+// Get pointer to sector N in rotational order.
+unsigned char*
+dmk_get_phys_sector(unsigned char *track, int n)
+{
+  int off;
+
+  if (n < 0 || n >= DMK_TKHDR_SIZE / 2)
+    return NULL;
+
+  off = ((short *)track)[n] & DMK_IDAMP_BITS;
+  // IDAM offsets skip over IDAM offset table so can never be 0.
+  if (off == 0)
+    return NULL;
+
+  // Filter out bogus offset.  The mininum valid sector size here is really
+  // only avoiding very bad situations.
+  if (off < 0 || off > dmktracklen - 10)
+    return NULL;
+
+  return track + off;
+}
+
+// Get length of sector N in rotational order
+int 
+dmk_get_phys_sector_len(unsigned char *track, int n, int tracklen)
+{
+  unsigned char* s0 = dmk_get_phys_sector(track, n);
+  unsigned char* s1 = dmk_get_phys_sector(track, n + 1);
+
+  if (!s0)
+    return -1;
+
+  if (s1) {
+    if (s0 >= s1) {
+      #if 0
+      int i;
+      printf("\nphysical sector misordering from %d to %d .. off %d off %d max %d!\n",
+      	n, n + 1, s0 - track, s1 - track, dmktracklen);
+      for (i = 0; i < 10; i++)
+        printf("%x ", ((short *)track)[i]);
+      printf("\n");
+      if (track == dmk_tmp_track) printf("TMP track\n");
+      if (track == dmk_track) printf("common track\n");
+      if (track == dmk_merged_track) printf("merged track\n");
+      #endif
+
+      return -1;
+    }
+
+    return s1 - s0;
+  }
+
+  return tracklen - (s0 - (track + DMK_TKHDR_SIZE));
+}
+
+int
+dmk_get_sector_num(unsigned char *secdata)
+{
+  // Single density repeats every byte in DMK format.  If we see a repeat
+  // of the sector ID then we know the sector number is at twice the offset.
+  return secdata[secdata[1] == 0xfe ? 6 : 3];
+}
+
+int
+copy_preamble(unsigned char **dst, unsigned char *track)
+{
+  unsigned char *pre_end = dmk_get_phys_sector(track, 0);
+  int pre_len;
+
+  if (!pre_end || pre_end <= track + DMK_TKHDR_SIZE)
+    return 0;
+
+  pre_len = pre_end - (track + DMK_TKHDR_SIZE);
+  memcpy(*dst, track + DMK_TKHDR_SIZE, pre_len);
+  *dst += pre_len;
+
+  return 1;
+}
+
+// Go over the track we have read and replace any bad sectors with sectors
+// from any previous read attempts.
+// Takes a very simple-minded approach and cannot cope with a situation
+// where sectors appear to be missing because of damage to the IDAM or DAM
+// headers.
+void
+dmk_merge_sectors(void)
+{
+  int tracklen = dmk_data_p - (dmk_track + DMK_TKHDR_SIZE);
+  unsigned char *tmp_data_p = dmk_tmp_track + DMK_TKHDR_SIZE;
+  short *idam_p = (short *)dmk_track;
+  short *tmp_idam_p = (short *)dmk_tmp_track;
+  short *merged_idam_p = (short *)dmk_merged_track;
+  unsigned char *dmk_sec;
+  int cur;
+  int overflow = 0;
+  int best_errcount;
+  int best_repair;
+  struct TrackStat tmp_stat;
+  enum Pick { Merged, Current, Tmp } best;
+
+  // As a special case, use the track as-is if it read without error.
+  if (errcount == 0) {
+    memcpy(dmk_merged_track, dmk_track, DMK_TKHDR_SIZE + tracklen);
+    dmk_merged_track_len = tracklen;
+    merged_stat.errcount = errcount;
+    merged_stat.good_sectors = good_sectors;
+    merged_stat.reused_sectors = 0;
+    memcpy(merged_stat.enc_count, enc_count, sizeof enc_count);
+    memcpy(merged_stat.enc_sec, enc_sec, sizeof enc_sec);
+    return;
+  }
+
+  memset(dmk_tmp_track, 0, DMK_TKHDR_SIZE);
+  tmp_stat.errcount = errcount;
+  tmp_stat.good_sectors = good_sectors;
+  tmp_stat.reused_sectors = 0;
+  memcpy(tmp_stat.enc_count, enc_count, sizeof enc_count);
+  memcpy(tmp_stat.enc_sec, enc_sec, sizeof enc_sec);
+
+  for (cur = 0; (dmk_sec = dmk_get_phys_sector(dmk_track, cur)); cur++) {
+    int replaced = 0;
+    // Bad sector?  See if we can find a replacement
+    if (idam_p[cur] & DMK_EXTRA_FLAG) {
+      int secnum = dmk_get_sector_num(dmk_sec), prev;
+      unsigned char *prev_sec;
+      for (prev = 0; (prev_sec = dmk_get_phys_sector(dmk_merged_track, prev)); prev++) {
+        int seclen = dmk_get_phys_sector_len(dmk_merged_track, prev, dmk_merged_track_len);
+        if (dmk_get_sector_num(prev_sec) != secnum) 
+	  continue;
+
+	// Ignore previous sector if it had an error
+	if (merged_idam_p[prev] & DMK_EXTRA_FLAG)
+	  continue;
+
+	// The very first sector needs the pre-amble copied over, too.
+	// We only understand this if the first sector is replacing the first
+	// sector.  If not, then we skip because best not create bogus data.
+	if (cur == 0) {
+	  if (prev != 0)
+	    continue;
+
+	  if (!copy_preamble(&tmp_data_p, dmk_merged_track))
+	    continue;
+	}
+
+	// Don't overflow the merged track.
+	if (seclen <= 0 || tmp_data_p + seclen > dmk_tmp_track + dmktracklen)
+	  continue;
+
+	msg(OUT_ERRORS, "[reuse %02x] ", secnum);
+
+	*tmp_idam_p++ = (merged_idam_p[prev] & ~DMK_IDAMP_BITS) |
+	  ((tmp_data_p - dmk_tmp_track) & DMK_IDAMP_BITS);
+
+	memcpy(tmp_data_p, prev_sec, seclen);
+	tmp_data_p += seclen;
+	replaced = 1;
+	tmp_stat.reused_sectors++;
+	tmp_stat.enc_count[enc_sec[cur]]++;
+	// There should be an error for every bad sector, but just to be careful.
+	if (tmp_stat.errcount > 0)
+	  tmp_stat.errcount--;
+	break;
+      }
+    }
+
+    if (!replaced) {
+      // Copy the sector we have whether it be a good or bad read.
+      int seclen = dmk_get_phys_sector_len(dmk_track, cur, tracklen);
+
+      // Need to copy preamble if we are the first sector
+      if (cur == 0 && !copy_preamble(&tmp_data_p, dmk_track))
+        overflow = 1;
+      else if (seclen < 0 || tmp_data_p + seclen > dmk_tmp_track + dmktracklen)
+        overflow = 1;
+      else {
+        *tmp_idam_p++ = (idam_p[cur] & ~DMK_IDAMP_BITS) |
+      	  ((tmp_data_p - dmk_tmp_track) & DMK_IDAMP_BITS);
+        memcpy(tmp_data_p, dmk_sec, seclen);
+        tmp_data_p += seclen;
+      }
+    }
+  }
+
+  // dmk_tmp_track has tmp_stat.errcount errors (or is unusable if overflow is set)
+  // dmk_merged_track has merged_stat.errcount errors
+  // dmk_track has errcount errors
+
+  // We want to keep the best as determined by the lowest error count and
+  // that will become our merged track.
+
+  best = Current;
+  best_errcount = errcount;
+  best_repair = 0;
+  // overflow means that the candidate merged track tmp is not viable.
+  if (!overflow && tmp_stat.errcount < best_errcount) {
+    best = Tmp;
+    best_errcount = tmp_stat.errcount;
+    best_repair = tmp_stat.reused_sectors;
+  }
+  // If we have a previous merged track, it may still be the best.
+  // Especially if it has fewer repairs.
+  if (dmk_merged_track_len > 0) {
+    if (merged_stat.errcount < best_errcount ||
+        (merged_stat.errcount == best_errcount && merged_stat.reused_sectors < best_repair))
+    {
+      best = Merged;
+      best_errcount = merged_stat.errcount;
+      best_repair = merged_stat.reused_sectors;
+    }
+  }
+
+//msg(OUT_ERRORS, "(%d,%d,%d) ", errcount, tmp_stat.errcount, merged_stat.errcount);
+
+  switch (best) {
+  default:
+  case Current:
+    msg(OUT_ERRORS, "[using current] ");
+    memcpy(dmk_merged_track, dmk_track, DMK_TKHDR_SIZE + tracklen);
+    dmk_merged_track_len = tracklen;
+    merged_stat.good_sectors = good_sectors;
+    merged_stat.reused_sectors = 0;
+    memcpy(merged_stat.enc_count, enc_count, sizeof enc_count);
+    memcpy(merged_stat.enc_sec, enc_sec, sizeof enc_sec);
+    break;
+  case Tmp:
+    msg(OUT_ERRORS, "[using merged] ");
+    dmk_merged_track_len = tmp_data_p - (dmk_tmp_track + DMK_TKHDR_SIZE);
+    memcpy(dmk_merged_track, dmk_tmp_track, DMK_TKHDR_SIZE + dmk_merged_track_len);
+    merged_stat = tmp_stat;
+    break;
+  case Merged:
+    msg(OUT_ERRORS, "[using previous] ");
+    break;
+  }
+
+  merged_stat.errcount = best_errcount;
+}
 
 int
 secsize(int sizecode, int encoding)
@@ -785,6 +1055,8 @@ process_bit(int bit)
     } else {
       msg(OUT_ERRORS, "[bad ID CRC] ");
       errcount++;
+      if (accum_sectors)
+	dmk_idam_p[-1] |= DMK_EXTRA_FLAG;
       ibyte = -1;
     }
     msg(OUT_HEX, "\n");
@@ -828,6 +1100,14 @@ process_bit(int bit)
     } else {
       msg(OUT_ERRORS, "[bad data CRC] ");
       errcount++;
+      if (accum_sectors) {
+        // Don't count both header and data CRC errors for a sector.
+	// Because otherwise dropping a single error for a replacement sector
+	// will not show it fully corrected.  Need to track errors/sector.
+        if (dmk_idam_p[-1] & DMK_EXTRA_FLAG)
+	  errcount--;
+	dmk_idam_p[-1] |= DMK_EXTRA_FLAG;
+      }
     }
     msg(OUT_HEX, "\n");
     if (good_sectors == 1) {
@@ -1158,6 +1438,7 @@ void usage(void)
   printf("               1 = always odd\n");
   printf("               2 = even, then odd\n");
   printf("               3 = odd, then even\n");
+  printf(" -j            Join sectors between retries (%s)\n", accum_sectors ? "on" : "off");
   printf(" -o postcomp   Amount of read-postcompensation (0.0-1.0) [%.2f]\n",
 	 postcomp);
   printf(" -h hole       Track start: 1 = index hole, 0 = anywhere [%d]\n",
@@ -1194,7 +1475,7 @@ main(int argc, char** argv)
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:");
+    ch = getopt(argc, argv, "p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:j");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1300,6 +1581,9 @@ main(int argc, char** argv)
       dmktracklen = strtol(optarg, NULL, 0);
       if (dmktracklen < 0 || dmktracklen > 0x4000) usage();
       if (kind == -1) usage();
+      break;
+    case 'j':
+      accum_sectors = 1;
       break;
     case 'b':
       check_preformatted = strtol(optarg, NULL, 0);
@@ -1510,6 +1794,14 @@ main(int argc, char** argv)
   dmk_write_header();
   if (dmk_track) free(dmk_track);
   dmk_track = (unsigned char*) malloc(dmktracklen);
+  if (accum_sectors) {
+    if (dmk_merged_track) free(dmk_merged_track);
+    dmk_merged_track = (unsigned char*) malloc(dmktracklen);
+    dmk_merged_track_len = 0;
+    memset(dmk_merged_track, 0, dmktracklen);
+    if (dmk_tmp_track) free(dmk_tmp_track);
+    dmk_tmp_track = (unsigned char*) malloc(dmktracklen);
+  }
 
   /* Loop over tracks */
   for (track=0; track<tracks; track++) {
@@ -1519,22 +1811,25 @@ main(int argc, char** argv)
     /* Loop over sides */
     for (side=0; side<sides; side++) {
       int retry = 0;
+      int failing;
+
+      if (accum_sectors) {
+	dmk_merged_track_len = 0;
+	memset(dmk_merged_track, 0, dmktracklen);
+	// Do not have to initialized merged_stat as dmk_merged_track_len == 0
+	// will stop us from using that information.
+      }
 
       /* Loop over retries */
       do {
+	msg(OUT_TSUMMARY, "Track %d,side %d,pass %d:", track, side, retry + 1);
+	fflush(stdout);
+
 	int b = 0, oldb;
 #if DEBUG3
 	int histogram[128], i;
 	for (i=0; i<128; i++) histogram[i] = 0;
 #endif
-	if (retry) {
-	  msg(OUT_TSUMMARY, "[%d good, %d error%s; retry %d] ",
-	      good_sectors, errcount, plu(errcount), retry);
-	} else {
-	  msg(OUT_TSUMMARY, "Track %d, side %d: ", track, side);
-	}
-	fflush(stdout);
-
 	/* Seek to correct track */
 	if ((steps == 2) && (retry > 0) && (alternate & 2)) {
 	  headpos ^= 1;
@@ -1695,9 +1990,51 @@ main(int argc, char** argv)
 	  dmk_write_header();
 	  goto done;
 	}
-      } while (++retry <= retries && errcount > 0);
-      total_retries += retry - 1;
+
+	if (accum_sectors) {
+	  // Dump track before merging (unifdef for debugging)
+	  #if 0
+	  char filename[32];
+	  sprintf(filename, "c_s%dt%02d_%d.trk", side, track, retry);
+	  FILE *fp = fopen(filename, "wb");
+	  if (!fp)
+	    fprintf(stderr, "Could not write to '%s'\n", filename);
+	  else {
+	    fwrite(dmk_track, dmk_data_p - dmk_track, 1, fp);
+	    fclose(fp);
+	  }
+	  #endif
+
+	  dmk_merge_sectors();
+	} 
+
+	failing = (accum_sectors ? merged_stat.errcount : errcount) > 0;
+
+	if (failing)
+	  failing = retry++ <= retries;
+
+	// Generally just reporting on the latest read.
+	if (failing) {
+	  msg(OUT_TSUMMARY, "[%d good, %d error%s]\n",
+	      good_sectors, errcount, plu(errcount));
+	}
+      } while (failing);
+      total_retries += retry;
       fflush(stdout);
+      if (accum_sectors) {
+	short *idam_p = (short *)dmk_track;
+	int i;
+      	memset(dmk_track, (curenc == MFM) ? 0x4e : 0xff, dmk_header.tracklen);
+	memcpy(dmk_track, dmk_merged_track, DMK_TKHDR_SIZE + dmk_merged_track_len);
+	for (i = 0; i < DMK_TKHDR_SIZE / 2; i++)
+	  *idam_p++ &= ~DMK_EXTRA_FLAG;
+
+	errcount = merged_stat.errcount;
+	good_sectors = merged_stat.good_sectors;
+	reused_sectors = merged_stat.reused_sectors;
+	memcpy(enc_count, merged_stat.enc_count, sizeof enc_count);
+	memcpy(enc_sec, merged_stat.enc_sec, sizeof enc_sec);
+      }
       dmk_write();
     }
   }
