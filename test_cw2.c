@@ -127,7 +127,8 @@ catweasel_read(catweasel_drive *d, int side, int clockmult, int time, int idx)
 
 	//sprintf(filename, "dump3/disk2/c_s%dt%02d.%03d", side, d->track, seq++);
 	//sprintf(filename, "dump4/fail38/c_s%dt%02d.%03d", side, d->track, seq++);
-	sprintf(filename, "dump5/gp2/c_s%dt%02d.%03d", side, d->track, seq++);
+	//sprintf(filename, "dump5/gp2/c_s%dt%02d.%03d", side, d->track, seq++);
+	sprintf(filename, "test-4a/c_s%dt%02d.%03d", side, d->track, seq++);
 
 	fp = fopen(filename, "rb");
 	if (!fp) {
