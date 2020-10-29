@@ -1,0 +1,3 @@
+[submodule "cwsdpmi"]
+	path = cwsdpmi
+	url = git@github.com:qbarnes/cwsdpmi
