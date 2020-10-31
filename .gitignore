@@ -1,0 +1,13 @@
+*~
+*.o
+*.obj
+*.dmk
+*.log
+*.exe
+*.txt
+firmware.h
+cw2dmk
+dmk2cw
+dmk2jv3
+jv2dmk
+testhist
