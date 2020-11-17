@@ -1178,6 +1178,8 @@ void usage(void)
 	 fmthresh);
   printf(" -l bytes      DMK track length in bytes [%d]\n", dmktracklen);
   printf("\n");
+  printf("cw2dmk version %s\n", VERSION);
+  printf("\n");
   exit(1);
 }
 

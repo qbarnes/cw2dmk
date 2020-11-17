@@ -111,6 +111,8 @@ void usage()
   printf(" -y testmode   Activate various test modes [%d]\n", testmode);
 #endif
   printf("\n");
+  printf("dmk2cw version %s\n", VERSION);
+  printf("\n");
   exit(1);
 }
 
