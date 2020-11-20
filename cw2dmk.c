@@ -2102,8 +2102,10 @@ main(int argc, char** argv)
 
 	failing = (accum_sectors ? merged_stat.errcount : errcount) > 0;
 
-	if (sectors_required[track] > 0 && good_sectors != sectors_required[track])
+	if (sectors_required[track] > 0 && good_sectors != sectors_required[track]) {
 	  failing = 1;
+	  msg(OUT_TSUMMARY, "[-q used] ");
+	}
 
 	if (failing)
 	  failing = retry++ <= retries || keeptrying();
