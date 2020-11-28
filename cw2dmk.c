@@ -1855,21 +1855,23 @@ main(int argc, char** argv)
 	}
 #endif
 
-	/*
-	 * If doing a timed read starting from the index hole, spin
-	 * until we see the hole.  XXX Can MK4 do this better?
-	 */
-	if (hole && readtime > 0 && !catweasel_await_index(&c.drives[drive])) {
-	  fprintf(stderr, "cw2dmk: No index hole detected\n");
-	  cleanup();
-	  exit(1);
+	int cw_ret;
+	if (hole) {
+	  /*
+	   * Do read from index hole to index hole.
+	   */
+	  cw_ret = catweasel_read(&c.drives[drive], side ^ reverse, cwclock,
+			      0, 0);
+	} else {
+	  /*
+	   * Do read.  Store index holes in the data stream; this
+	   * helps detect wraparound and avoid duplicating data.
+	   */
+	  cw_ret = catweasel_read(&c.drives[drive], side ^ reverse, cwclock,
+			      readtime, 1);
 	}
-	/*
-	 * Do read.  Always store index holes in the data stream; this
-	 * helps avoid duplicating data due to undetected wraparound.
-	 */
-	if (!catweasel_read(&c.drives[drive], side ^ reverse, cwclock,
-			    readtime, 1)) {
+
+	if (!cw_ret) {
 	  fprintf(stderr, "cw2dmk: Read error\n");
 	  cleanup();
 	  exit(1);
