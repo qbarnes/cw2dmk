@@ -39,7 +39,7 @@ CWEXE = cw2dmk$E dmk2cw$E testhist$E
 EXE   = $(CWEXE) dmk2jv3$E jv2dmk$E
 TXT   = cw2dmk.txt dmk2cw.txt dmk2jv3.txt jv2dmk.txt
 NROFFFLAGS = -c -Tascii
-FIRMWARE   = rel2f2.cw4
+FIRMWARE   = firmware/rel2f2.cw4
 
 clean = $(EXE) *.$O *~
 veryclean = $(clean) $(TXT) firmware.h *.exe *.obj *.o
