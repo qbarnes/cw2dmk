@@ -1,0 +1,46 @@
+Register description of the Catweasel MK4:
+
+
+PCI bridge registers
+
+0x02, 0x03 and 0x07 form a bi-directional 8-bit port. Register 0x02 is the data direction register. Since all bits of this port have dedicated directions, please only write the recommended value into this register: 0xE3. This sets bits 7,6,5,1 and 0 to outputs and the other bits to inputs.
+
+Register 0x03 is the write-port of the 8-bit register. If you want to read from the 8-bot port, read from register 0x07. If you want to alter single bits, then read from register 0x07, modify your bits, then write the value to register 0x03.
+
+Bits 7 and 6 are write-only. They set the register bank of the FPGA. Before FPGA configuration, only bank 01 is active (configuration bank). After configuration, these two bits select one out of four register banks:
+
+00: Both bits=0 set the SID FIFO register bank
+01: Bit 7=0 and bit 6=1 sets the MK3-compatible register bank
+10: Bit 7=1 and bit 6=0 sets the IO register bank
+11: Bit 7=1 and bit 6=1 sets the IRQ register bank
+
+Bit 5 is write-only, the "MUX" bit. It controls the "Kylwalda" part of the Catweasel. Writing a 0 to this bit grabs control of the floppy drives. While the Catweasel is in control, the onboard-floppy controller still sees disk drives, but it is told that the disk has been removed (diskchange signal).
+
+Bit 4 is read-only and should be written 0. It represents the joystick firebutton of port 2. 0 means the button is pressed, 1 means that the button is released. This is a realtime register. If you do not read often enough, you might miss a pressed button. Do not read too often, as bouncing is also possible: Polling this bit at high frequency can show bouncing effects of the buttons. Bouncing means that you get lots of consecutive press and release events. A good polling frequency is between 25Hz and 100Hz.
+
+Bit 3 is read-only and should be written 0. This bit is only used during the configuration phase of the FPGA. Check this bit before writing to the data port (0xc0): Only write to the data port when this bit is 1. 
+
+Bit 2 is read-only and should be written 0. This bit shows the configuration status of the FPGA: If you read a 1, then the FPGA firmware is installed and accepted by the FPGA. If you read a 0, then the FPGA is not configured and the other register banks do not have any function.
+
+Bit 1 is write-only and should be written 0 after the FPGA is configured. During configuration, the LSB of the 8-bit data word must be mirrored here, because the path to the FPGA configuration data port is only 7 bits wide. After configuration, this bit has the "legacy" function that was never implemented. It still swaps a lot of bits in the status and control registers, so it's recommended to keep it 0 unless you really want to confuse everyone, including yourself.
+
+Bit 0 is write-only. It's the FPGA reset/erase bit: A 0 in this bit will erase the FPGA. After setting this bit to 1, the FPGA will accept a new firmware program. The FPGA is S-Ram based, so it can do any amount of write/erase cycles. Keep this bit set during "everyday use", you normally do not have to fiddle around with FPGA re-configuration.
+
+Setting/Resetting bits in this port
+-----------------------------------
+I'm sorry that I have "recommended" bad programming style with my Inside_MK4 file by recommending to write fixed values into register 0x03. You probably have lots of lines of code by now, where the register 0x03 is written fairly often. If you are altering the register bank, you mostly also alter the MUX bit, so programs that control the SID chip also affect the state of the Kylwalda part, which is really unnecessary. If you want to alter the register bank, please do it like this:
+
+read from 0x07
+AND with %00100011
+OR with  %bb000000 (where bb ist the register bank)
+write to 0x03
+
+if you want to alter the state of the MUX bit, please do it like this:
+
+read from 0x07
+AND with 11000011
+OR with 00m00000 (where m is the desired state of the MUX bit)
+write to 0x03
+
+Since any write to register 0x03 affects lots of functions, it should only be done selectively, not "in bulk" by using fixed values. I hope you will take the time to clean up your code with this information.
+

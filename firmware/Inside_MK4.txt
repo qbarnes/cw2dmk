@@ -1,0 +1,352 @@
+Summary of all the previous readme files, so you have a one-file reference:
+
+The MK4 is trying to be as MK3 compatible as possible. However, there's a number of differencies that have to be addressed before existing MK3 software can work on the MK4:
+
+The MK4 has four different register banks, To access the MK3-compatible registers, write 0x41 to register base+3 of the controller.
+
+The joystick fire for port 2 is in a different register. You can read the joystick firebutton of port 2 in register base+7, bit 4. If the read value of that register ANDed with 0x10 is 0x10, the button is not pressed. If the ANDed value is 0, then the button is pressed. 
+
+The SID command register now uses Bit 7 to choose which SID the command goes to. Make sure that existing software either always writes a 0 to that bit, or add a configuration utility for the user, so the target SID can easily be chosen.
+
+Keyboard functions are identical to the MK3. Only the lower keyboard connector is used. The upper keyboard connector is not accessible with low-profile PCI brackets, so it'll be reserved for "special applications" (I have an idea for a really geeky retro-use, but that must wait...).
+
+The previously unused register $f8 is now used by the MK4:
+
+read $f8: extended status register
+
+bit 0: Onboard select 0
+bit 1: onboard select 1
+bit 2: eject signal feedback
+
+bits 3-7 are unused at this point.
+
+The "onboard select" signals are active-low. They serve as a window to the onboard controller. Your software can determine if the native controller is trying to access a floppy drive by checking the lower bits of this register. If either nothing happens or the white connector is not used, the lower bits will be 1. If a drive is selected, and you think the onboard controller should have access to the drive(s), you can react by setting the mux bit to 1 in register base+3.
+Bits 0 and 1 of this register are latched. If since the last read-access the onboard controller has tried to access the floppy, this attempt is stored in these two bits. This way, you won't miss any attempt of the onboard controller, even if you're polling this register at low frequencies. Reading this register will erase the two bits, so you have to watch both bits on the first read!
+
+The eject feedback bit gives an idea if there's a drive attached that's capable of auto-ejecting. If the eject bit is 0 in the extended control register (that's $f8 on a write, see further down), but you're reading a 1 from bit 2 in register $f8, then there's either no drive on the bus that can auto-eject, or a second drive is shorting the signal, so it cannot be used.
+
+CAUTION: Some drives leave this pin completely unconnected, so it might also be floating. Since a floating pin gives unpredictable values, you can "charge" the line by setting, and immediately unsetting the bit before running the described detection of auto-eject drives. This pre-charging of the line should be done without selecting a drive!
+
+If the eject signal is shorted by another drive, then other auto-eject drives on the cable will always eject a disk when they're selected. The user will have to cut a line 1 on the floppy cable (that's the red line on most cables). You just need to compare the bits: Write 0 to the eject bit, get 0 in the status, then eject might be possible. If you get 1 in the status although you pre-charged, eject is impossible. Notice that you can only say for sure that eject is impossible, but a 100% identification of the auto-eject feature is not possible. 
+
+If auto-eject is supported by the drive, it's done by selecting the drive (unset corresponding SEL bit in the control register), and setting the eject bit to 1. Set the eject bit back to 0 after a certain period of time - I don't have any documentation, but one millisecond should be sufficient, at least it is with my Mitsubishi MF355F-3792ME (my drive is defective, the motor doesn't run any more, only makes strange noises - but eject works!).
+
+write o $f8: extended control register
+
+bit 0:	start reading on index, end by software or memory overflow
+bit 1:	start writing on index, end by software or memory overflow
+bit 2:	eject
+bit 3:	DMA to onboard FDC, select 0
+bit 4:	DMA to onboard FDC, select 1
+bit 5:	Stop on watermark memory value
+bit 6:	Continuous read operation
+
+Bit 7 is currently experimental. See readme.txt of this archive for current state.
+
+Write $01 into this register to start reading on the falling index edge. In this read mode, the controller will read until the memory is full, or until the software will abort the transfer. The read can be done with or without MFM predecode, and with or without index storing.
+
+Write $02 into this register to start writing on the falling index edge. In this write mode, the controller will write until the memory pointer reaches the end, until a byte in memory is 0xff, or until the software will abort the transfer.
+
+If for some reason (no drive selected, no disk inserted, motor off) the start-condition (falling edge of index) does not occur, you can abort the wait-condition by reading the CatAbort register ($e4).
+
+The DMA bits will route the write stream of the Catweasel floppy controller to the read line of the onboard FDC. The onbaord FDC also has two select lines, and each of these bits allows the Catweasel to output information on the FDC's read line if it has selected that drive. You can select both lines at the same time if you want to.
+This will let you transfer data from the Catweasel memory into the onboard floppy controller, even if the Catweasel itself has not selected any disk drive (notice that you can start a Catweasel-floppy-write operation without selecting a drive, this might be the option you want to use if you're talking to the onboard FDC through this channel).
+
+If the "stop on watermark" bit is set, then a read or write operation is automatically halted if the watermark value (see IRQ register bank) and the memory pointer are equal. This bit will stay set until you reset it "manually" - don't forget to reset this bit after you have done a watermark-stop operation, otherwise a read or write might stop too early, or won't even start for no obvious reason!
+The "stop on watermark" condition might never be met if you're doing a continuous write operation with a reload command in the data stream. The reload command resets the memory pointer to 0, and if this reload command is located before the watermark value, the watermark is never reached.
+Before setting the "stop on watermark" bit, make sure to clear the watermark IRQ status bit in the IRQ register bank. The comparator for 17 bits is fairly big, so I have only implemented it once. The stop condition is routed from the IRQ status bit, therefore with bit 5 of floppy register $f8 set, and watermark IRQ status set, read or write operations cannot even be started!
+The IRQ mask bit has no effect on the watermark stop. Bit 5 of floppy register $f8 is the mask for "watermark stop". 
+
+With bit 6 set, the controller will not stop reading when the memory is full, but wrap around and continue reading at the beginning of the memory. Write operations are never stopped at the end of the memory, so if there's no termination byte or other stop condition, the controller will write forever. Notice that this is not true for the ISA version of the Catweasel, that version wll stop when the end of the memory is reached (please mind if you want to support all versions of the controller).
+
+SID FIFO register bank
+----------------------
+To access this bank, write 0x01 to register base+3.
+
+Remember to set the desired clock frequency for the SIDs before switching the register bank to the FIFO. This can either be done with a dummy write, or with a dummy read (both set the PAL/NTSC selection bit!). You can change the PAL/NTSC frequency in the MK3-compatible register while the Fifo is running. All other MK3 SID actions are suppressed while the FIFO is enabled, just the PAL/NTSC switch works. Don't forget to switch banks before/after you've accessed a register in a different bank! Avoid writing to the SIDdat register while the Fifo is working. It might mess up write-data from the Fifo to the SID. Reading the SIDdat register might be interesting, but doesn't really give valuable information (you can see data flying by on it's way into the SID).
+
+0xc0 (write)      write a byte into the FIFO
+0xc0 (read)       Read fifo  register
+0xc4 (read only)  WRITE fifo: number of used words divided by 4. Stop writing to the FIFO 
+                  when this value reaches 0xff.
+0xc8 (write)      bit 0: FIFO transfer gate. 0 stops transfer to SID, 1 starts transfer to SID 
+		  bit 1: Turbo bit. Description see further down.
+		  bit 2: Autocorrect bit (Idle cycles counter corrects delay cycles counter!)
+0xc8 (read)       READ fifo: number of used words divided by 2.
+0xcc (write)      any write to this register triggers a complete erase of the Fifo.
+0xcc (read)       MSB is set when FIFO is empty, cleared when data is left in the FIFO
+0xd0              idle cycles counter (highbyte)
+0xd4              idle cycles counter (lowbyte)
+0xd8              direct SID feedback byte
+
+The SID write FIFO size is 1024 bytes.
+
+Syntax: There are three opcodes, "write byte", "read byte", and "wait". Write-byte and read-byte are two-byte commands:
+
+The first byte of a "write byte" must have MSB set and bit 6 cleared to indicate the start of a write-byte commad. The lower 5 bits (bit 0 to 4) set the target register number of the SID, bit 5 sets the sid number.
+The next byte holds the data that you want to write into that register.
+
+You can do any number of byte-writes in a row. Each of them will take one cycle.
+
+The first byte of a "read byte" must have MSB and bit 6 set to indicate the start of a read-byte commad. The lower 5 bits set the target register number of the SID, bit 5 sets the sid number.
+The next byte holds the read identifier. This identifier is written to the read FIFO, and has no effect on the SID at all. You can choose this value freely in order to identify the byte that comes next. You will always get the identifier first, then the data byte that was read out of the SID. The contents of the read fifo can be read in register $c0. Before reading that register, make sure that there's data in the pipe: Register $c8 bust be greater than  0.
+
+You can do any number of byte-reads in a row. Each of them will take one cycle.
+
+The wait command is a one-byte command. It is indicated by a 0 in the MSB. Bit 6 has a special meaning, it is a multiplier for the lower six bits. If bit 6 is 0, the multiplier is 1. If bit 6 is 1, the multiplier is 64. The wait time is always in SID clock cycles plus one. Set the SID clock the known way - the FIFO cannot alter the clock speed.
+
+Some examples of wait time:
+
+0 will wait 1 cycle
+1 will wait 2 cycles
+2 will wait 3 cycles
+..
+..
+62 will wait 63 cycles
+63 will wait 64 cycles
+64 will wait 64 cycles 
+65 will wait 128 cycles 
+66 will wait 192 cycles 
+..
+..
+127 will wait 4096 cycles
+
+Wait-time 63 also ends the "turbo bit":
+
+turbo bit:
+Set this bit to 1 to make all delay values 1 cycle long. This is to quickly flush the FIFO, but not miss any data that's supposed to be sent to the SID. Can either be used for fast-forwarding, or for changes in filters/voice muting to take effect quicker. There are two conditions that clear the turbo bit: 1) a delay value of 0x3f occurs in the data stream, 2) the user writes 0 to the turbo bit.
+If a delay value of 0x3f is encountered, that delay will be processed normally, that means, 64 cycles will be waited until the next byte is fetched from the FIFO.
+
+idle cycles counter:
+This counter is 16 bit wide, and it's counted up for every cycle that the FIFO is empty AND the last delay byte has been processed, so even if the Fifo is empty, the counter will only start counting for cycles that the FIFO state machine is idle.
+
+Read the state of the idle-cycle counter in $d0 (highbyte) and $d4 (lowbyte). To reset the idle-cycle counter to 0, write any value to one of these registers.
+The idle cycles counter can be used to correct an unwanted empty state of the FIFO. If for example a multi-tasking operating system had tasks of higher priorities blocking the SID playback routine, the value of this register can be used to correct the timing. Just shorten future waits by the number of cycles that the counter is showing. The result will be that some notes will be played late, but the overall listening experience will most probably stay in-sync with the beat of the music.
+
+autocorrect feature:
+If bit 2 of 0xc8 is set, then the delay counter is speeded up in order to correct the number of cycles that the FIFO was empty. The speedup factor depends on the SID clock that you have chosen: It's 16 on PAL and it's 12 on NTSC. Delay commands still take at least 1 cycle.
+
+direct feedback:
+Any write to register $1f of any SID (both work) will be stored in the direct feedback register ($d8) of this bank. The write to the SID is not actually done, but it still takes one cycle if executed from the fifo. The select line of the SID is only pulled low for SID registers 0 to $1e. If you have software that writes to $1f of the SID, you'll have to map it to a different register in order to cause the few-milliseconds-hold-effect.
+
+IO register bank
+----------------
+
+To access this register bank, write 129 (0x81) to base+3.
+
+registers:
+
+$c0: mouse Y1 (write to upper 6 bits also affect register $c8)
+$c4: mouse X1 (write to upper 6 bits also affect register $cc)
+$C8: mouse Y2 (write to upper 6 bits also affect register $c0)
+$cc: mouse X2 (write to upper 6 bits also affect register $c4)
+$d0: read: pot inputs to the joystickports (lower 4 bits)
+$d0: write: Bits 0 and 1 are for Atari mouse selection (set to 1 for Atari)
+            Bits 2 and 3 control the pullup-resistors: 0 disables pullup.
+
+The Pot inputs can only be used when there's no SID chips installed. If SID chips are installed, the value of the middle/right mouse buttons must be read from the POT registers of the SIDs. This is due to the nature of the A/D converters inside the SIDs: They discharge a capacitor, and count the time until the capacitor is charged over a certain level again. If the SID is installed, you will only read toggeling values from the $d0 register.
+You can use this as a feature: If you're reading toggeling values out of these bits, you can be sure that there's a SID installed.
+The Pot inputs have pullup-resistors that can be toggled on and off. Caution: Pullup resistors should only be installed when there's no SID in the socket! Bit 2=1 switches pullup on for port 1, and bit 3=1 selects pullup resistors for port 2. If there's no SID in the socket and pullup resistors are switched off, then you might always read the right and middle mouse button "pressed".
+
+The mouse registers can be written just like in the Amiga. The upper six bits can be set by just writing to the registers, where both X and both Y registers are written at the same time (again, just like the JOYTEST register of the Amiga). The lower two bits cannot be set, because they directly reflect the state of the port signal lines.
+
+Writing to the lower two bits of $d0 will change the mode of the mouse counters for each port. Bit 0 is for port 1, and bit 1 is for port 2. If these "Atari select" bits are set, the mouse ports will accept a mouse from the Atari ST computer. Set the bits to 0 for Amiga mice and trackballs. Atari and Amiga mice can be mixed, each port has it's own mode.
+
+Remember to keep a shadow-value of what you're writing to this register, so single bits can be altered. It is not possible to read back what you've written, so bit manipulations can only be done if you remember what has been written to this register before!
+
+IRQs
+----
+
+To access the IRQ register bank, write 0xc1 to register base+3.
+
+$C0 is the IRQ source status register on a read. A 1 in a bit indicates that the IRQ source signalled an IRQ since you last reset the bit. This status is not affected by the IRQ mask bits, you can always see the IRQ sources, regardless of the mask status.
+You can also reset the IRQ status in this register by writing a 1 to the bit that you want to reset. Writing a 0 to the bit will leave it unchanged. Example: To clear all IRQ bits, write $ff to $c0. To only clear the SID_write_Fifo IRQ bit, write $10 to $c0.
+
+bit 0:	MK3 floppy IRQ
+bit 1:	Index IRQ. This IRQ is set whenever the falling edge of an index signal passed by.
+bit 2;	This bit is set whenever a floppy read or write operation has started
+bit 3:	This bit is set whenever a floppy read or write operation has ended
+bit 4:	joystick change 1
+bit 5:	joystick change 2
+bit 6:	Catweasel memory address equal ("watermark")
+bit 7:	keyboard IRQ
+
+
+When reading the keyboard scancode from the keydat register, you had to write a 0 to that same register in order to tell the keyboard that it can send the next byte on the MK3 controller. This can be done on the MK4 by un-setting the IRQ status bit (writing 0x80 to $c0). Make sure not to do both write accesses, and to read the scancode _before_ unsetting the IRQ status bit because this might cause data loss! Also mind the timing. Clearing the IRQ bit also ends the handshake signal to the keyboard, and if handshake was too short, the keyboard will go into re-sync mode where it re-sends an error code and the previous keycode until handshake was long enough. 
+
+The two joystick IRQs will be set whenever a joystick line changes. Joystick/mouse port IRQ1 watches the four direction lines and the fire button (left mouse button), while josystick/mouse IRQ bit 2 only watches the four direction lines. If you need an IRQ on the change of the firebutton (left mouse button) of joystick/mouse 2, you'll have to program the PCI bridge to generate an IRQ (that line is not connected to the FPGA, but directly to the PCI bridge).
+
+$c8 is the IRQ mask register to $c0. Write a 1 to each bit to route the IRQ source signal to the IRQ pin, or write a 0 to disable routing to the IRQ pin. The bit layout is the same as the $c0 register. The mask register can also be read, so you do not have to keep track of which option has been enabled/disabled. Any routine that wants to enable/disable IRQs can first read the byte, do the necessary bit operations, and write the value back to $c8. 
+
+$c4 is the second IRQ status register:
+
+bit 0:	SID write fifo empty
+bit 1:	direct SID feedback
+bit 2:	timer 1 underrun
+bit 3:	timer 2 underrun
+bit 4:	Sid write fifo half empty: Set when the fifo contents are getting less then 512
+	bytes, and if the fifo contents were above 768 bytes since the last IRQ.
+	will NOT be set whan coming from the other direction, only on the transition from 512
+	to 511 bytes.
+	Automatically cleared when more than 768 bytes are in fifo.
+bit 5:	Sid read about to take place
+
+
+Bit 0 is set whnever the Fifo is empty AND the fifo is running. It must be cleared manually by writing $01 to $c4. If you can use an automatic clear, for example when a certain fill-level is reached, let me now.
+
+Bit 1 is set when a (virtual) write to register $1f of any SID chip is in progress. This write access can come either from the Fifo, or it can be made directly with the MK3-compatible registers; both will set this bit! The write to the SIDs is not passed to the chips, but it still takes one cycle when executed from the FIFO.
+
+Bit 2 is set whenever timer 1 underruns. Both modes (one-shot or continuous mode) are supported. Same for bit 3, which applies to timer 2.
+
+Bit 4 will only toggle automatically if the Fifo is enabled. If you disable the Fifo, the value in the IRQ register remains until you reset it by writing a 1 to bit 4 of $c0. This is a a real schmitt-trigger. The Fifo half empty IRQ is only set if the Fifo is running, and the contents have been above 768 bytes since the last IRQ. There is no IRQ when the Fifo is empty, and there is no IRQ on the transition 511->512->511. 
+
+The SID read IRQ (Bit 5) is an "early IRQ" - it alerts you when the next command in the FIFO pipe is a read command. It becomes active as soon as the last byte before the read command has been fetched. This is pretty much "just before the read" if the command before was a write, but it's fairly early if the command before the read is a delay, because the IRQ already becomes active when the delay is in progress. If you feel that the read IRQ comes too early, you can split the delay before the read command into two bytes. This will wait with the IRQ until the last delay byte before the read command. If you feel that the IRQ comes too late, you can insert a dummy-read before the real read, and wait in the IRQ service routine for the "used read words" counter to reach 2 (=4 bytes) instead of 1 (=2 bytes). Since this IRQ is thrown before the action takes place, you *always* have to check if there's data in the read fifo!
+
+
+$cc is the IRQ mask register to $c4.
+
+The floppy memory pointer can be read in these addresses of the IRQ register bank:
+
+$d0: bit 0 is the MSB of the memory pointer (bit 16)
+$d4: bits 8 to 15 of the memory pointer
+$d8: bits 0 to 7 of the memory pointer
+
+When reading, these three bytes represent the state of the memory pointer. Writing to these registers sets the "watermark" value where an IRQ shall happen. A one-strobe-transfer from the memory pointer to the watermark register was skipped in order to save a bit of logic. 
+
+The IRQ pin of the FPGA is connected to the data port of the PCI bridge. The status of the pin can be read in register base+7, bit 3 (FYI: this is also the Ready bit during configuration). This bit is 1 if there's no IRQ, and it's 0 if there's an IRQ (active-low line). 
+Mind that you're dealing with two chips on the Catweasel MK4. The status and mask registers above $c0 in the Catweasel register space are in the FPGA, and that's connected to the PCI bridge with a few lines. One of them is the IRQ line that can be read back in register base+7, bit 3. Even if IRQs are un-masked in the FPGA (IRQ bank, register $c8), they are still masked away by the PCI bridge, and don't reach the host computer yet. To un-mask IRQs in the PCI bridge, do these writes (mind the order!):
+
+write 0x00 to register base+$2a to set active-low IRQ on bit 3 
+Write 0x08 to register base+5 to enable IRQ on the PCI Aux port bit 3.
+
+Make sure that you have an IRQ service routine setup _before_ you're enabling IRQs. Since the IRQ will most probably be shared with other IRQ sources on the PCI bus, your service routine first has to find out if the Catweasel was really the source of the IRQ. Check bit 3 of register base+7: If it's set, then this IRQ was not for you! Only if bit 3 of that register is 0, the FPGA has triggered an IRQ. Check registers $c0 and $c4 of the IRQ register bank to find out what reason the IRQ had in detail, then jump to the service (sub-)routine.
+
+
+timers
+------
+Timers are located in the IRQ register bank. To access the IRQ register bank, write 0xc1 to register base+3.
+
+Every timer has a 16-bit counter, a 16-bit latch, a 16-bit reload value, and a control register. The counter will always count backwards, and re-load itself with the value in the reload register. The state of the control register determines what happens next: Either the timer stops running (one-shot mode), or it starts over again (continuous mode).
+timer registers:
+
+$dc:	8-bit prescaler for 28.322 Mhz clock (0=fastest, 255=slowest)
+$e0:	read: timer 1 counter highbyte ; write: timer 1 control
+$e4:	read: timer 1 counter lowbyte ; write: timer 1 latch/comparator triggers
+$e8:	read: timer 1 latch highbyte ; write: timer 1 reload highbyte
+$ec:	read: timer 1 latch lowbyte ; write: timer 1 reload lowbyte
+$f0:	read: timer 2 counter highbyte ; write: timer 2 control
+$f4:	read: timer 2 counter lowbyte ; write: timer 2 prescaler for 28.322Mhz
+$f8:	read: timer 2 latch highbyte ; write: timer 2 reload highbyte
+$fc:	read: timer 2 latch lowbyte ; write: timer 2 reload lowbyte
+
+
+The 8-bit prescaler value is a divisor for the 28.322Mhz clock. The value that you're writing into this register cannot be read back, a read from $dc will always return 0, and a read from $f4 will return the counter lowbyte of timer 2. The output frequency in Mhz of the prescaler will be 28.322/(n+1). A value of 0 will result in an output frequency of 28.322Mhz, 1 will output 14,161 Mhz, and 255 will output 110,63khz. The prescaler is not syncronized to anything, it's always free-running. Even a write to the prescaler does not reset the counter!
+
+Reading from registers $e0 and $e4 will give a current snapshot of the timer. Notice that the timer continues running between the two read acceses for lowbyte and highbyte. You might get a rollover of the lowbyte after reading the highbyte, so reading these registers should either only be done to have a rough estimate, or fo 8-operations only. For precise reading of counter state, transfer the value to the latch, and read from there.
+
+Writing to register $e0 sets the timer 1 control register. The control register cannot be read:
+
+bit 0:	timer 1 run. (1=run, 0=stop)
+bit 1:	one-shot (1=one shot, 0=continuous run)
+bit 2:	clock source (0= prescaler, 1= SID clock)
+bit 3:	auto-start in index
+bit 4:	auto-stop on index
+bit 5:	start floppy-write on timer underrun
+bit 6:	transfer current timer state to latch (snapshot-strobe)
+bit 7:	transfer reload to timer coutner (forced reload-strobe)
+
+Notice that choosing the SID clock as source for the timer depends on the PAL/NTSC clock selection of the chip. PAL is 0,985Mhz, NTSC is 1,023Mhz.
+
+Bits 3 and 4 will start/stop the timer automatically on a falling edge of an index signal. You can set both bits with one write cycle to the control register. This wil result in the timer waiting for an index signal, then run for a full revolution of the drive, and stop on the next falling edge of an index signal. This can be used for measuring the time between two index signals without corrupting the contents of the memory.
+
+If bit 5 is set, the timer underrun will start a floppy write operation. In combination with bit 3, this can be used to move the track gap to a different position than the index signal.
+
+examples:
+If you want to start a one-shot timer, set the time in the reload register, the prescaler value (if needed), and then $83 to register $e0. This will transfer the reload register to the timer counter (bit 7), tell the timer to stop after re-loading (bit 1), and start the action (bit 0).
+
+If you want to create a snapshot of a running counter, write $41 (or $45, depending on the clock source)  to register $e0. Remember that you can always change the clock source, (de-)activate autostart/stop, and start floppy-write on underrun while the timer is running. Make sure that this is not happening accidently if you want to make a snapshot of the counter!
+
+Shift reload->counter->latch contents: Write %11xxxxxx to $e0 (X depending on the other options you want - remember not to set/reset anything accidently!). This pattern will transfer the current counter state to the latch, and the contents of the reload register to the counter in one go. This can be used to set the contents of the latch register or the counter, even if the timer is not runnung. use this option to pre-set all register contents before starting comparator-triggered writes:
+
+latch/comparator triggers (write to $e4):
+-----------------------------------------
+
+bit 0:	auto-latch on index
+bit 1:	auto-reload on index
+bit 2:	start floppy write on index if timer1 counter =>32768
+bit 3:	start floppy write on index if timer1 counter <32768
+
+Bits 0 and 1 will always keep their values, bits 2 and 3 will auto-reset after the action has been triggered. Notice that bits 2 and 3 will also be auto-cleared if something else has triggered a write operation!
+
+If bit 0 is set, the latch will automatically takeover the current value of the timer counter on every index pulse. Use this option in combination with the index IRQ to measure the average rotation time over several rotations.
+
+If bit 1 is set, every index pulse will force the timer to reload on every index pulse. If the right values are chosen and the disk keeps spinning, a timer underrun will never occur, so this mode can be used to detect a non-spinning disk on drives that do not support the diskchange feature.
+
+Bits 2 and 3 are to be used in combination with setting bit 1, and are mainly intended for use with hard-sectored disks. Hard-sectored disks use one index hole for every sector, and another index hole in the middle of two sector-holes to indicate the start of a track. Setting bits 1 and 2 of this register in combination with the right timer settings will automatically find the shorter distance betwen the sector- and the track-index hole, and start writing when the counter did not cross the threshold value of 32768. This threshold is fixed. You'll have to tweak the reload and prescale value in order to adjust the trigger-time.
+
+Setting bits 1 and 3 at the same time will look for a longer distance between two index pulses before starting to write. Not sure if this will be useful, but it's "almost free" in the logic, and you never know what kinds of disks we'll encounter in the future.
+
+Don't set bits 2 and 3 at the same time, as it will cause a write operation independant of the timer. Any index pulse will trigger writing, and this is something that you can also triger with a different command (-combination). Besides, I might want to use this combination to trigger something else, so just avoid it.
+
+Timer 2 is a little less complex than timer 1, and it only has one control register in $f0, which is comparable to register $e0 for timer 1:
+
+bit 0:	timer 2 run. (1=run, 0=stop)
+bit 1:	one-shot (1=one shot, 0=continuous run)
+bit 2+3: clock source
+bit 6:	1 in this bit transfers current counter state to latch
+bit 7:	1 in this bit forces a reload (transfer from reload to counter register)
+
+clock source combinations:
+bit 2=0, bit 3=0:	prescaler of timer 2
+bit 2=1, bit 3=0:	SID clock
+bit 2=0, bit 3=1:	timer 1 underrun
+bit 2=1, bit 3=1:	currently unused
+
+Bits 4 and 5 are currently unused.
+
+Floppy write commands
+---------------------
+The write stream for writing a track mainly consists of delay values between the write pulses. 
+
+Any byte with the MSB cleared is interpreted as a delay byte. It is loaded into a 7-bit counter that counts up at the frequency you have chosen. If the counter rolls over, the next byte is fetched, and a write pulse is initiated. In other words: The smaller the number, the longer the delay. Delay values of $7e and $7f might confuse and lockup the state machine, they should be avoided (no floppy drive can take pulses that fast anyway).
+
+Previous versions of the Catweasel accepted any byte that has the MSB set as a termination byte. Please review existing software for this termination byte: The Catweasel MK4 will ONLY accept $ff as a termination byte!
+
+Any command will load a value of $7d into the counter, so the execution of a command takes exactly the same time as a $7d delay. 
+
+list of commands:
+
+$ff	terminates the write process and goes to idle state
+$c0	set MK3 IRQ - read the IRQ status for this in $c0/bit 0 of the IRQ register bank
+$80	reload: The memory counter will be reset when this command is executed. Notice that
+	the memory pointer is also incremented after every access, so the next byte to be
+	fetched after this command is 1, not 0.
+$81	Inhibit write pulses
+$82	allow write pulses
+$83	wait for next hardsector
+$84	disable writeGate-signal to floppy
+$85	(re-)enable WriteGate-signal to floppy
+
+Commands $81 and $82 can be used to generate longer delays between two write pulses than the 7-bit counter allows. Pulses are generated at the beginning of every delay command, if allowed. Pulses are allowed by default. No pulse is generated if command bytes are executed. 
+
+Command $83 waits with executing the next byte from memory until the next falling edge of an index signal occurs. This is only useful for hard-sectored disks, and should be used with the timer/comparator write option of timer 1 (otherwise the write-start position is not correct!).
+
+Commands $84 and $85 can be used to only write a track partially. The WriteGate signal to the floppy tells the drive to switch to recording mode, and you have full control over when it's activated and when it's de-activated with these commands. With the default (MK3) write-enable procedure, the WGate line is active immediately with the start of the state machine. If you change the write-enable procedure to:
+
+- Write 0 to the CatAbort register, this resets the memory pointer to 0.
+- Read the Catmem register once, this sets the memory pointer to 1.
+- Write $ea to the CatOption register  (this is the change!)
+- Advance the memory pointer to 7 by reading CatMem 6 times.
+
+After this, the Floppy controller will be ready to start the write state machine, but will not assert the WGate line right away. It will also not generate any write pulses until the data stream in memory tells it to do so, so using $e0 in the write-enable procedure acts like having executes $81 and $84 before the start of the state machine.
+You can use these commands to write single sectors of a hard-sectored disk by starting with the timer-comparator option (remember to execute the write enable procedure before!), then skip sectors with the $83 command (one for every sector), and then enable WGate and write pulses with the $82 and $85 commands.
+The value $e0 that you're writing to the CatOption register ($ec) is also kind of an opcode. The value that was recommended for the MK3 was $80, and that enables WriteGate and write pulses on the MK4, but existing software will NOT work any more with the new controller because the write access also sets the write pulse length. 
+
+A value of $ea inhibits both WGate and WPulses. A value of $ca inhibits WGate on the start of the write process, but allows write pulses (this might not be useful at all, because no device should react to a write pulse without WGate asserted, but hey, you never know...).
+Last not least, a value of $aa allows WGate, bis disables write pulses. These two values can be changed within the write stream. The opcode that you're writing to the CatOption register will only determine the state of the start-value. The length of the write pulse cannot be changed within the write stream.
+
+write pulse length
+------------------
+bits 0 to 4 of the CatOption register sets Length of the write pulse when the memory pointer is 1. The recommended value is 10 ($a). The length of the pulse is calculated 35,31ns times this value. Some drives might want to see a longer write pulse (especially older drives with lower bit rates), that's why a pulse length of up to 1094ns (a bit over one microsecond) can be chosen.
+
+--EOF

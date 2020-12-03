@@ -1,0 +1,157 @@
+Register documentation and programming hints for PC/ISA Catweasel
+
+Original German document: November 15th, 2001
+English translation: December 4th, 2020.
+
+Register map (sorted by number)
+
+0	read/write S-Ram. After every access, the address
+	counter will be increased by 1.
+1	read: resets address counter, index counter and various
+	state machines. Prior to this reset action, all select-lines
+	should be deactivated (set to 1), so the index counter
+	won't be increased accidently.
+	write: (hmm.. obviously does nothing)
+2	read: returns contents of the status register
+	write: writes to control register. The control
+	register is not readable, so software should keep the
+	written value in a shadow-register.
+3	read: reads version information depending on ram-address counter
+	write: various actions depending on ram address counter:
+	RA=0	Clock-select. 0=28 Mhz		128=14 Mhz
+	RA=1	Write-enable  0=forbid		128=permit
+	RA=2	IndexStore    0=dont store	128=do store
+4	not used
+5	write: Will start writing immediately, won't wait for anything.
+	read: reads a track "from Index to Index". 
+6	not used
+7	write: starts track-write "from Index to Index"
+	read: starts reading a track without waiting for anything. 
+
+----
+
+Sorted by actions
+Number is register number, W stands for writing, R for reading that register.
+
+RA = Ram-address, "XX --> YW"  write value XX to register Y
+
+Reset RAM address pointer 				1R
+Ram-access					  0R or 0W
+read status register					2R
+write control register					2W
+Abort read					1W or	1R
+start reading immediately				7R
+Start reading index-to-index (wait-for-index)		5R
+Abort waiting for an index pulse			1R
+Reset index counter					1R
+Set Base-clock to 14 Mhz		0-->3W with RA = 0
+Set Base-clock to 28 Mhz		128-->3W with RA = 0
+set Write-enable-Bit			      3W with RA = 1
+reset Write-enable-Bit					1R
+allow Index storing:			128-->3W with RA = 2
+disable Index storing:			  0-->3W with RA = 2
+write immediately (*)					5W
+write from Index to Index (*)				7W
+Abort writing					1W or	1R
+read versions information 		3R with RA=0-15 and
+					RA=131072-131087
+
+----
+
+Procedure "allow writing":
+
+1R		[resets address counter, making RA = 0]
+3W		[set desired clock rate]
+0R		[RA now 1]
+128-->3W	[set Write-enable-Bit]
+0R		[RA now 2]
+0R		[RA now 3]
+0R		[RA now 4]
+0R		[RA now 5]
+0R		[RA now 6]
+0R		[RA now 7]
+2W		[select drive and density]
+5W oder 7W	[depending on desired write mode]
+
+This is assuming that the memory has been prepared with write
+data that is properly terminated.
+
+
+----
+
+Version bits
+RA		meaning
+
+0		reserved
+1		reserved
+2		reserved
+3		reserved
+4		reserved
+5		reserved
+6		reserved
+7		reserved
+8		reserved
+9		reserved
+10		reserved
+11		Typ: 0=commercial, 128= industrial
+12		Version, major Bit 1
+13		Version, major Bit 0
+14		Version, minor Bit 1
+15		Version, minor Bit 0
+131072		reserved
+131073		reserved
+131074		reserved
+131075		reserved
+131076		reserved
+131077		reserved
+131078		reserved
+131079		reserved
+131080		reserved
+131081		reserved
+131082		reserved
+131083		reserved
+131084		reserved
+131085		reserved
+131086		reserved
+131087		reserved
+
+The major version can be used directly, the minor version should be multiplied by 2.
+If you are reading these bits:
+
+01.01 
+
+the version number is V1.2. 
+
+--
+
+Read-thresholds from the Amiga versions of the Catweasel in 300RPM drives:
+
+bit-sequence		counter value
+01			<28
+001			>=28
+0001			>=42
+
+These stay unchanged for DD and HD disks: At 14MHz clock, these thresholds
+correspond to a bit rate of 500KBit, and with 28MHz, it's 1MBit.
+
+----
+
+Status register bits:
+0	Reading		0 while the controller is active reading
+1	Writing		0 while the controller is active writing
+2	HDin	(*)	status of Pin 2 of the 34-pin Shugart-connector
+3	WProt		0 when selected drive has a write-protected disk.
+4	TRK0		0 when selected drive is on track 0
+5	DChange		0 when selected drive is empty
+6	Index		0 when index pulse is passing by
+7	reserved	not used
+
+Control register bits:
+0	Step
+1	Dir
+2	Side
+3	Motor1		
+4	Sel0		drive "before the cable twist"
+5	Sel1		drive "after the cable twist"
+6	HDin	when in doubt, set to 1, then (*) will be input!
+7	Motor0

@@ -1,0 +1,455 @@
+Programming documentation for the Catweasel MK3 PCI/Flipper
+***
+This file is incomplete!
+to-do:
+- floppy controller memory contents after read w/ and w/o predecode
+- memory contents for write
+- how to cause an IRQ
+- how to use the floppy controller as continuous IRQ source
+***
+
+
+This document is freely distributable as long as it is not changed, and one
+of the sources www.jschoenfeld.com, www.jschoenfeld.de, www.siliconsonic.com
+is mentioned. 
+
+last update: 
+November 8th, 2002 (corrected bit-order of JoyDat register)
+November 7th, 2002 (added PCI IDs and PCI bridge init routine)
+November 6th, 2002 (initial release)
+
+General
+-------
+The Catweasel MK3 PCI/Flipper is a flip-card. That means it can be used in
+different busses, but not two at a time. There are three ways to install the
+hardware: PCI bus, Zorro bus and the so-called clockport of the Amiga 1200.
+The memory map is the same for all these kinds of installations, so basically
+you can write the same software for all platforms and just adapt the base
+address of the controller in the target system.
+
+How to get the base address of the controller
+---------------------------------------------
+PCI: The PnP manager of the target system has mapped the board to a free space
+in memory. Please consult your operating system manual for instructions on
+how to determine the base address of a PCI PnP board.
+
+PCI Vendor ID: $e159
+PCI device ID: $0001
+PCI subsystem ID: $00021212
+
+The string for a Windows *.ini file would be:
+
+PCI\VEN_E159&DEV_0001&SUBSYS_00021212
+
+The board reserves two areas in memory, one in IO space and one ib memory
+space. Both are 256 bytes, and both are identical. Writing/reading to/from
+the memory space has the same effect as writing/reading to/from the IO space.
+It's just a different base address, so it does not matter which space you
+choose. However, it's recommended to use the IO space, because future versions
+of the PCI bridge may not support the memory space any more. The offset for
+the hardware registers is the same for both spaces: $c0. Do not access
+the registers below, they control the behaviour of the PCI bridge, so writing
+to these registers is a big no-no-no. Only run the given initialization
+routine:
+
+Write $f1 to offset $00
+write $00 to offset $01
+write $00 to offset $02
+write $00 to offset $04
+write $00 to offset $05
+write $00 to offset $29
+write $00 to offset $2b
+
+Zorro: The Kickstart system of the Amiga has mapped the board to a 64K
+memory space. The offset in this space is $c0.
+
+Zorro vendor ID: $1212 (4626)
+Zorro product ID: $42  (66)
+
+As opposed to the PCI interface, there is no need to initialize the Zorro
+interface. It works right from the start. Do not run the PCI init sequence
+on the Amiga, because this will not reach teh PCI bridge.
+
+Clockport: The base address of the clockport is hard-wired to $dc0001 in the
+Amiga 1200 (odd addresses!). If connected to a non-A1200 clockport, please
+consult the corresponding documentation for that port to get the base address
+of the Catweasel.
+
+Memory map
+----------
+The Catweasel MK3 has 16 registers that control the whole board. The following
+table summarizes these registers. Please keep your source code portable by
+using an offset-table for these registers. The register spacing and register
+offsets may change in future versions of the controller, so a simple change
+in your table will adapt the program to a new version of the hardware.
+
+Name         ! PCI offset     ! Zorro offset      ! Clockport
+-------------------------------------------------------------
+JoyDat       ! $c0            ! $c0               ! $00
+PaddleSelect ! $c4            ! $c4               ! $04
+Joybutton    ! $c8            ! $c8               ! $08
+Joybuttondir ! $cc            ! $cc               ! $0c
+KeyDat       ! $d0            ! $d0               ! $10
+KeyStatus    ! $d4            ! $d4               ! $14
+SidDat       ! $d8            ! $d8               ! $18
+SidCommand   ! $dc            ! $dc               ! $1c
+CatMem       ! $e0            ! $e0               ! $20
+CatAbort     ! $e4            ! $e4               ! $24
+CatControl   ! $e8            ! $e8               ! $28
+CatOption    ! $ec            ! $ec               ! $2c
+CatStartA    ! $f0            ! $f0               ! $30
+CatStartB    ! $f4            ! $f4               ! $34
+CatIRQ       ! $fc            ! $fc               ! $3c
+
+Register $f8 (clockport $38) is not used.
+
+Joystick functions
+------------------
+The JoyDat register contains information about the direction controls of
+both joysticks:
+
+bit 0 joystick 1 right
+bit 1 joystick 1 left
+bit 2 joystick 1 down
+bit 3 joystick 1 up
+bit 4 joystick 2 right
+bit 5 joystick 2 left
+bit 6 joystick 2 down
+bit 7 joystick 2 up
+
+A bit is 0 if the joystick is moved in the corresponding direction. The
+mapping is "direct", no XORing (like in the Amiga) is needed. Connecting
+an Amiga or Atari mouse may be possible, but since there are no hardware
+counters, this would cause heavy CPU load because of the high rate that would
+be necessary to poll the JoyDat register. 
+
+The JoyButton register contains information about the firebuttons of a
+digital joystick. The "second and third" buttons of some joysticks can
+be read through the paddle registers in the SID chip.
+
+bit 6 joystick 1 button (0=pressed)
+bit 7 joystick 2 button (0=pressed)
+
+Bits 0-5 of the register are unused and should be ANDed away for
+compatibility with future versions of the Catweasel.
+
+The button-lines of the joystick connectors can also be programmed to be
+outputs, just like on the Amiga computer. The default value of the direction
+bits after a reset is 0 (input). Bits 6 and 7 of the JoybuttonDir register
+control the direction of the button lines.  It is recommended only to program
+these lines to be outputs if it's absolutely sure that a hardware is connected
+that accepts data through the Firebutton pin. Since a joystick shorts this
+line to ground when the button is pressed, it may harm the Catweasel. If in
+doubt, set both bits to 0. Emulator programmers could enable mapping of these
+bits to the emulated machine with an option called "Dongle support", because
+the only known hardware that needs the button line to be an output is dongles
+on the Amiga. A warning should be displayed to the user when he's enabling
+this option.
+Bits 0-5 of the JoyButtonDir register are unused and should be written 0.
+If the corresponding direction bits are set to 1, the state of the firebutton
+line can be controlled by writing the desired value to the JoyButton register.
+If only one of the two bits is set to output, the value that was written to
+the input-bit will be stored in the Catweasel hardware, but not routed to the
+joystick port.
+
+There are two paddle inputs on each joystick port. The value of these paddles
+can only be read if a SID chip is present in the socket of the Catweasel.
+Just like in a C-64, only two of the four possible paddles can be read at a
+time. The PaddleSelect register determines whether it's the two paddles in
+port 1 or the other two paddles in port 2. The PaddleSelect register is a
+toggle-register. That means the contents of the register do not matter; only
+reading or writing the register will cause an action. Reading the register
+gives a value that has no meaning, you can discard it. Reading causes the
+analog switch to route the paddles of port 1 to the SID chip. Writing the
+PaddleSelect register causes the analog switch to route the paddles of port 2
+to the SID chip. It does not matter which value you write, but in order not
+to cause any confusion, write a 0.
+Please consult the SID section of this file on instructions how to read the
+paddle registers of the SID chip.
+
+Keyboard functions
+------------------
+Amiga keyboards communicate through a serial interface with the computer.
+Unfortunately, some keyboards don't behave like defined in the Amiga hardware
+reference manual; sometimes they send more than 8 bits of data (trash bits,
+they don't seem to have a meaning).
+
+The keyboard interface is designed to provide maximum convenience for the
+programmer. All timing-critical things are handled by the hardware, and trash-
+bits are filtered automatically. If there is a keystroke value pending in the
+data register, the keyboard is halted until the computer has read the value
+out of the data register, so no keystroke will be lost. Even the necessary
+bit-shifting is done by the hardware, so the value you read is a scancode
+that is listed in the Amiga hardware reference manual. The MSB of the
+scancode shows if it's a key-up or a key-down code.
+
+The KeyStatus register only contains one valid bit. Bit 7 shows if data in the
+KeyDat register is valid (bit 7=1). If this is the case, you can take all the
+time you need to read the KeyDat register. After reading the data, you have
+to tell the keyboard that it can continue sending data by writing 0 to the
+KeyDat register. This will also set bit 7 of the KeyStatus register to 0.
+
+Although every Amiga keyboard supports auto-resyncing, the Catweasel keyboard
+interface can also do a manual resync. This is simply done by first writing
+0 to KeyStatus, then writing 0 to KeyDat. This may be necessary for the early
+A1000 keyboards that do not support auto-resyncing - rumors say that there
+have been a few keyboards that lack this option.
+
+Amiga keyboards support hot-plugging. As soon as the keyboard is powered up,
+it sends an init-string. This can also be used to detect if a keyboard is
+connected or not: Since the KeyStatus register is set to 0 on a reset, you
+can tell that there's a keyboard connected with the first time that KeyStatus
+bit 7 is 1.
+
+Unlike PC keyboards, no Amiga keyboard supports recieving data. The only
+information that is sent back to the keyboard is the handshaking.
+
+Drawbacks of the interface: There is no IRQ for a pending keyboard value, and
+the keyboard reset can only be detected from the string that is sent from the
+keyboard prior to it's reset procedure.
+
+SID functions
+-------------
+The SID chip is programmed through a bottleneck. Since the amount of data that
+can be written to the chip is very limited, this will not cause any reduction
+of performance. The clock rate of the SID is generated by a MOS 8701 PLL chip
+that has also been used in the C-64 and the C-128 computers. This will ensure
+a genuine sound. The filter capacitors of the SID are fixed at 470pF, because
+higher values that have been chosen by Commodore in some versions of the C64
+cause the filters to take effect much too early.
+
+There are two registers for communication with the SID. The data register
+contains the byte that is read or that will be written to the chip, and the
+command register tells the SID bridge which register of the SID is accessed
+next. The following table shows the bitmap of the command register:
+
+bit 0: address bit 0
+bit 1: address bit 1
+bit 2: address bit 2
+bit 3: address bit 3
+bit 4: address bit 4
+bit 5: 0= command write, 1= command read
+bit 6: Pitch select. 0=PAL (0,98Mhz), 1=NTSC (1,02Mhz)
+bit 7: unused, should be written 0.
+
+SidCommand is a write-only register.
+
+write-byte procedure:
+
+Write the value that you want to send to the SID to the SIDdat register. Then
+write the command to the SIDcommand register, and leave the SID bridge
+alone for at least 1 microsecond. There is no way to tell whether the SID
+bridge is still active or not other than waiting 1 microsecond. This can
+either be accomplished by reading the data register twice and discarding the
+data, or by allowing context-switching in a multitasking system (this will
+most probably take longer than 1 microsecond).
+
+If for example you want to set the volume of the SID to maximum, write
+$0f to SIDdata, then write $18 to the command register and wait for 1
+microsecond. This also sets the clock rate of the SID to the PAL frequency
+of 0,98Mhz. Add 0x40 to the command value to choose NTSC frequency.
+
+read-byte procedure:
+
+If you want to read a SID register, write the register number plus 0x20 to
+the command register, then wait for 1 microsecond, then the value is present
+in the SIDdata register.
+
+It is not recommended to change the SID frequency during playback. It takes
+up to 10ms until the oscillator is stable at the new frequency, so it might
+sound "defective" during the transition. Please mind that reading from SID
+can also alter the frequency, so you should keep the chosen frequency in a
+shadow-register of your access-routine and, if necessary, add 0x40 to the
+command value.
+
+Playing back SID tunes requires precise timing. Since nearly no x86 operating
+system can generate an exact interrupt rate of 50 per second, the Floppy part
+of the Catweasel can be "misused" to generate precise timing through a timer
+interrupt. The drawback of using this method is that the floppy controller
+will be busy if used as an IRQ source, so it's recommended to use a timer
+IRQ of the system for that purpose if available (for example the CIA timers
+in an Amiga).
+
+Floppy functions
+----------------
+The floppy functions of the Catweasel MK3 are a grown structure since summer
+1996. The layout of some registers and the methods of how to start an action
+in the floppy part had to be adapted to older versions in order to make
+existing software for the Catweasel MK2 work. Please mind that the ISA
+Catweasel has always been a MK1 design (even the Y2K edition!), and the MK2
+has never been documented to the public before (it was only available as
+Amiga-hardware), so a lot of features of the floppy part will be completely
+new to you if you've programmed the ISA version before.
+
+memory access
+-------------
+The catweasel memory of 128KBytes is accessed through a bottleneck. Two
+registers are used to read and write the memory. Every access to the CatMem
+register reads or writes the memory. After every access, the internal memory
+pointer of the controller is increased by 1, no matter if it was a read or
+a write access. The memory pointer is reset to 0 by writing 0 to the CatAbort
+register. No other actions are performed with this write access.
+There is no way to read the state of the memory pointer. However, some actions
+depend on the state of this pointer, so you MUST hold a shadow register of the
+pointer in your program/driver.
+
+The memory is accessed from two sides, either from the computer side (that is
+your side!), or from the controller side. Before you access the memory, make
+sure that the floppy controller state machines do not access the memory,
+otherwise you might mess up the memory pointer. There is only one!
+
+Status/control register
+-----------------------
+The CatControl register is different on reads and on writes. Writing to the
+register controls some lines on the shugart bus, but reading the CatControl
+register reads the status register. If you write a value to the CatControl
+register, you should keep it in a shadow register, this makes modification of
+single bits a lot easier.
+
+CatControl on write accesses:
+
+bit 7: Step
+bit 6: Sideselect
+bit 5: Motor0 (0=motor on)
+bit 4: Dir
+bit 3: Sel0 (0=selected)
+bit 2: Sel1 (0=selected)
+bit 1: Motor1 (0=motor on)
+bit 0: Density select (pin 2 of shugart bus, if in doubt, set to 1)
+
+CatControl on read accesses:
+
+bit 7: reading (0=controller is currently reading=memory access!)
+bit 6: writing (0=controller is currently writing=memory access!)
+bit 5: Diskchange (0=disk has been removed from drive)
+bit 4: Diskread (will most probably not be used, should be masked away)
+bit 3: WProtect (0=disk is write protected)
+bit 2: Track0 (0=head is on outermost position)
+bit 1: Index (0=drive motor is currently on index position)
+bit 0: Density select (pin 2 of shugart bus)
+
+Please note that bits 5, 4, 3, 2 and 1 are only valid if the corresponding
+drive is selected. If no drive is selected, these bits will be 1 (if one of
+the bits is still 0, something must be terribly wrong :-)).
+
+Consult the specifications of the floppy drive vendor to get information about
+how to step, and about the timing constraints of the signals. For example,
+the track 0 signal will be valid no earlier than 4ms after the step on most
+drives. That means, even if the drive supports a step rate of 3ms, stepping
+towards track 0 must be done at a rate of 4ms if you don't know the exact
+position of the read/write head.
+
+Since the CatStart A and B registers have no dedicated function, the
+following section only contains sequences that start a read or a write access
+to or from the disk. The difference between the accesses is the start and the
+end condition. There are some things that all disk acceses have in common:
+
+- any access can be aborted by reading the CatAbort register. The value that
+  has been read can be discarded of, it's random and has no meaning. The
+  state of the memory pointer will not be changed by this access.
+- any access is track-wise. Unlike most other floppy controllers, the
+  Catweasel always accesses a whole track in one go. 
+- a read access will be stopped automatically if the memory is full, no matter
+  what other condition you have chosen to stop the access.
+- a write access will always be stopped by a stop command in memory, no matter
+  what other condition you have chosen to stop the access. As opposed to a
+  read access, a write access is not stopped at the end of memory. Instead,
+  the memory pointer wraps around and starts again at 0.
+
+unconditional read:
+To start reading a track without any conditions, read the CatStartA register.
+The controller will start reading and store the data starting from the
+position that the memory pointer is currently at.
+
+unconditional write:
+To start writing a track without any contidions, perform the write enable
+procedure and then write 0 to the CatStartB register. Do nt access the memory
+between the write enable procedure and the CatStartB access, because this
+would change the memory pointer, invalidating the internal write enable bit.
+The write enable procedure is described at the end of this file.
+
+indexed write:
+Indexed write waits for an index pulse before starting to write, and ends at
+the next index pulse. Since the index pulse is very long (between 1ms and
+8ms), you have to know that the start- and endpoint of the write is at the
+beginning of the pulse (falling edge). This is very precise on 3,5" drives,
+the position where the start and the end of the write come together is usually
+only a stream of less than 10 bits of undefined data. However, you should
+not rely on the exact position of the data, because the index pulse may be in
+a slightly different position with a different drive. The precision on other
+drive sizes has not been checked (yet).
+
+indexed read:
+Indexed read waits for the beginning of an index pulse before starting to
+read. As opposed to indexed write, the indexed read stops at the end of the
+following index pulse, so there's a small overlap.
+To start an indexed read, forbid index storing in memory, and read the
+CatStartB register. 
+
+Sync read:
+This option waits for an MFM sync before starting to read. The expected sync
+pattern is $4489 and cannot be changed. This only works at fixed bitrates of
+500KBit (DD), 1MBit (HD) and 2MBit (ED), depending on the clock rate that has
+been set. See further down to learn how to set the clock rates. Reading starts
+immediately after a sync has been recognized in the bit stream. The sync that
+has been recognized will not be stored in memory. However, most disk formats
+have at least two sync patterns in a row, so it's unlikely (but not
+impossible) that there's no sync pattern at the beginning of the data in
+memory.
+To start a sync read, allow index storing in memory and read the CatStartB
+register.
+
+write enable procedure:
+Write 0 to the CatAbort register, this resets the memory pointer to 0.
+Read the Catmem register once, this sets the memory pointer to 1.
+Write 128 (0x80) to the CatOption register.
+Advance the memory pointer to 7 by reading CatMem 6 times.
+The Floppy controller is now ready for a write access. Please note that
+the write enable procedure is different from the procedure that is necessary
+on the ISA version of the Catweasel.
+
+allow/forbid index storing:
+The index signal can be stored in the catweasel memory in the MSB of each
+byte. The MSB (bit 7) cannot be used for anything else. Allowing or
+forbidding index storing only affects read accesses. If index storing is
+allowed, bit 7 of the memory value will be set to 1 if the index signal was
+active at the time of the memory-write. This is very precise if standard-
+read without pre-decode is chosen, and a little less precise on read with
+MFM-predecode.
+To allow index storing, set the memory pointer to 2 and write any value to
+the CatOption register. This is the default after a reset. Please mind that
+writing to CatOption with the memory pointer at 2 also alters the Predecode
+and the IRQ enable bits (see further down). To forbid index storing, set the
+memory pointer to 3 and write 0 to the CatOption register.
+
+Setting clock speed:
+To set the clockspeed with the CatOption register, reset the memory counter
+to 0 by writing 0 to the CatAbort register. Writing 0 to CatOption will set
+the clock rate to 14Mhz. Writing 128 (0x80) to CatOption will set the clock
+rate to 28Mhz, and writing 192 (0xc0) to CatOption will set the clock speed
+to 56Mhz (to be precise, 56.644Mhz).
+
+Predecode, IRQ enable:
+To set the Predecode and the IRQenable bits with the CatOption register, set
+the memory pointer to 2 by writing 0 to the CatAbort register and reading the
+CatMem register twice. Bits 5 and 6 of the CatOption register now control
+Predecode and IRQ enable:
+        Bit 5=0: Forbid IRQs
+        Bit 5=1: Allow IRQs
+        Bit 6=0: Standard read mode
+        Bit 6=1: MFM-predecode in lower nibble of memory (only set on reads!)
+Please mind that any write to the CatOption register with the memory pointer
+at 2 also allows index storing. If ths is not desired, forbid index storing
+again after setting Predecode and IRQenable to the required values.
+If installed in an Amiga, the IRQ will be an IRQ6. Since there is no way to
+tell if the IRQ comes from this controller, and the Amiga only has shared
+IRQs, this is practically useless. However, the software timers of the
+Amiga OS are very precise, and the Catweasel floppy functions have always
+worked without IRQs since october 1996, so there's no need to activate this
+option on Amiga computers. It's mainly intended for PCs, where software
+timers are rather unprecise. To find the IRQ that the Catweasel will use on
+the PCI slot, consult your PnP software manual.
+To stop an IRQ, write 0 to the CatIRQ register.
+
+
+** EOF
