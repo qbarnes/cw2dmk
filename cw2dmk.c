@@ -1546,6 +1546,7 @@ main(int argc, char** argv)
   int check_preformatted = 3;
   int check_preformatted_skip_crc = -1;
   int cw_mk = 1;
+  int qused = 0;
 
   opterr = 0;
   for (;;) {
@@ -2116,6 +2117,7 @@ main(int argc, char** argv)
 
 	if (sectors_required[track] > 0 && good_sectors != sectors_required[track]) {
 	  failing = 1;
+	  qused++;
 	  msg(OUT_TSUMMARY, "[-q used] ");
 	}
 
@@ -2134,6 +2136,29 @@ main(int argc, char** argv)
 	  if (getch() == ' ') {
 	    if (failing) {
 	      failing = 0;
+	      msg(OUT_QUIET, "accum_sectors = %d\n", accum_sectors);
+	      msg(OUT_QUIET, "retry = %d\n", retry);
+	      msg(OUT_QUIET, "retries = %d\n", retries);
+	      msg(OUT_QUIET, "errcount = %d\n", errcount);
+	      msg(OUT_QUIET, "good_sectors = %d\n", good_sectors);
+	      msg(OUT_QUIET, "reused_sectors = %d\n", reused_sectors);
+	      for (int eci = 0; eci < N_ENCS; ++eci) {
+	        msg(OUT_QUIET, "enc_count[%d] = %d\n",
+		    eci, enc_count[eci]);
+	      }
+	      msg(OUT_QUIET, "track = %d\n", track);
+	      msg(OUT_QUIET, "sectors_required[%d] = %d\n",
+		  track, sectors_required[track]);
+	      msg(OUT_QUIET, "merged_stat.errcount = %d\n",
+		  merged_stat.errcount);
+	      msg(OUT_QUIET, "merged_stat.good_sectors = %d\n",
+		  merged_stat.good_sectors);
+	      msg(OUT_QUIET, "merged_stat.reused_sectors = %d\n",
+		  merged_stat.reused_sectors);
+	      for (int eci = 0; eci < N_ENCS; ++eci) {
+	        msg(OUT_QUIET, "merged_stat.enc_count[%d] = %d\n",
+		    eci, merged_stat.enc_count[eci]);
+	      }
 	      msg(OUT_QUIET, "moving on to next track.\n");
 	    }
 	  }
@@ -2186,5 +2211,10 @@ main(int argc, char** argv)
   if (flippy) {
     msg(OUT_SUMMARY, "Possibly a flippy disk; check reverse side too\n");
   }
+  if (qused) {
+    msg(OUT_SUMMARY, "*** The -q option code was invoked %d times.  Send "
+	"log to Quentin.\n", qused);
+  }
+
   return 0;
 }
