@@ -488,8 +488,9 @@ dmk_get_phys_sector_len(unsigned char *track, int n, int tracklen)
     if (s0 >= s1) {
       #if 0
       int i;
-      printf("\nphysical sector misordering from %d to %d .. off %d off %d max %d!\n",
-      	n, n + 1, s0 - track, s1 - track, dmktracklen);
+      printf("\nphysical sector misordering from %d to %d .. "
+	     "off %d off %d max %d!\n",
+      	     n, n + 1, s0 - track, s1 - track, dmktracklen);
       for (i = 0; i < 10; i++)
         printf("%x ", ((short *)track)[i]);
       printf("\n");
@@ -577,8 +578,11 @@ dmk_merge_sectors(void)
     if (idam_p[cur] & DMK_EXTRA_FLAG) {
       int secnum = dmk_get_sector_num(dmk_sec), prev;
       unsigned char *prev_sec;
-      for (prev = 0; (prev_sec = dmk_get_phys_sector(dmk_merged_track, prev)); prev++) {
-        int seclen = dmk_get_phys_sector_len(dmk_merged_track, prev, dmk_merged_track_len);
+      for (prev = 0;
+	   (prev_sec = dmk_get_phys_sector(dmk_merged_track, prev));
+	   prev++) {
+        int seclen = dmk_get_phys_sector_len(dmk_merged_track, prev,
+					     dmk_merged_track_len);
         if (dmk_get_sector_num(prev_sec) != secnum) 
 	  continue;
 
@@ -611,7 +615,8 @@ dmk_merge_sectors(void)
 	replaced = 1;
 	tmp_stat.reused_sectors++;
 	tmp_stat.enc_count[enc_sec[cur]]++;
-	// There should be an error for every bad sector, but just to be careful.
+	// There should be an error for every bad sector, but just
+	// to be careful.
 	if (tmp_stat.errcount > 0)
 	  tmp_stat.errcount--;
 	break;
@@ -636,9 +641,10 @@ dmk_merge_sectors(void)
     }
   }
 
-  // dmk_tmp_track has tmp_stat.errcount errors (or is unusable if overflow is set)
-  // dmk_merged_track has merged_stat.errcount errors
-  // dmk_track has errcount errors
+  // dmk_tmp_track has tmp_stat.errcount errors
+  // (or is unusable if overflow is set).
+  // dmk_merged_track has merged_stat.errcount errors.
+  // dmk_track has errcount errors.
 
   // We want to keep the best as determined by the lowest error count and
   // that will become our merged track.
@@ -656,7 +662,8 @@ dmk_merge_sectors(void)
   // Especially if it has fewer repairs.
   if (dmk_merged_track_len > 0) {
     if (merged_stat.errcount < best_errcount ||
-        (merged_stat.errcount == best_errcount && merged_stat.reused_sectors < best_repair))
+        (merged_stat.errcount == best_errcount &&
+	 merged_stat.reused_sectors < best_repair))
     {
       best = Merged;
       best_errcount = merged_stat.errcount;
@@ -664,7 +671,8 @@ dmk_merge_sectors(void)
     }
   }
 
-//msg(OUT_ERRORS, "(%d,%d,%d) ", errcount, tmp_stat.errcount, merged_stat.errcount);
+  //msg(OUT_ERRORS, "(%d,%d,%d) ", errcount, tmp_stat.errcount,
+  //    merged_stat.errcount);
 
   switch (best) {
   default:
@@ -680,7 +688,8 @@ dmk_merge_sectors(void)
   case Tmp:
     msg(OUT_ERRORS, "[using merged] ");
     dmk_merged_track_len = tmp_data_p - (dmk_tmp_track + DMK_TKHDR_SIZE);
-    memcpy(dmk_merged_track, dmk_tmp_track, DMK_TKHDR_SIZE + dmk_merged_track_len);
+    memcpy(dmk_merged_track, dmk_tmp_track,
+	   DMK_TKHDR_SIZE + dmk_merged_track_len);
     merged_stat = tmp_stat;
     break;
   case Merged:
@@ -1438,7 +1447,8 @@ void usage(void)
   printf("               1 = always odd\n");
   printf("               2 = even, then odd\n");
   printf("               3 = odd, then even\n");
-  printf(" -j            Join sectors between retries (%s)\n", accum_sectors ? "on" : "off");
+  printf(" -j            Join sectors between retries (%s)\n",
+	 accum_sectors ? "on" : "off");
   printf(" -o postcomp   Amount of read-postcompensation (0.0-1.0) [%.2f]\n",
 	 postcomp);
   printf(" -h hole       Track start: 1 = index hole, 0 = anywhere [%d]\n",
@@ -1475,7 +1485,8 @@ main(int argc, char** argv)
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:j");
+    ch = getopt(argc, argv,
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:j");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1816,13 +1827,14 @@ main(int argc, char** argv)
       if (accum_sectors) {
 	dmk_merged_track_len = 0;
 	memset(dmk_merged_track, 0, dmktracklen);
-	// Do not have to initialized merged_stat as dmk_merged_track_len == 0
+	// Do not have to initialize merged_stat as dmk_merged_track_len == 0
 	// will stop us from using that information.
       }
 
       /* Loop over retries */
       do {
-	msg(OUT_TSUMMARY, "Track %d,side %d,pass %d:", track, side, retry + 1);
+	msg(OUT_TSUMMARY, "Track %d, side %d, pass %d:",
+	    track, side, retry + 1);
 	fflush(stdout);
 
 	int b = 0, oldb;
@@ -2025,7 +2037,8 @@ main(int argc, char** argv)
 	short *idam_p = (short *)dmk_track;
 	int i;
       	memset(dmk_track, (curenc == MFM) ? 0x4e : 0xff, dmk_header.tracklen);
-	memcpy(dmk_track, dmk_merged_track, DMK_TKHDR_SIZE + dmk_merged_track_len);
+	memcpy(dmk_track, dmk_merged_track,
+	       DMK_TKHDR_SIZE + dmk_merged_track_len);
 	for (i = 0; i < DMK_TKHDR_SIZE / 2; i++)
 	  *idam_p++ &= ~DMK_EXTRA_FLAG;
 
