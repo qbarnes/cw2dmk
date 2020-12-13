@@ -1,3 +1,49 @@
+4.6.0 -- Thu Dec 17 17:24:34 UTC 2020 -- Quentin Barnes
+
+* Skipping over 4.5.x versions since George Phillips had used that
+  point release line for his work.
+
+* Git repo "cw2dmk" of Tim Mann's work was created by ezrec
+  (Jason S. McMullan).  Transferred to qbarnes.
+
+* Switched Linux release binaries to be for 64-bit OSes.
+
+* Added change from George Phillips for his "join" (-j) feature
+  that will join different rereads of the same track and merge
+  good sectors.
+
+* Fixed problem of missing data between index hole detect and read
+  started.  This should noticably reduce disk read errors and even
+  occasionally dropping of entire sectors.
+
+* Added change to allow cw2dmk tools to function on newer Linux
+  releases by enabling PCI I/O space access if disabled.
+
+* Added change to recognize and skip factory-formatted sides of a
+  disk.  Controlled with -b option.
+
+* The subdirectory "cwsdpmi" is now a git sub-module for picking up
+  the "cwsdpmi.exe" binary for MS-DOS.
+
+* Cleaned up and merged multiple makefiles for different environments
+  into one.  Makes it easier to maintain, build, and cross-build.  By
+  default, the Makefile will now only build for the native OS.  See
+  the new file BUILDING.md for further information.
+
+* Created subdirectory "firmware" for holding firmware related files
+  including a LICENSE file.  I also received some additional
+  documentation from Jens Schoenfeld on programming the MK3 and MK4
+  and a file with firmware revision history saved here as
+  firmware/Changelog.
+
+* To be less generic, renamed "testhist" binary to "cwtsthst", still
+  keeping to MS-DOS's 8.3 file naming convention.
+
+* Update code base to be 64-bit clean.  Fixed all known problems but
+  some may remain.
+
+* Changed to using semantic versioning for version ID.
+
 4.4 -- Sat Nov 28 11:45:01 PST 2009 -- Tim Mann
 
 * The Linux binaries included in this distribution are compiled on a
