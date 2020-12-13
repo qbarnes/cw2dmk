@@ -5,6 +5,7 @@
 *.log
 *.exe
 *.txt
+*.tar.gz
 firmware.h
 cw2dmk
 dmk2cw

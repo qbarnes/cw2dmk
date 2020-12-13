@@ -23,17 +23,30 @@ else
 endif
 
 ifeq ($(TARGET_OS),MSDOS)
+  CC = i586-pc-msdosdjgpp-gcc
   E = .exe
   O = obj
   PCILIB =
 else
+  CC = gcc
   E =
   O = o
   PCILIB = -lpci -lz
 endif
 
-CC     = gcc
 CFLAGS = -O3 -g -Wall
+
+version := $(shell grep VERSION version.h | sed -re 's/^.*"([^"]+)".*$$/\1/')
+
+cc_dump_mach := $(shell $(CC) -dumpmachine)
+target_arch   = $(firstword $(subst -, ,$(cc_dump_mach)))
+
+TAR_PREFIX  = cw2dmk-$(version)
+TAR_SRC     = $(TAR_PREFIX)-src.tar.gz 
+TAR_LINUX   = $(TAR_PREFIX)-linux-$(target_arch).tar.gz
+TAR_MSDOS   = $(TAR_PREFIX)-msdos.tar.gz
+TAR_TARGETS = $(TAR_SRC) \
+		$(if $(subst MSDOS,,$(TARGET_OS)),$(TAR_MSDOS),$(TAR_LINUX))
 
 CWEXE = cw2dmk$E dmk2cw$E testhist$E
 EXE   = $(CWEXE) dmk2jv3$E jv2dmk$E
@@ -41,15 +54,13 @@ TXT   = cw2dmk.txt dmk2cw.txt dmk2jv3.txt jv2dmk.txt
 NROFFFLAGS = -c -Tascii
 FIRMWARE   = firmware/rel2f2.cw4
 
-clean = $(EXE) *.$O *~
-veryclean = $(clean) $(TXT) firmware.h *.exe *.obj *.o
-
 .SUFFIXES: .man .txt
 
 %.txt: %.man
 	nroff -man $(NROFFFLAGS) $< | col -b | cat -s > $*.txt
 
-ifeq ($(TARGET_OS),MSDOS)
+ifneq ($(TARGET_OS),MSDOS)
+else
 EXE += cwsdpmi.exe
 .SUFFIXES: .obj
 
@@ -57,6 +68,11 @@ EXE += cwsdpmi.exe
 	$(CC) -c $(CFLAGS) -o $@ $<
 endif
 
+BUILD_TARGETS   = firmware.h $(TXT) $(EXE)
+RELEASE_TARGETS = COPYING README ChangeLog $(TXT) $(EXE)
+
+clean = $(EXE) $(TAR_TARGETS) *.$O *~
+veryclean = $(clean) $(TXT) firmware.h *.exe *.obj *.o *.tar.gz
 
 all: progs manpages
 
@@ -89,15 +105,39 @@ firmware.h: $(FIRMWARE)
 	 echo '};') | sed -e 's/ ,//g' > $@
 
 cwsdpmi.exe: cwsdpmi/bin/CWSDPMI.EXE
-	$(CP) $< $@
+	$(CP) "$<" "$@"
+	chmod -- +x "$@"
 
 clean veryclean:
 	$(if $(wildcard $($@)),$(RM) $(wildcard $($@)))
+
+$(TAR_SRC): firmware.h
+	git archive \
+		--format=tar.gz \
+		--prefix="$(TAR_PREFIX)/" \
+		$(addprefix --add-file=,$+) \
+		HEAD > "$@"
+
+ifneq ($(TARGET_OS),MSDOS)
+  $(TAR_LINUX): $(RELEASE_TARGETS)
+	tar -czf "$@" --transform='s:^:$(TAR_PREFIX)/:' -- $+
+
+  $(TAR_MSDOS):
+	+$(MAKE) TARGET_OS=MSDOS "$@"
+else
+  $(TAR_MSDOS): $(RELEASE_TARGETS)
+	tar -czf "$@" --transform='s:^:$(TAR_PREFIX)/:' -- $+
+endif
+
+ifneq ($(HOST_OS),MSDOS)
+  release: $(TAR_TARGETS)
+  fullrelease: release $(TAR_PREFIX)-msdos.tar.gz
+endif
 
 setuid: $(CWEXE)
 	chown root $(CWEXE)
 	chmod 4755 $(CWEXE)
 
 
-.PHONY: all progs manpages clean veryclean setuid
+.PHONY: all progs manpages clean veryclean release fullrelease setuid
 .DELETE_ON_ERROR:
