@@ -1413,9 +1413,24 @@ int drive = -1;
 int retries = 4;
 int retrymode = 0;
 int alternate = 0;
+int sectors_required[100];
+#define NUM_SR (sizeof sectors_required / sizeof sectors_required[0])
+
+void
+fill_sectors_required()
+{
+  int i, j;
+
+  for (i = 0; sectors_required[i] && i < NUM_SR; i++)
+    ;
+
+  for (j = i; j < NUM_SR && i > 0; j++)
+    sectors_required[j] = sectors_required[i - 1];
+}
 
 void usage(void)
 {
+  int i;
   printf("\nUsage: cw2dmk [options] file.dmk\n");
   printf("\n Options [defaults in brackets]:\n");
   printf(" -d drive      Drive unit, 0 or 1, or -1 to autodetect [%d]\n",
@@ -1463,6 +1478,11 @@ void usage(void)
   printf("               3 = odd, then even\n");
   printf(" -j            Join sectors between retries (%s)\n",
 	 accum_sectors ? "on" : "off");
+  printf(" -q n0,n1,...  Number of sectors to require on each track 0, "
+	 "track 1, etc. [%d", sectors_required[0]);
+  for (i = 1; i < NUM_SR && sectors_required[i]; i++)
+  	printf(",%d", sectors_required[i]);
+  printf("]\n");
   printf(" -o postcomp   Amount of read-postcompensation (0.0-1.0) [%.2f]\n",
 	 postcomp);
   printf(" -h hole       Track start: 1 = index hole, 0 = anywhere [%d]\n",
@@ -1530,7 +1550,7 @@ main(int argc, char** argv)
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:B:jy:");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:B:jy:q:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1650,6 +1670,21 @@ main(int argc, char** argv)
     case 'B':
       check_preformatted_skip_crc = strtol(optarg, NULL, 16);
       break;
+    case 'q':
+      i = 0;
+      for (;;) {
+        int n = strtol(optarg, NULL, 0);
+	if (n < 1)
+	  break;
+	sectors_required[i++] = n;
+	if (i >= NUM_SR)
+	  usage();
+	optarg = strchr(optarg, ',');
+	if (!optarg)
+	  break;
+	optarg++;
+      }
+      break;
     default:
       usage();
       break;
@@ -1659,6 +1694,8 @@ main(int argc, char** argv)
   if (optind >= argc) {
     usage();
   }
+
+  fill_sectors_required();
 
   if (out_file_name && out_file_level == OUT_QUIET) {
     /* Default: log to file at same level as screen */
@@ -2076,6 +2113,9 @@ main(int argc, char** argv)
 	} 
 
 	failing = (accum_sectors ? merged_stat.errcount : errcount) > 0;
+
+	if (sectors_required[track] > 0 && good_sectors != sectors_required[track])
+	  failing = 1;
 
 	if (failing)
 	  failing = retry++ <= retries || keeptrying();
