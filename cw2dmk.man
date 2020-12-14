@@ -240,6 +240,12 @@ copy-protected disk with intentional CRC errors, or other strange
 formatting that cw2dmk interprets as a possible error, you might want
 to reduce or eliminate the retries to speed up the conversion.
 .TP
+.B \-y \fIretrymode\fP
+Allows prompts for additional retries.  No effect if \fIretrymode\fP is 0.
+If \fIretrymode\fP is 1, then the user will be prompted for additional
+retries after a track has used up all its retries.  This option is not
+availble on Linux.
+.TP
 .B \-a \fIalternate\fP
 This option is used only when when reading a 40-track disk in an
 80-track drive (-m2).  If -a is set to 0 (the default) cw2dmk reads
