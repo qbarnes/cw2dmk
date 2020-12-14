@@ -25,6 +25,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#if !linux
+#include <conio.h>
+#endif
+#include <ctype.h>
 #include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
@@ -2044,6 +2048,19 @@ main(int argc, char** argv)
 	  msg(OUT_TSUMMARY, "[%d good, %d error%s]\n",
 	      good_sectors, errcount, plu(errcount));
 	}
+
+#if !linux
+	// Check if user wishes to give up.
+	while (kbhit()) {
+	  if (getch() == ' ') {
+	    if (failing) {
+	      failing = 0;
+	      msg(OUT_QUIET, "moving on to next track.\n");
+	    }
+	  }
+	}
+#endif
+
       } while (failing);
       total_retries += retry;
       fflush(stdout);
