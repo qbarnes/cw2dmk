@@ -1411,6 +1411,7 @@ int sides = -1;
 int steps = -1;
 int drive = -1;
 int retries = 4;
+int retrymode = 0;
 int alternate = 0;
 
 void usage(void)
@@ -1451,6 +1452,9 @@ void usage(void)
   printf(" -e encoding   1 = FM (SD), 2 = MFM (DD or HD), 3 = RX02\n");
   printf("\n Special options for hard to read diskettes\n");
   printf(" -x retries    Number of retries on errors [%d]\n", retries);
+  printf(" -y retrymode  Modifies what happens during retries [%d]\n", retrymode);
+  printf("               0 = move to next track after retries\n");
+  printf("               1 = prompt user for additional retries\n");
   printf(" -a alternate  Alternate even/odd tracks on retries with -m2 [%d]\n",
 	 alternate);
   printf("               0 = always even\n");
@@ -1486,6 +1490,35 @@ void usage(void)
 
 
 int
+keeptrying (void)
+{
+// GWP - unforuntately, no linux replacement
+#if !linux
+	if (retrymode == 1)
+	{
+		char answer;
+
+		do
+		{
+			printf ("Do you want to retry (y/n/q)? ");
+			answer = tolower(getch());
+			printf ("%c ", answer);
+		} while (answer != 'y' && answer != 'n' && answer != 'q');
+
+		if (answer == 'q')
+		{
+			cleanup();
+			exit(1);
+		}
+
+		return (answer == 'y');
+	}
+#endif
+
+	return 0;
+}
+
+int
 main(int argc, char** argv)
 {
   int ch, track, side, headpos, readtime, i;
@@ -1497,7 +1530,7 @@ main(int argc, char** argv)
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:B:j");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:B:jy:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1554,6 +1587,10 @@ main(int argc, char** argv)
     case 'x':
       retries = strtol(optarg, NULL, 0);
       if (retries < 0) usage();
+      break;
+    case 'y':
+      retrymode = strtol(optarg, NULL, 0);
+      if (retrymode < 0 || retrymode > 1) usage();
       break;
     case 'a':
       alternate = strtol(optarg, NULL, 0);
@@ -2041,7 +2078,7 @@ main(int argc, char** argv)
 	failing = (accum_sectors ? merged_stat.errcount : errcount) > 0;
 
 	if (failing)
-	  failing = retry++ <= retries;
+	  failing = retry++ <= retries || keeptrying();
 
 	// Generally just reporting on the latest read.
 	if (failing) {
