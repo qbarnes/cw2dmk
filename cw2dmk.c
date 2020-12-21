@@ -55,7 +55,7 @@ FILE *dmk_file;
 #define RX02 3
 #define MIXED 0
 #define N_ENCS 4
-char *enc_name[] = { "autodetect", "FM", "MFM", "RX02" };
+const char *enc_name[] = { "autodetect", "FM", "MFM", "RX02" };
 int enc_count[N_ENCS];
 int enc_sec[DMK_TKHDR_SIZE / 2];
 int total_enc_count[N_ENCS];
@@ -116,7 +116,7 @@ int uencoding = MIXED;
 int reverse = 0;
 int accum_sectors = 0;
 
-char* plu(int val)
+const char* plu(int val)
 {
   return (val == 1) ? "" : "s";
 }

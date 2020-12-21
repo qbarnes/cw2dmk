@@ -1,5 +1,5 @@
 typedef struct {
-  char* description;
+  const char* description;
   int cwclock;
   int fmthresh;   /* <= this value: short */
   int mfmthresh1; /* <= this value: short */

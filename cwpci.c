@@ -223,7 +223,13 @@ pci_find_catweasel(int index, int *cw_mk)
 
 
 #else /* __DJGPP__ */
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <pci/pci.h>
+#ifdef __cplusplus
+}
+#endif
 
 /*
  * Find the I/O space for the index'th PCI catweasel card in the

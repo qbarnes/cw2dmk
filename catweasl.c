@@ -95,21 +95,21 @@ enum CatRegister { JoyDat, PaddleSelect, Joybutton, Joybuttondir, KeyDat,
 
 /* Register addresses */
 unsigned char Mk1Reg[] = {
-    /* JoyDat */       -1,
-    /* PaddleSelect */ -1,
-    /* Joybutton */    -1,
-    /* Joybuttondir */ -1,
-    /* KeyDat */       -1,
-    /* KeyStatus */    -1,
-    /* SidDat */       -1,
-    /* SidCommand */   -1,
+    /* JoyDat */       0xff,
+    /* PaddleSelect */ 0xff,
+    /* Joybutton */    0xff,
+    /* Joybuttondir */ 0xff,
+    /* KeyDat */       0xff,
+    /* KeyStatus */    0xff,
+    /* SidDat */       0xff,
+    /* SidCommand */   0xff,
     /* CatMem */       0,
     /* CatAbort */     1,    /* reading/writing this reg reversed on MK1 */
     /* CatControl */   2,
     /* CatOption */    3,
     /* CatStartA */    7,
     /* CatStartB */    5,
-    /* CatIRQ */       -1
+    /* CatIRQ */       0xff
 };
 
 unsigned char Mk3Reg[] = {
@@ -186,8 +186,8 @@ unsigned char Mk3ControlBit[] = {
 };
 
 #define MEMSIZE 131072
-#define CREG(c) (c->private[0])
-#define PTR(c) (c->private[1])
+#define CREG(c) (c->hidden[0])
+#define PTR(c) (c->hidden[1])
 #define INREG(c, name) inb((c)->iobase + (c)->reg[name])
 #define OUTREG(c, name, val) outb((val), (c)->iobase + (c)->reg[name])
 #define SBIT(c, name) ((c)->stat[name])

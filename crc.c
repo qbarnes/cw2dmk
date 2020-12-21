@@ -52,7 +52,8 @@ unsigned short CALC_CRC1a(unsigned short crc, unsigned char byte)
 }
 
 /* Fast way, using table */
-#define CALC_CRC1b(crc, c) (((crc) << 8) ^ crc16_table[((crc) >> 8) ^ (c)])
+#define CALC_CRC1b(crc, c) (((unsigned short)((crc) << 8)) ^ \
+				crc16_table[((crc) >> 8) ^ (c)])
 
 #ifndef calc_crc1
 #define calc_crc1 CALC_CRC1b
@@ -70,6 +71,7 @@ unsigned short calc_crc(unsigned short crc,
 
 #if TEST
 #include <stdio.h>
+#include <stdlib.h>
 int
 main(int argc, char **argv)
 {

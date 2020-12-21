@@ -42,7 +42,7 @@ int jvwhat = 3;
 /* Kinds */
 #define NKINDS 4
 typedef struct {
-  char *name;
+  const char *name;
   int nomlen;
   int dmklen;
 } KindData;

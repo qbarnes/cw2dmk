@@ -23,7 +23,7 @@ typedef struct catweasel_contr {
     unsigned char *stat;
     unsigned char *ctrl;
     catweasel_drive drives[2];     /* max. two drives on each controller */
-    int private[4];                /* private data */
+    int hidden[4];                 /* private data */
 } catweasel_contr;
 
 /* Initialize a Catweasel controller.  Return true on success. */
