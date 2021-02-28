@@ -1437,8 +1437,13 @@ void usage(void)
   printf(" -m steps      Step multiplier, 1 or 2\n");
   printf(" -t tracks     Number of tracks per side\n");
   printf(" -s sides      Number of sides\n");
-  printf(" -e encoding   1 = FM (SD), 2 = MFM (DD or HD), 3 = RX02\n");
+  printf(" -b chk_sides  Sides to check for pre-formatted sectors (0-3)\n");
+  printf("               0 = disable check\n");
+  printf("               1 = check only side 0\n");
+  printf("               2 = check only side 1\n");
+  printf("               3 = check both sides (default)\n");
   printf(" -w fmtimes    Write FM bytes 1 or 2 times [%d]\n", fmtimes);
+  printf(" -e encoding   1 = FM (SD), 2 = MFM (DD or HD), 3 = RX02\n");
   printf("\n Special options for hard to read diskettes\n");
   printf(" -x retries    Number of retries on errors [%d]\n", retries);
   printf(" -a alternate  Alternate even/odd tracks on retries with -m2 [%d]\n",
