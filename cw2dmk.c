@@ -1306,14 +1306,12 @@ detect_kind(int drive)
       fprintf(stderr,
 	      "  Try using the -k flag to specify the correct type\n");
     }
-    cleanup();
     exit(1);
   }
 
   if (peak < 0.0) {
     /* Track is blank */
     fprintf(stderr, "cw2dmk: Track 0 side 0 is unformatted\n");
-    cleanup();
     exit(1);
   } else {
     dclock = 7080.5 / peak;
@@ -1349,7 +1347,6 @@ detect_kind(int drive)
     fprintf(stderr, "cw2dmk: Failed to detect drive and media type\n");
     fprintf(stderr, "  Data clock approx %f kHz\n", dclock);
     fprintf(stderr, "  Drive speed approx %f RPM\n", rpm);
-    cleanup();
     exit(1);
   }
   set_kind();
@@ -1372,7 +1369,6 @@ detect_sides(int drive)
 		    &total_cycles, &total_samples, &peak)) {
     fprintf(stderr,
 	    "cw2dmk: No index hole; can't detect if side 1 is formatted\n");
-    cleanup();
     exit(1);
   }
 
@@ -1679,6 +1675,11 @@ main(int argc, char** argv)
     exit(1);
   }
 
+  if (atexit(cleanup)) {
+    fprintf(stderr, "cw2dmk: Can't establish atexit() call.\n");
+    exit(1);
+  }
+
   /* Detect drive */
   if (drive == -1) {
     for (drive = 0; drive < 2; drive++) {
@@ -1694,7 +1695,6 @@ main(int argc, char** argv)
     }
     if (drive == 2) {
       fprintf(stderr, "cw2dmk: Failed to detect any drives\n");
-      cleanup();
       exit(1);
     }
   } else {
@@ -1714,7 +1714,6 @@ main(int argc, char** argv)
   dmk_file = fopen(argv[optind], "wb");
   if (dmk_file == NULL) {
     perror(argv[optind]);
-    cleanup();
     exit(1);
   }
 
@@ -1857,7 +1856,6 @@ main(int argc, char** argv)
 
 	if (!cw_ret) {
 	  fprintf(stderr, "cw2dmk: Read error\n");
-	  cleanup();
 	  exit(1);
 	}
 

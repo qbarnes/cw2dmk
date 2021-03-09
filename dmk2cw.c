@@ -140,7 +140,6 @@ dmk_read_header(FILE* dmk_file, dmk_header_t* dmk_header)
   if (ret != 1) {
     fprintf(stderr, "dmk2cw: Error reading from DMK file\n");
     perror("dmk2cw");
-    cleanup();
     exit(1);
   }
 }
@@ -514,6 +513,11 @@ main(int argc, char** argv)
   }
   catweasel_detect_drive(&c.drives[drive]);
 
+  if (atexit(cleanup)) {
+    fprintf(stderr, "cw2dmk: Can't establish atexit() call.\n");
+    exit(1);
+  }
+
   /* Error if drive not detected */
   if (c.drives[drive].type == 0) {
     catweasel_detect_drive(&c.drives[1 - drive]);
@@ -524,7 +528,6 @@ main(int argc, char** argv)
 	      "You can give the -d%d option to use drive %d.\n",
 	      drive, 1-drive, 1-drive, 1-drive);
     }
-    cleanup();
     exit(1);
   }
 
@@ -532,7 +535,6 @@ main(int argc, char** argv)
   dmk_file = fopen(argv[optind], "rb");
   if (dmk_file == NULL) {
     perror(argv[optind]);
-    cleanup();
     exit(1);
   }
 
@@ -541,7 +543,6 @@ main(int argc, char** argv)
   if ((dmk_header.writeprot != 0x00 && dmk_header.writeprot != 0xff) ||
       dmk_header.mbz != 0) {
     fprintf(stderr, "dmk2cw: File is not in DMK format\n");
-    cleanup();
     exit(1);
   }
   sides = (dmk_header.options & DMK_SSIDE_OPT) ? 1 : 2;
@@ -562,7 +563,6 @@ main(int argc, char** argv)
 
   if (catweasel_write_protected(&c.drives[drive])) {
     fprintf(stderr, "dmk2cw: Disk is write-protected\n");
-    cleanup();
     exit(1);
   }
 
@@ -593,7 +593,6 @@ main(int argc, char** argv)
     }
     if (kind == 0) {
       fprintf(stderr, "dmk2cw: Failed to guess drive kind; use -k\n");
-      cleanup();
       exit(1);
     } else {
       kd = &kinds[kind-1];
@@ -623,7 +622,6 @@ main(int argc, char** argv)
       if (ret != 1) {
 	fprintf(stderr, "dmk2cw: Error reading from DMK file\n");
 	perror("dmk2cw");
-	cleanup();
 	exit(1);
       }
       if (testmode >= 0 && testmode <= 0xff) {
@@ -660,7 +658,6 @@ main(int argc, char** argv)
 	  break;
 	}
 	fprintf(stderr,	"dmk2cw: Drive is 1-sided but DMK file is 2-sided\n");
-	cleanup();
 	exit(1);
       }
 
@@ -990,7 +987,6 @@ main(int argc, char** argv)
 
       if (!catweasel_write(&c.drives[drive], side ^ reverse, cwclock, -1)) {
 	fprintf(stderr, "dmk2cw: Write error\n");
-	cleanup();
 	exit(1);
       }
     }
