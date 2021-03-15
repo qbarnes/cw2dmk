@@ -100,6 +100,7 @@ int write_splice; /* bit counter, >0 if we may be in a write splice */
 int errcount;
 int good_sectors;
 int reused_sectors;
+unsigned short matching_data_crc_val;
 int matching_data_crcs;
 int total_errcount;
 int total_retries;
@@ -1123,8 +1124,10 @@ process_bit(int bit)
       crc_val_saved = crc_val;
       matching_data_crcs = 0;
     } else if (good_sectors > 1) {
-      if (crc_val == crc_val_saved)
+      if (crc_val == crc_val_saved) {
+	matching_data_crc_val = crc_val;
         matching_data_crcs++;
+      }
     }
     dbyte = -1;
     dmk_valid_id = 0;
@@ -1438,6 +1441,8 @@ void usage(void)
   printf("               1 = check only side 0\n");
   printf("               2 = check only side 1\n");
   printf("               3 = check both sides (default)\n");
+  printf(" -C crc        Hex value of data CRC to ignore for "
+	 "pre-formatted checks\n");
   printf(" -w fmtimes    Write FM bytes 1 or 2 times [%d]\n", fmtimes);
   printf(" -e encoding   1 = FM (SD), 2 = MFM (DD or HD), 3 = RX02\n");
   printf("\n Special options for hard to read diskettes\n");
@@ -1482,12 +1487,13 @@ main(int argc, char** argv)
   int ch, track, side, headpos, readtime, i;
   int guess_sides = 0, guess_steps = 0, guess_tracks = 0;
   int check_preformatted = 3;
+  int check_preformatted_skip_crc = 0x5d30;
   int cw_mk = 1;
 
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:j");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:C:j");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1599,6 +1605,9 @@ main(int argc, char** argv)
       break;
     case 'b':
       check_preformatted = strtol(optarg, NULL, 0);
+      break;
+    case 'C':
+      check_preformatted_skip_crc = strtol(optarg, NULL, 16);
       break;
     default:
       usage();
@@ -1948,7 +1957,8 @@ main(int argc, char** argv)
 	if (track == 0 && errcount == 0 &&
 	    (matching_data_crcs+1) == good_sectors) {
 	  static int preformatted_side_detected = 0;
-	  if (check_preformatted & (side+1)) {
+	  if ((check_preformatted & (side+1)) &&
+	    (check_preformatted_skip_crc != matching_data_crc_val)) {
 	    msg(OUT_QUIET + 1, "[Pre-formatted side detected");
 	    preformatted_side_detected++;
 	    if ((preformatted_side_detected == 1 && sides == 1) ||
