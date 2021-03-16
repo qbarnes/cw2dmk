@@ -114,6 +114,34 @@ to a file unless you give a two-digit -v option.  If you give a two-digit
 is formed by stripping any extension off the DMK file name and 
 appending .log instead.  If you give the -u option with a one-digit -v
 option, the same output is logged to the file and to the screen.
+.TP
+.B \-M {i,e,d}\fP
+Controls interactive menu mode.  Option-argument "i" enables
+the menu when the interrupt key is pressed, typically ^C.
+Option-argument "e" enables the menu when the number of retries
+due to errors from reading the current track has been reached.
+Option-argument "d" disables any enabled menu modes (default).
+
+When the menu is invoked, cw2dmk will pause reading the current
+floppy disk and present a menu with the actions:
+.RS
+.TP
+c
+Continue reading without change.
+.TP
+q
+Abandon reading and quit the program (^C while at the menu prompt
+also does the same action).
+.TP
+r
+Prompt to change the number of retries (allows changing \-x's
+value on-the-fly).
+.TP
+g
+Give up attempting to reread the current track, accept the data
+as read, and move on to the next track or side.  (Choice does not
+appear when the current track being read has no errors.)
+.RE
 .P
 The remaining options are usually not needed.  cw2dmk will ordinarily
 detect or guess the correct values.
