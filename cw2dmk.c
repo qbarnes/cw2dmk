@@ -121,6 +121,9 @@ int curenc;
 int uencoding = MIXED;
 int reverse = 0;
 int accum_sectors = 0;
+int menu_err_enabled = 0;
+volatile int menu_intr_enabled = 0;
+volatile int menu_requested = 0;
 
 char* plu(int val)
 {
@@ -1223,9 +1226,18 @@ cleanup(void)
 void
 handler(int sig)
 {
+  struct sigaction sa_dfl = { .sa_handler = SIG_DFL };
+
+  if (sig == SIGINT) {
+    if (menu_intr_enabled && !menu_requested) {
+      menu_requested = 1;
+      return;
+    }
+    sigaction(sig, &sa_dfl, NULL);
+  }
+
   cleanup();
 #if __DJGPP__
-  struct sigaction sa_dfl = { .sa_handler = SIG_DFL };
   sigaction(sig, &sa_dfl, NULL);
 #endif
   raise(sig);
@@ -1478,6 +1490,10 @@ void usage(void)
   printf("               7 = like 5, but with Catweasel samples too\n");
   printf("               21 = level 2 to logfile, 1 to screen, etc.\n");
   printf(" -u logfile    Log output to the give file [none]\n");
+  printf(" -M {i,e,d}    Menu control [d]\n");
+  printf("               i = Interrupt (^C) invokes menu\n");
+  printf("               e = Errors equals retries invokes menu\n");
+  printf("               d = Disables invoking menu\n");
   printf("\n Options to manually set values that are normally autodetected\n");
   printf(" -p port       I/O port base (MK1) or card number (MK3/4) [%d]\n",
 	 port);
@@ -1533,6 +1549,56 @@ void usage(void)
 }
 
 
+enum menu_action { MENU_NOCHANGE, MENU_QUIT, MENU_NORETRY, MENU_NEWRETRIES };
+
+enum menu_action
+menu(int failing)
+{
+  printf("\n*** Reading paused. ***");
+
+  do {
+    char inc;
+    int  rnum;
+    int  ret;
+
+    printf("\nWould you like to (c)ontinue, (q)uit, "
+      "%schange # of (r)etries%s:\n",
+      failing ? "" : "or ",
+      failing ? ", or\n(g)ive up retrying and continue on "
+	"with the data as read" : "");
+    fflush(stdout);
+
+    ret = scanf(" %c", &inc);
+    if (ret != 1)
+      continue;
+    switch(inc) {
+    case 'c':
+      return MENU_NOCHANGE;
+    case 'q':
+      return MENU_QUIT;
+    case 'g':
+      return MENU_NORETRY;
+    case 'r':
+      do {
+	printf("New retry limit (currently %d)? ", retries);
+	fflush(stdout);
+	ret = scanf(" %d", &rnum);
+	if (ret == 1 && rnum >= 0) {
+	  retries = rnum;
+	  printf("Retry limit is now %d.\n", retries);
+	  return MENU_NEWRETRIES;
+	}
+	printf("Invalid number.\n");
+      } while (1);
+      break;
+    default:
+      printf("Input character '%c' unrecognized.\n", inc);
+      break;
+    }
+  } while (1);
+}
+
+
 int
 main(int argc, char** argv)
 {
@@ -1546,7 +1612,7 @@ main(int argc, char** argv)
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:C:j");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:C:jM:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1661,6 +1727,18 @@ main(int argc, char** argv)
       break;
     case 'C':
       init_prefmt_skip_crcs(optarg);
+      break;
+    case 'M':
+      if (!strcmp(optarg, "i")) {
+        menu_intr_enabled = 1;
+      } else if (!strcmp(optarg, "e")) {
+        menu_err_enabled = 1;
+      } else if (!strcmp(optarg, "d")) {
+        menu_intr_enabled = 0;
+        menu_err_enabled = 0;
+      } else {
+        usage();
+      }
       break;
     default:
       usage();
@@ -2093,17 +2171,39 @@ main(int argc, char** argv)
 	  dmk_merge_sectors();
 	} 
 
-	failing = (accum_sectors ? merged_stat.errcount : errcount) > 0;
-
-	if (failing)
-	  failing = retry++ <= retries;
+	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0) &&
+		  (retry <= retries);
 
 	// Generally just reporting on the latest read.
 	if (failing) {
 	  msg(OUT_TSUMMARY, "[%d good, %d error%s]\n",
 	      good_sectors, errcount, plu(errcount));
 	}
-      } while (failing);
+
+	if (menu_requested || (menu_err_enabled && (retry > retries))) {
+	  catweasel_set_motor(&c.drives[drive], 0);
+	  switch (menu(failing)) {
+	    case MENU_NOCHANGE:
+	      break;
+	    case MENU_QUIT:
+	      exit(0);
+	    case MENU_NORETRY:
+	      failing = 0;
+	      break;
+	    case MENU_NEWRETRIES:
+	      if (retry > retries)
+		failing = 0;
+	      break;
+	    default:
+	      fprintf(stderr, "Bad return value from menu().\n");
+	      exit(1);
+	      break;
+	  }
+	  catweasel_set_motor(&c.drives[drive], 1);
+	  menu_requested = 0;
+	}
+      } while (failing && ++retry);
+
       total_retries += retry;
       fflush(stdout);
       if (accum_sectors) {
