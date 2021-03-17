@@ -30,6 +30,10 @@
 #include <string.h>
 #include <math.h>
 #include <signal.h>
+#if __DJGPP__
+/* DJGPP doesn't support SA_RESETHAND, so reset manually for it in handler(). */
+#define SA_RESETHAND 0
+#endif
 #if linux
 #include <sys/io.h>
 #endif
@@ -1204,8 +1208,11 @@ void
 handler(int sig)
 {
   cleanup();
-  signal(sig, SIG_DFL);
-  kill(getpid(), sig);
+#if __DJGPP__
+  struct sigaction sa_dfl = { .sa_handler = SIG_DFL };
+  sigaction(sig, &sa_dfl, NULL);
+#endif
+  raise(sig);
 }
 
 
@@ -1608,11 +1615,16 @@ main(int argc, char** argv)
   }
 
   /* Keep drive from spinning endlessly on (expected) signals */
-  signal(SIGHUP, handler);
-  signal(SIGINT, handler);
-  signal(SIGQUIT, handler);
-  signal(SIGPIPE, handler);
-  signal(SIGTERM, handler);
+  struct sigaction sa_def = { .sa_handler = handler, .sa_flags = SA_RESETHAND };
+  struct sigaction sa_int = { .sa_handler = handler };
+  int sigs[] = { SIGHUP, SIGINT, SIGQUIT, SIGPIPE, SIGTERM };
+
+  for (int s = 0; s < sizeof(sigs)/sizeof(*sigs); ++s) {
+    if (sigaction(sigs[s], sigs[s] == SIGINT ? &sa_int : &sa_def, 0) == -1) {
+      fprintf(stderr, "sigaction failed for signal %d.\n", sigs[s]);
+      exit(1);
+    }
+  }
 
 #if linux
   if (geteuid() != 0) {
