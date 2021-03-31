@@ -105,6 +105,7 @@ int errcount;
 int good_sectors;
 int reused_sectors;
 unsigned short matching_data_crc_val;
+int *prefmt_skip_crcs;
 int matching_data_crcs;
 int total_errcount;
 int total_retries;
@@ -1222,9 +1223,10 @@ cleanup(void)
 void
 handler(int sig)
 {
+  struct sigaction sa_dfl = { .sa_handler = SIG_DFL };
+
   cleanup();
 #if __DJGPP__
-  struct sigaction sa_dfl = { .sa_handler = SIG_DFL };
   sigaction(SIGINT, &sa_dfl, NULL);
 #endif
   raise(sig);
@@ -1407,6 +1409,50 @@ detect_sides(int drive)
 }
 
 
+void
+init_prefmt_skip_crcs(char *str)
+{
+  int i;
+  int comma_cnt = 0;
+
+  for (i=0; str[i] != 0; ++i) {
+    if (str[i] == ',')
+      ++comma_cnt;
+  }
+
+  prefmt_skip_crcs =
+    (int *)malloc(sizeof(*prefmt_skip_crcs) * (comma_cnt + 2));
+
+  if (!prefmt_skip_crcs) {
+    fprintf(stderr, "Failed to malloc space for skip CRCs.\n");
+    exit(1);
+  }
+
+  i = 0;
+  char *sp = strtok(str, ",");
+  if (sp) {
+    prefmt_skip_crcs[i++] = strtol(sp, NULL, 16);
+    while ((sp = strtok(NULL, ","))) {
+      prefmt_skip_crcs[i++] = strtol(sp, NULL, 16);
+    }
+  }
+
+  prefmt_skip_crcs[i] = -1;
+}
+
+
+int
+check_prefmt_skip_crc(int crc_val)
+{
+  for (int i=0; prefmt_skip_crcs[i] != -1; ++i) {
+    if (prefmt_skip_crcs[i] == crc_val)
+      return 1;
+  }
+
+  return 0;
+}
+
+
 /* Command-line parameters */
 int port = 0;
 int tracks = -1;
@@ -1493,9 +1539,10 @@ main(int argc, char** argv)
 {
   int ch, track, side, headpos, readtime, i;
   int guess_sides = 0, guess_steps = 0, guess_tracks = 0;
-  int check_preformatted = 3;
-  int check_preformatted_skip_crc = 0x5d30;
+  int check_prefmt = 3;
   int cw_mk = 1;
+
+  prefmt_skip_crcs = (int []){0x5d30, 0x88f2, -1};
 
   opterr = 0;
   for (;;) {
@@ -1611,10 +1658,10 @@ main(int argc, char** argv)
       accum_sectors = 1;
       break;
     case 'b':
-      check_preformatted = strtol(optarg, NULL, 0);
+      check_prefmt = strtol(optarg, NULL, 0);
       break;
     case 'C':
-      check_preformatted_skip_crc = strtol(optarg, NULL, 16);
+      init_prefmt_skip_crcs(optarg);
       break;
     default:
       usage();
@@ -1968,13 +2015,14 @@ main(int argc, char** argv)
 	}
 	if (track == 0 && errcount == 0 &&
 	    (matching_data_crcs+1) == good_sectors) {
-	  static int preformatted_side_detected = 0;
-	  if ((check_preformatted & (side+1)) &&
-	    (check_preformatted_skip_crc != matching_data_crc_val)) {
+	  static int prefmt_side_detected = 0;
+	  if ((check_prefmt & (side+1)) &&
+	    !check_prefmt_skip_crc(matching_data_crc_val)) {
+
 	    msg(OUT_QUIET + 1, "[Pre-formatted side detected");
-	    preformatted_side_detected++;
-	    if ((preformatted_side_detected == 1 && sides == 1) ||
-		 preformatted_side_detected == 2) {
+	    prefmt_side_detected++;
+	    if ((prefmt_side_detected == 1 && sides == 1) ||
+		 prefmt_side_detected == 2) {
 	      msg(OUT_QUIET + 1, "; stopping read]\n");
 	      exit(1);
 	    }
@@ -1982,7 +2030,7 @@ main(int argc, char** argv)
 	      msg(OUT_QUIET + 1, "]\n");
 	    } else {
 	      msg(OUT_QUIET + 1, "; restarting single-sided]\n");
-	      preformatted_side_detected = 0;
+	      prefmt_side_detected = 0;
 	      guess_sides = 0;
 	      sides = 1;
 	      goto restart;
