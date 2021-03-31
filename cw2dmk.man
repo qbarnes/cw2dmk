@@ -195,16 +195,18 @@ pre-formatted, the read will stop and the program will exit.
 If the disk is double-sided and the check is enabled for side 1 and
 it is found pre-formatted, the read will restart as single-sided.
 .TP
-.B \-C \fIcrc\fP
-Hexidecimal value of a data CRC to be ignored when checking the
-sides of the first track for pre-formatted sectors.  Default: 5d30.
+.B \-C \fIcrc_list\fP
+A comma-separated list of hexidecimal values of data CRCs to be
+ignored when checking the sides of the first track for pre-formatted
+sectors.  Default list: \fB0x5d30,0x88f2\fP.
 
 CP/M data disks leave their first two tracks unchanged which falsely
-triggers pre-formatted disk detection.  The value 5d30 tells the
-pre-formatted check to ignore those sectors formatted by CP/M with
-all "e5 e5" values.  Those 128-byte sectors have a data CRC of 5d30.
+triggers pre-formatted disk detection.  CP/M is known to format
+128-byte sectors with all "e5 e5" bytes and 256-byte sectors with
+all "20 20" bytes.  Those sectors have data CRC values of 0x5d30 and
+0x88f2, respectively.
 
-To bypass this skip check, use \fB\-C -1\fP.
+To disable this skip check entirely, use \fB\-C -1\fP.
 .TP
 .B \-w \fIfmtimes\fP
 Normally, FM bytes are written into the DMK file twice (-w2),
