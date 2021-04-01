@@ -273,7 +273,7 @@ dmk_idam(unsigned char byte, int encoding)
       errcount++;
     } else {
       if (accum_sectors)
-        enc_sec[(dmk_idam_p - (unsigned short *)dmk_track)] = encoding;
+	enc_sec[(dmk_idam_p - (unsigned short *)dmk_track)] = encoding;
       *dmk_idam_p++ = idamp;
       ibyte = 0;
       dmk_data(byte, encoding);
@@ -498,7 +498,7 @@ dmk_get_phys_sector_len(unsigned char *track, int n, int tracklen)
 	     "off %d off %d max %d!\n",
       	     n, n + 1, s0 - track, s1 - track, dmktracklen);
       for (i = 0; i < 10; i++)
-        printf("%x ", ((short *)track)[i]);
+	printf("%x ", ((short *)track)[i]);
       printf("\n");
       if (track == dmk_tmp_track) printf("TMP track\n");
       if (track == dmk_track) printf("common track\n");
@@ -587,9 +587,9 @@ dmk_merge_sectors(void)
       for (prev = 0;
 	   (prev_sec = dmk_get_phys_sector(dmk_merged_track, prev));
 	   prev++) {
-        int seclen = dmk_get_phys_sector_len(dmk_merged_track, prev,
+	int seclen = dmk_get_phys_sector_len(dmk_merged_track, prev,
 					     dmk_merged_track_len);
-        if (dmk_get_sector_num(prev_sec) != secnum) 
+	if (dmk_get_sector_num(prev_sec) != secnum) 
 	  continue;
 
 	// Ignore previous sector if it had an error
@@ -635,14 +635,14 @@ dmk_merge_sectors(void)
 
       // Need to copy preamble if we are the first sector
       if (cur == 0 && !copy_preamble(&tmp_data_p, dmk_track))
-        overflow = 1;
+	overflow = 1;
       else if (seclen < 0 || tmp_data_p + seclen > dmk_tmp_track + dmktracklen)
-        overflow = 1;
+	overflow = 1;
       else {
-        *tmp_idam_p++ = (idam_p[cur] & ~DMK_IDAMP_BITS) |
+	*tmp_idam_p++ = (idam_p[cur] & ~DMK_IDAMP_BITS) |
       	  ((tmp_data_p - dmk_tmp_track) & DMK_IDAMP_BITS);
-        memcpy(tmp_data_p, dmk_sec, seclen);
-        tmp_data_p += seclen;
+	memcpy(tmp_data_p, dmk_sec, seclen);
+	tmp_data_p += seclen;
       }
     }
   }
@@ -668,7 +668,7 @@ dmk_merge_sectors(void)
   // Especially if it has fewer repairs.
   if (dmk_merged_track_len > 0) {
     if (merged_stat.errcount < best_errcount ||
-        (merged_stat.errcount == best_errcount &&
+	(merged_stat.errcount == best_errcount &&
 	 merged_stat.reused_sectors < best_repair))
     {
       best = Merged;
@@ -1114,10 +1114,10 @@ process_bit(int bit)
       msg(OUT_ERRORS, "[bad data CRC] ");
       errcount++;
       if (accum_sectors) {
-        // Don't count both header and data CRC errors for a sector.
+	// Don't count both header and data CRC errors for a sector.
 	// Because otherwise dropping a single error for a replacement sector
 	// will not show it fully corrected.  Need to track errors/sector.
-        if (dmk_idam_p[-1] & DMK_EXTRA_FLAG)
+	if (dmk_idam_p[-1] & DMK_EXTRA_FLAG)
 	  errcount--;
 	dmk_idam_p[-1] |= DMK_EXTRA_FLAG;
       }
@@ -1654,14 +1654,14 @@ main(int argc, char** argv)
       break;
     case 'M':
       if (!strcmp(optarg, "i")) {
-        menu_intr_enabled = 1;
+	menu_intr_enabled = 1;
       } else if (!strcmp(optarg, "e")) {
-        menu_err_enabled = 1;
+	menu_err_enabled = 1;
       } else if (!strcmp(optarg, "d")) {
-        menu_intr_enabled = 0;
-        menu_err_enabled = 0;
+	menu_intr_enabled = 0;
+	menu_err_enabled = 0;
       } else {
-        usage();
+	usage();
       }
       break;
     default:
@@ -1873,8 +1873,8 @@ main(int argc, char** argv)
   dmk_header.ntracks = tracks;
   dmk_header.tracklen = dmktracklen; 
   dmk_header.options = ((sides == 1) ? DMK_SSIDE_OPT : 0) +
-                       ((fmtimes == 1) ? DMK_SDEN_OPT : 0) +
-                       ((uencoding == RX02) ? DMK_RX02_OPT : 0);
+		       ((fmtimes == 1) ? DMK_SDEN_OPT : 0) +
+		       ((uencoding == RX02) ? DMK_RX02_OPT : 0);
   dmk_write_header();
   if (dmk_track) free(dmk_track);
   dmk_track = (unsigned char*) malloc(dmktracklen);
