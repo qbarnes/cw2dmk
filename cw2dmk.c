@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <errno.h>
 #include <string.h>
 #include <math.h>
 #include <signal.h>
@@ -120,6 +121,7 @@ int uencoding = MIXED;
 int reverse = 0;
 int accum_sectors = 0;
 int menu_err_enabled = 0;
+volatile int alarm_received = 0;
 volatile int menu_intr_enabled = 0;
 volatile int menu_requested = 0;
 
@@ -1219,6 +1221,9 @@ handler(int sig)
       return;
     }
     sigaction(sig, &sa_dfl, NULL);
+  } else if (sig == SIGALRM) {
+    alarm_received = 1;
+    return;
   }
 
   cleanup();
@@ -1503,7 +1508,17 @@ menu(int failing)
 	"with the data as read" : "");
     fflush(stdout);
 
-    ret = scanf(" %c", &inc);
+    do {
+      ret = scanf(" %c", &inc);
+      if ((ret == -1) && (errno == EINTR)) {
+	if (alarm_received) {
+	  alarm_received = 0;
+	  catweasel_set_motor(&c.drives[drive], 0);
+	}
+      } else {
+        break;
+      }
+    } while (1);
     if (ret != 1)
       continue;
     switch(inc) {
@@ -1517,7 +1532,17 @@ menu(int failing)
       do {
 	printf("New retry limit (currently %d)? ", retries);
 	fflush(stdout);
-	ret = scanf(" %d", &rnum);
+	do {
+	  ret = scanf(" %d", &rnum);
+	  if ((ret == -1) && (errno == EINTR)) {
+	    if (alarm_received) {
+	      alarm_received = 0;
+	      catweasel_set_motor(&c.drives[drive], 0);
+	    }
+	  } else {
+	    break;
+	  }
+	} while(1);
 	if (ret == 1 && rnum >= 0) {
 	  retries = rnum;
 	  printf("Retry limit is now %d.\n", retries);
@@ -1698,12 +1723,14 @@ main(int argc, char** argv)
   }
 
   /* Keep drive from spinning endlessly on (expected) signals */
-  struct sigaction sa_def = { .sa_handler = handler, .sa_flags = SA_RESETHAND };
-  struct sigaction sa_int = { .sa_handler = handler };
-  int sigs[] = { SIGHUP, SIGINT, SIGQUIT, SIGPIPE, SIGTERM };
+  struct sigaction sa_rst = { .sa_handler = handler, .sa_flags = SA_RESETHAND };
+  struct sigaction sa_def = { .sa_handler = handler };
+  int sigs[] = { SIGHUP, SIGINT, SIGQUIT, SIGPIPE, SIGTERM, SIGALRM };
 
   for (int s = 0; s < sizeof(sigs)/sizeof(*sigs); ++s) {
-    if (sigaction(sigs[s], sigs[s] == SIGINT ? &sa_int : &sa_def, 0) == -1) {
+    struct sigaction *sap =
+      (sigs[s] == SIGINT || sigs[s] == SIGALRM) ? &sa_def : &sa_rst;
+    if (sigaction(sigs[s], sap, 0) == -1) {
       fprintf(stderr, "sigaction failed for signal %d.\n", sigs[s]);
       exit(1);
     }
@@ -2101,7 +2128,7 @@ main(int argc, char** argv)
 	}
 
 	if (menu_requested || (menu_err_enabled && (retry > retries))) {
-	  catweasel_set_motor(&c.drives[drive], 0);
+	  alarm(5);
 	  switch (menu(failing)) {
 	    case MENU_NOCHANGE:
 	      break;
@@ -2119,6 +2146,8 @@ main(int argc, char** argv)
 	      exit(1);
 	      break;
 	  }
+	  alarm(0);
+	  alarm_received = 0;
 	  catweasel_set_motor(&c.drives[drive], 1);
 	  menu_requested = 0;
 	}
