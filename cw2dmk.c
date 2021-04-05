@@ -100,7 +100,6 @@ int write_splice; /* bit counter, >0 if we may be in a write splice */
 int errcount;
 int good_sectors;
 int reused_sectors;
-int matching_data_crcs;
 int total_errcount;
 int total_retries;
 int total_good_sectors;
@@ -786,7 +785,6 @@ void
 process_bit(int bit)
 {
   static int curcyl = 0;
-  static unsigned short crc_val, crc_val_saved;
   unsigned char val = 0;
   int i;
 
@@ -1097,7 +1095,6 @@ process_bit(int bit)
   crc = calc_crc1(crc, val);
 
   if (dbyte == 0) {
-    crc_val = (crc_val << 8) | val;
     if (crc == 0) {
       msg(OUT_IDS, "[good data CRC] ");
       if (dmk_valid_id) {
@@ -1119,21 +1116,12 @@ process_bit(int bit)
       }
     }
     msg(OUT_HEX, "\n");
-    if (good_sectors == 1) {
-      crc_val_saved = crc_val;
-      matching_data_crcs = 0;
-    } else if (good_sectors > 1) {
-      if (crc_val == crc_val_saved)
-        matching_data_crcs++;
-    }
     dbyte = -1;
     dmk_valid_id = 0;
     write_splice = WRITE_SPLICE;
     if (curenc == RX02) {
       change_enc(FM);
     }
-  } else if (dbyte == 1) {
-    crc_val = val;
   }
 
   /* Predetect bad MFM clock pattern.  Can't detect at decode time
@@ -1480,13 +1468,12 @@ main(int argc, char** argv)
 {
   int ch, track, side, headpos, readtime, i;
   int guess_sides = 0, guess_steps = 0, guess_tracks = 0;
-  int check_preformatted = 3;
   int cw_mk = 1;
 
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:b:j");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:j");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1595,9 +1582,6 @@ main(int argc, char** argv)
       break;
     case 'j':
       accum_sectors = 1;
-      break;
-    case 'b':
-      check_preformatted = strtol(optarg, NULL, 0);
       break;
     default:
       usage();
@@ -1941,29 +1925,6 @@ main(int argc, char** argv)
 	    backward_am >= 9 && backward_am > errcount) {
 	  msg(OUT_ERRORS, "[possibly a flippy disk] ");
 	  flippy = 1;
-	}
-	if (track == 0 && errcount == 0 &&
-	    (matching_data_crcs+1) == good_sectors) {
-	  static int preformatted_side_detected = 0;
-	  if (check_preformatted & (side+1)) {
-	    msg(OUT_QUIET + 1, "[Pre-formatted side detected");
-	    preformatted_side_detected++;
-	    if ((preformatted_side_detected == 1 && sides == 1) ||
-		 preformatted_side_detected == 2) {
-	      msg(OUT_QUIET + 1, "; stopping read]\n");
-	      cleanup();
-	      exit(1);
-	    }
-	    if (side == 0) {
-	      msg(OUT_QUIET + 1, "]\n");
-	    } else {
-	      msg(OUT_QUIET + 1, "; restarting single-sided]\n");
-	      preformatted_side_detected = 0;
-	      guess_sides = 0;
-	      sides = 1;
-	      goto restart;
-	    }
-	  }
 	}
 	if (guess_sides && side == 1) {
 	  guess_sides = 0;
