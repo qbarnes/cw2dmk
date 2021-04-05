@@ -205,6 +205,17 @@ revise its guess to 1 side if there are no valid sectors on the first
 track or two of the second side.  Giving the -s1 option explictly for
 a single-sided disk will save the time needed for this autodetection.
 .TP
+.B \-C {0,1}\fP
+Controls whether the sides of track 0 are compared for incompatible
+formats.  The value 0 disables the comparison where 1 enables
+(default).
+
+If side 1 of track 0 has 512-byte sectors, but side 0 has any other
+sector size, the read is restarted as single-sided.  This often
+happens when a 5.25-inch floppy disk came pre-formatted from its
+factory for MS-DOS but was later reformatted in a single-sided
+drive by another OS for its use.
+.TP
 .B \-w \fIfmtimes\fP
 Normally, FM bytes are written into the DMK file twice (-w2),
 so that they take up the correct proportion of the space on mixed-density

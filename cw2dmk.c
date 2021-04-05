@@ -96,6 +96,7 @@ int mfmthresh2 = -1;
 int dmktracklen = -1;
 float mfmshort = -1.0;
 float postcomp = 0.5;
+int check_compat_sides = 1;
 unsigned short crc;
 int sizecode;
 unsigned char premark;
@@ -1434,6 +1435,7 @@ void usage(void)
   printf("               i = Interrupt (^C) invokes menu\n");
   printf("               e = Errors equals retries invokes menu\n");
   printf("               d = Disables invoking menu\n");
+  printf(" -C {0,1}      Compare sides for incompatible formats [1]\n");
   printf("\n Options to manually set values that are normally autodetected\n");
   printf(" -p port       I/O port base (MK1) or card number (MK3/4) [%d]\n",
 	 port);
@@ -1542,7 +1544,7 @@ main(int argc, char** argv)
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:jM:");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:jM:C:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1663,6 +1665,9 @@ main(int argc, char** argv)
       } else {
 	usage();
       }
+      break;
+    case 'C':
+      check_compat_sides = strtol(optarg, NULL, 0);
       break;
     default:
       usage();
@@ -2013,6 +2018,21 @@ main(int argc, char** argv)
 	    backward_am >= 9 && backward_am > errcount) {
 	  msg(OUT_ERRORS, "[possibly a flippy disk] ");
 	  flippy = 1;
+	}
+	if (check_compat_sides && sides == 2 &&
+	  track == 0 && good_sectors > 0) {
+	  static int t0s0ss = -1;
+	  if (side == 0) {
+	    t0s0ss = secsize(sizecode, curenc);
+	  } else {
+	    if (t0s0ss != 512 && secsize(sizecode, curenc) == 512) {
+	      msg(OUT_QUIET + 1, "[Incompatible formats detected "
+		"between sides; restarting single-sided]\n");
+	      t0s0ss = -1;
+	      sides = 1;
+	      goto restart;
+	    }
+	  }
 	}
 	if (guess_sides && side == 1) {
 	  guess_sides = 0;
