@@ -459,7 +459,7 @@ around this (especially for FM-only disks) by using the -e option to
 force only one encoding to be considered.  Another workaround that can
 help is the -o option.  In rare cases, tweaking thresholds with the
 -1, -2, and -f options may help.  The histogram displayed by the -v7
-option or the separate testhist program may help you find the best
+option or the separate cwtsthst program may help you find the best
 thresholds.
 
 If the disk was formatted with more than 43 tracks in a 40-track

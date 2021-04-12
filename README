@@ -22,13 +22,13 @@ to the JV3 format used in older TRS-80 emulators.  See dmk2jv3.txt for
 documentation.  jv2dmk converts a JV1 or JV3 disk image to the DMK
 format.
 
-* testhist is a test program for the Catweasel that shows a
+* cwtsthst is a test program for the Catweasel that shows a
 histogram of the data returned by the Catweasel for a given track.
 
 These programs are free software, copyrighted by their authors and
 released under the GNU General Public License.  See the file COPYING
 for details.  cw2dmk, dmk2cw, dmk2jv3, and jv2dmk were written by
-Timothy Mann.  testhist and the low-level driver routines in
+Timothy Mann.  cwtsthst and the low-level driver routines in
 catweasl.c were originally written by Michael Krause for his Linux
 catweasel driver package cwfloppy-0.2.1.  The versions in this package
 were extensively modified for use with cw2dmk and dmk2cw and to add

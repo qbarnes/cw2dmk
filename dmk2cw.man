@@ -164,11 +164,11 @@ more pronounced for larger disks where the difference in length
 between the inner and outer tracks is greater.  The default value of
 140ns for all tracks seems to work reasonably well on 3.5-inch and
 5.25-inch disks, though it is surely not optimal.  For 8-inch disks, a
-few experiments with the testhist program suggest that -o70,700 is a
+few experiments with the cwtsthst program suggest that -o70,700 is a
 good value -- it makes tracks 1 and 76 have much more similar
 histograms than if a constant value is used.  If you have trouble
 reading disks written by dmk2cw with a regular floppy disk controller,
-try using testhist to compare track histograms of natively-written
+try using cwtsthst to compare track histograms of natively-written
 media that read successfully in your controller with media written by
 dmk2cw.  If there is a substantial difference, try different -o values
 to see if you can get dmk2cw to write disks that are more similar to
