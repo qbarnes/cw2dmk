@@ -260,6 +260,27 @@ value may still allow the disk to be read.  If you have a
 copy-protected disk with intentional CRC errors, or other strange
 formatting that cw2dmk interprets as a possible error, you might want
 to reduce or eliminate the retries to speed up the conversion.
+
+The \fIretries\fP argument can be just a number or optionally a
+comma-separated list in the format \fBretries[:{start[\-[end]]}]\fP
+giving track ranges for alternate retry values.  Arguments are
+parsed left to right with later arguments taking precident.
+Examples:
+
+.RS
+.TP
+\fB\-x 40,0:4-12\fP
+Set retries for all tracks to 40 except disable retries for tracks 4
+through 12.
+.TP
+\fB\-x 10,20:30-,0:33\fP
+Set retries for all tracks to 10 except set to 20 for tracks 30
+through end of media, but disable retries for track 33.
+.TP
+\fB\-x 15:27-30,80:35-\fP
+Leave default retries (4) for all tracks except set it to 15 for
+tracks 27 through 30 set and 80 for tracks 35 through end of media.
+.RE
 .TP
 .B \-a \fIalternate\fP
 This option is used only when when reading a 40-track disk in an

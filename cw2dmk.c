@@ -29,6 +29,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
+#include <regex.h>
 #include <signal.h>
 #if __DJGPP__
 /* DJGPP doesn't support SA_RESETHAND, so reset manually for it in handler(). */
@@ -53,6 +55,9 @@ int dmk_merged_track_len;
 unsigned char* dmk_tmp_track = NULL;
 FILE *dmk_file;
 
+#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / \
+			((size_t)(!(sizeof(x) % sizeof(0[x])))))
+
 /* Constants and globals for decoding */
 #define FM 1
 #define MFM 2
@@ -69,10 +74,15 @@ int total_enc_count[N_ENCS];
    drive.  However, many drives can't step that far. */
 #define TRACKS_GUESS 86
 
+/* Maximum tracks we'll ever read. */
+#define MAX_TRACKS	88
+
 /* Suppress FM address mark detection for a few bit times after each
    data CRC is seen.  Helps prevent seeing bogus marks in write
    splices. */
 #define WRITE_SPLICE 32
+
+#define RETRIES_DEFAULT	4
 
 struct TrackStat {
 	int errcount;
@@ -1411,8 +1421,8 @@ int tracks = -1;
 int sides = -1;
 int steps = -1;
 int drive = -1;
-int retries = 4;
 int alternate = 0;
+int retries[MAX_TRACKS];
 
 void usage(void)
 {
@@ -1449,7 +1459,7 @@ void usage(void)
   printf(" -e encoding   1 = FM (SD), 2 = MFM (DD or HD), 3 = RX02\n");
   printf(" -w fmtimes    Write FM bytes 1 or 2 times [%d]\n", fmtimes);
   printf("\n Special options for hard to read diskettes\n");
-  printf(" -x retries    Number of retries on errors [%d]\n", retries);
+  printf(" -x retries    Number of retries on errors [%d]\n", RETRIES_DEFAULT);
   printf(" -a alternate  Alternate even/odd tracks on retries with -m2 [%d]\n",
 	 alternate);
   printf("               0 = always even\n");
@@ -1515,12 +1525,13 @@ menu(int failing)
       return MENU_NORETRY;
     case 'r':
       do {
-	printf("New retry limit (currently %d)? ", retries);
+	printf("New retry limit? ");
 	fflush(stdout);
 	ret = scanf(" %d", &rnum);
 	if (ret == 1 && rnum >= 0) {
-	  retries = rnum;
-	  printf("Retry limit is now %d.\n", retries);
+	  for (int i = 0; i < COUNT_OF(retries); ++i)
+	    retries[i] = rnum;
+	  printf("Retry limit is now %d.\n", rnum);
 	  return MENU_NEWRETRIES;
 	}
 	printf("Invalid number.\n");
@@ -1534,12 +1545,93 @@ menu(int failing)
 }
 
 
+/* Return 0 on success, non-zero on parse failure. */
+int
+parse_retries(const char *nptr, int *rav)
+{
+  static const char optxre[] = "^([0-9]+)(:([0-9]+)(-([0-9]+)?)?)?(,|$)";
+  int      err = 0;
+  regex_t  regex;
+
+  if (regcomp(&regex, optxre, REG_EXTENDED|REG_NEWLINE)) {
+    fprintf(stderr, "regcomp() failed\n");
+    exit(1);
+  }
+
+  while (!err && *nptr != '\0') {
+    int	nr = -1, start = -1, end = -1;
+    regmatch_t pmatch[7];
+
+    if (regexec(&regex, nptr, COUNT_OF(pmatch), pmatch, 0)) {
+      err = 1;
+      break;
+    }
+
+    long n[3] = { -1, -1, -1 };
+    for (int i = 0, ii[] = {1, 3, 5}; i < COUNT_OF(ii); ++i) {
+      regoff_t  off = pmatch[ii[i]].rm_so;
+      const char *p = nptr + off;
+
+      if (off != -1) {
+	char *ep;
+
+	n[i] = strtol(p, &ep, 0);
+
+	long llim = 0;
+	long ulim = (i == 0) ? INT_MAX : MAX_TRACKS - 1;
+
+	if (p == ep || n[i] < llim || n[i] > ulim) {
+	  err = 1;
+	  break;
+	}
+      } else {
+	break;
+      }
+    }
+
+    if (err) break;
+
+    nr = n[0];
+
+    if (n[1] != -1) {
+      start = n[1];
+
+      if (n[2] != -1) {
+	end = n[2];
+
+	if (end < start) {
+	  err = 1;
+	  break;
+	}
+      } else {
+	// Do we have a stand alone start number
+	// or have a "##-" open-ended range?
+	end = (pmatch[4].rm_so == -1) ? start : MAX_TRACKS - 1;
+      }
+    } else {
+      // No track range given, so entire range.
+      start = 0;
+      end = MAX_TRACKS - 1;
+    }
+
+    for (int i = start; i <= end; ++i)
+      rav[i] = nr;
+
+    nptr += pmatch[0].rm_eo;
+  }
+
+  return err;
+}
+
 int
 main(int argc, char** argv)
 {
   int ch, track, side, headpos, readtime, i;
   int guess_sides = 0, guess_steps = 0, guess_tracks = 0;
   int cw_mk = 1;
+
+  for (int i = 0; i < COUNT_OF(retries); ++i)
+    retries[i] = RETRIES_DEFAULT;
 
   opterr = 0;
   for (;;) {
@@ -1599,8 +1691,7 @@ main(int argc, char** argv)
       if (fmtimes != 1 && fmtimes != 2) usage();
       break;
     case 'x':
-      retries = strtol(optarg, NULL, 0);
-      if (retries < 0) usage();
+      if (parse_retries(optarg, retries)) usage();
       break;
     case 'a':
       alternate = strtol(optarg, NULL, 0);
@@ -2092,7 +2183,7 @@ main(int argc, char** argv)
 	} 
 
 	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0) &&
-		  (retry <= retries);
+		  (retry <= retries[track]);
 
 	// Generally just reporting on the latest read.
 	if (failing) {
@@ -2100,7 +2191,7 @@ main(int argc, char** argv)
 	      good_sectors, errcount, plu(errcount));
 	}
 
-	if (menu_requested || (menu_err_enabled && (retry > retries))) {
+	if (menu_requested || (menu_err_enabled && (retry > retries[track]))) {
 	  catweasel_set_motor(&c.drives[drive], 0);
 	  switch (menu(failing)) {
 	    case MENU_NOCHANGE:
@@ -2111,7 +2202,7 @@ main(int argc, char** argv)
 	      failing = 0;
 	      break;
 	    case MENU_NEWRETRIES:
-	      if (retry > retries)
+	      if (retry > retries[track])
 		failing = 0;
 	      break;
 	    default:
