@@ -2183,7 +2183,7 @@ main(int argc, char** argv)
 	} 
 
 	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0) &&
-		  (retry <= retries[track]);
+		  (retry < retries[track]);
 
 	// Generally just reporting on the latest read.
 	if (failing) {
@@ -2191,7 +2191,7 @@ main(int argc, char** argv)
 	      good_sectors, errcount, plu(errcount));
 	}
 
-	if (menu_requested || (menu_err_enabled && (retry > retries[track]))) {
+	if (menu_requested || (menu_err_enabled && (retry >= retries[track]))) {
 	  catweasel_set_motor(&c.drives[drive], 0);
 	  switch (menu(failing)) {
 	    case MENU_NOCHANGE:
@@ -2202,7 +2202,7 @@ main(int argc, char** argv)
 	      failing = 0;
 	      break;
 	    case MENU_NEWRETRIES:
-	      if (retry > retries[track])
+	      if (retry >= retries[track])
 		failing = 0;
 	      break;
 	    default:
