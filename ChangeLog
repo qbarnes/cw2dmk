@@ -1,3 +1,12 @@
+4.7.1 -- Wed Oct 20 20:00:21 UTC 2021 -- Quentin Barnes
+
+* Add feature to "-x" option ao allow per-track retry counts
+  (e.g. "-x 40,0:4-12" sets retries for all tracks to 40 except 
+  it disable retries for tracks 4 through 12).  See cw2dmk man
+  page for futher information.
+
+* Correct off-by-one problem with retry counts.
+
 4.7.0 -- Mon Apr 12 23:25:25 UTC 2021 -- Quentin Barnes
 
 * Deprecate cw2dmk's -b option introduced in 4.6.0.  It had too
