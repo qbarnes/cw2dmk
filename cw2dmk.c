@@ -2134,25 +2134,33 @@ main(int argc, char** argv)
 	  }
 	}
 	if (guess_steps) {
-	  if (track == 3) guess_steps = 0;
-	  if (steps == 1) {
-	    if ((track & 1) &&
-		(good_sectors == 0 ||
-		 cylseen == track - 1 || cylseen == track + 1)) {
-	      msg(OUT_QUIET + 1,
-		  "[double-stepping apparently needed; restarting]\n");
-	      steps = 2;
-	      if (guess_tracks) tracks = TRACKS_GUESS / steps;
-	      goto restart;
+	  switch (track) {
+	  case 0:
+	    break;
+	  case 1:
+	  case 2:
+	    if (steps == 1) {
+	      if ((track == 1 && good_sectors == 0) ||
+		  (good_sectors && cylseen == prevcylseen)) {
+		msg(OUT_QUIET + 1,
+		    "[double-stepping apparently needed; restarting]\n");
+		steps = 2;
+		if (guess_tracks) tracks = TRACKS_GUESS / steps;
+		goto restart;
+	      }
+	    } else {
+	      if (good_sectors && cylseen == track * 2) {
+		msg(OUT_QUIET + 1,
+		  "[single-stepping apparently needed; restarting]\n");
+		steps = 1;
+		if (guess_tracks) tracks = TRACKS_GUESS / steps;
+		goto restart;
+	      }	      
 	    }
-	  } else {
-	    if (good_sectors && track > 0 && cylseen == track * 2) {
-	      msg(OUT_QUIET + 1,
-		"[single-stepping apparently needed; restarting]\n");
-	      steps = 1;
-	      if (guess_tracks) tracks = TRACKS_GUESS / steps;
-	      goto restart;
-	    }	      
+	    break;
+	  default:
+	    guess_steps = 0;
+	    break;
 	  }
 	}
 	if (guess_tracks && (track == 35 || track >= 40) &&
