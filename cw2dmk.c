@@ -38,6 +38,7 @@
 #endif
 #if linux
 #include <sys/io.h>
+#include <errno.h>
 #endif
 #include "crc.c"
 #include "cwfloppy.h"
@@ -1820,7 +1821,10 @@ main(int argc, char** argv)
     fprintf(stderr, "cw2dmk: No access to I/O ports\n");
     exit(1);
   }
-  setuid(getuid());
+  if (setuid(getuid()) != 0) {
+    fprintf(stderr, "cw2dmk: setuid failed: %s\n", strerror(errno));
+    exit(1);
+  }
 #endif
 
   /* Open log file if needed */

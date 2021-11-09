@@ -38,6 +38,7 @@
 #include <sys/time.h>
 #if linux
 #include <sys/io.h>
+#include <errno.h>
 #endif
 #include "cwfloppy.h"
 #include "dmk.h"
@@ -500,7 +501,10 @@ main(int argc, char** argv)
     fprintf(stderr, "dmk2cw: No access to I/O ports\n");
     exit(1);
   }
-  setuid(getuid());
+  if (setuid(getuid()) != 0) {
+    fprintf(stderr, "dmk2cw: setuid failed: %s\n", strerror(errno));
+    exit(1);
+  }
 #endif
   ret = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
     && catweasel_memtest(&c);
