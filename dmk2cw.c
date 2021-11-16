@@ -20,7 +20,6 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-/*#define DEBUG1 1*/
 #define DEBUG6 1
 /*#define DEBUG7 1*/
 /*#define DEBUG8 1*/
@@ -73,6 +72,8 @@ int testmode = -1;
 int fill = 0;
 int reverse = 0;
 int datalen = -1;
+double rate_adj = 1.0;
+int dither = 0;
 
 void usage()
 {
@@ -112,6 +113,8 @@ void usage()
   printf("               0x3 = stop with no fill; leave old data intact\n");
   printf("               0x1nn = nn in FM\n");
   printf("               0x2nn = nn in MFM\n");
+  printf(" -a rate_adj   Data rate adjustment factor [%.1f]\n", rate_adj);
+  printf(" -e dither     Dither data rate 0=false, 1=true [%d]\n", dither);
 #if DEBUG6
   printf(" -y testmode   Activate various test modes [%d]\n", testmode);
 #endif
@@ -174,8 +177,9 @@ int
 cw_bit(int bit, double mult)
 {
   static int len, nextlen;
-  static double prevadj, adj;
-  int val;
+  static double prevadj, adj, preverr;
+  double fticks;
+  int iticks;
   int res;
 
 #if DEBUG7
@@ -190,6 +194,7 @@ cw_bit(int bit, double mult)
     nextlen = -1;
     prevadj = 0.0;
     adj = 0.0;
+    preverr = 0.0;
     break;
   case 0:
     nextlen++;
@@ -204,15 +209,26 @@ cw_bit(int bit, double mult)
       } else {
 	adj = 0.0;
       }
-      val = 129 - (int) (len * mult - prevadj + adj + 0.5);
-      if (out_fmt >= OUT_SAMPLES) {
-	printf("/%d:%d", len, val);
+      fticks = len * mult - prevadj + adj - preverr;
+      iticks = (int)(fticks + 0.5);
+      if (iticks > 129) {
+	fprintf(stderr, "dmk2cw: Interval %d too large; "
+		"try a smaller value for -c if possible\n", iticks);
+	exit(1);
       }
-      if (val >= 0 && val <= 126) {
-	res = catweasel_put_byte(&c, val);
-	if (res < 0) return res;
+      if (iticks < 3) {
+	fprintf(stderr, "dmk2cw: Interval %d too small; bug?\n", iticks);
+	iticks = 3;
       }
       prevadj = adj;
+      if (dither) {
+	preverr = (double)iticks - fticks;
+      }
+      if (out_fmt >= OUT_SAMPLES) {
+	printf("/%d:%d", len, iticks);
+      }
+      res = catweasel_put_byte(&c, 129 - iticks);
+      if (res < 0) return res;
     }
     len = nextlen;
     nextlen = 0;
@@ -370,7 +386,7 @@ main(int argc, char** argv)
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "p:d:v:k:m:s:o:c:h:l:g:i:r:f:y:");
+    ch = getopt(argc, argv, "p:d:v:k:m:s:o:c:h:l:g:i:r:f:a:e:y:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -436,6 +452,15 @@ main(int argc, char** argv)
       if (fill < 0 || (fill > 3 && fill < 0x100) || fill > 0x2ff) {
 	usage();
       }
+      break;
+    case 'a':
+      ret = sscanf(optarg, "%lf", &rate_adj);
+      if (ret != 1) usage();
+      if (rate_adj < 0.0) usage();
+      break;
+    case 'e':
+      dither = strtol(optarg, NULL, 0);
+      if (dither < 0 || dither > 1) usage();
       break;
 #if DEBUG6
     case 'y':
@@ -616,7 +641,7 @@ main(int argc, char** argv)
   } else {
     kd = &kinds[kind-1];
   }
-  mult = (kd->mfmshort / 2.0) * cwclock;
+  mult = (kd->mfmshort / 2.0) * cwclock / rate_adj;
   if (hd == 4) {
     hd = kd->hd;
   }
@@ -773,7 +798,7 @@ main(int argc, char** argv)
 	      dmk_encoding[i] = MFM;
 	    }
 	  }
-	  
+
 	  /* Prepare to switch to RX02-modified MFM if needed */
 	  if (rx02 && (dmk_track[datap] == 0xf9 ||
 		       dmk_track[datap] == 0xfd)) {
@@ -847,7 +872,7 @@ main(int argc, char** argv)
 	for (i=0; i<128*1024; i++) {
 	  catweasel_put_byte(&c, testmode);
 	}
-	  
+
       } else {
 	for (i=0; i<7; i++) {
 	  /* XXX Is this needed/correct? */
@@ -874,7 +899,8 @@ main(int argc, char** argv)
 	    byte = (encoding == MFM) ? 0x4e : 0xff;
 	  }
 	  if (out_fmt >= OUT_BYTES) {
-	    printf("%c%02x", "-FIAMJBX"[encoding], byte);
+	    printf("%s%c%02x", out_fmt >= OUT_SAMPLES ? "\n" : "",
+		   "-FIAMJBX"[encoding], byte);
 	  }
 	  switch (encoding) {
 	  case SKIP:    /* padding byte in FM area of a DMK */

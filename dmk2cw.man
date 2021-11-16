@@ -229,6 +229,28 @@ disk intact.  With fill = 0x1nn, the fill pattern is 0xnn encoded
 in FM.  With fill = 0x2nn, the fill pattern is 0xnn encoded in
 MFM.
 .TP
+.B \-a \fIrate_adj\fP
+Causes dmk2cw to multiply the average data rate by rate_adj (default
+1.0).  Values should be close to 1.0; for example, 1.005 makes the
+data rate 0.5 percent faster, while 0.995 makes it 0.5% slower.
+Making the data rate 1% faster has a similar effect to running the
+drive motor %1 slower: more data fits on the track.  Of course if the
+data rate is adjusted to be too far off from the standard value, the
+resulting disk may not be readable.
+.TP
+.B \-e \fIdither\fP
+If dither is 1, dmk2cw adjusts the number of Catweasel clock ticks in
+the intervals between transitions by +/-1 when needed to keep the
+average data rate accurate.  If dither is 0 (the default), no such
+adjustment is done.  As a result, the interval sizes are consistent
+across the whole track, but the average data rate may be off
+(typically by much less than 1%) because of cumulative rounding error.
+If a disk needs the -a option to adjust the average data rate very
+precisely, turning on dither too may help.  Dither is a relatively new
+feature, and it is not yet clear whether it is an improvement idea or
+whether the occasional +/-1 tick will make disks more difficult to
+read.
+.TP
 .B \-y \fItestmode\fP
 Set various undocumented test modes for debugging.
 .SH Diagnostics
