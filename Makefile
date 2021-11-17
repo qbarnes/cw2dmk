@@ -34,7 +34,7 @@ else
   PCILIB = -lpci -lz
 endif
 
-CFLAGS = -O3 -g -Wall
+CFLAGS = -O3 -g -Wall -std=gnu99
 
 version := $(shell grep VERSION version.h | sed -re 's/^.*"([^"]+)".*$$/\1/')
 
@@ -71,7 +71,7 @@ endif
 BUILD_TARGETS   = firmware.h $(TXT) $(EXE)
 RELEASE_TARGETS = COPYING README ChangeLog $(TXT) $(EXE)
 
-clean = $(EXE) $(TAR_TARGETS) *.$O *~
+clean = $(EXE) $(TAR_TARGETS) crc$E *.$O *~
 veryclean = $(clean) $(TXT) firmware.h *.exe *.obj *.o *.tar.gz
 
 all: progs manpages
@@ -98,6 +98,9 @@ jv2dmk$E: jv2dmk.c crc.c dmk.h jv3.h
 
 cwtsthst$E: testhist.c catweasl.$O cwpci.$O cwfloppy.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB) -lm
+
+crc$E: crc.c
+	$(CC) $(CFLAGS) -DTEST -o $@ $<
 
 firmware.h: $(FIRMWARE)
 	(echo 'unsigned char firmware[] = { ' ;\
