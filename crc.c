@@ -60,7 +60,7 @@ unsigned short CALC_CRC1a(unsigned short crc, unsigned char byte)
 
 /* Recompute the CRC with len bytes appended. */
 unsigned short calc_crc(unsigned short crc,
-			unsigned char const *buf, int len) 
+			unsigned char const *buf, int len)
 {
   while (len--) {
     crc = calc_crc1(crc, *buf++);
@@ -70,10 +70,17 @@ unsigned short calc_crc(unsigned short crc,
 
 #if TEST
 #include <stdio.h>
+#include <stdlib.h>
+/*
+ * crc app.  Usage: crc [initial_value].  If the initial_value is
+ * omitted, it defaults to 0xffff.  crc reads hex bytes, optionally
+ * separated by whitespace, from stdin until end of file.  It computes
+ * the crc of the byte sequence and outputs it in hex on stdout.
+ */
 int
 main(int argc, char **argv)
 {
-  char buf[2048];
+  unsigned char buf[2048];
   int count, c, res;
   unsigned short preset;
 
