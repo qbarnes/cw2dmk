@@ -232,9 +232,9 @@ MFM.
 .B \-a \fIrate_adj\fP
 Causes dmk2cw to multiply the average data rate by rate_adj (default
 1.0).  Values should be close to 1.0; for example, 1.005 makes the
-data rate 0.5 percent faster, while 0.995 makes it 0.5% slower.
+data rate 0.5% faster, while 0.995 makes it 0.5% slower.
 Making the data rate 1% faster has a similar effect to running the
-drive motor %1 slower: more data fits on the track.  Of course if the
+drive motor 1% slower: more data fits on the track.  Of course if the
 data rate is adjusted to be too far off from the standard value, the
 resulting disk may not be readable.
 .TP
