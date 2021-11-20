@@ -184,6 +184,7 @@ msg(int level, const char *fmt, ...)
     va_start(args, fmt);
     vfprintf(out_file, fmt, args);
     va_end(args);
+    fflush(out_file);
   }
 }
 
