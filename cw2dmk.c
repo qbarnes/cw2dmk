@@ -1507,6 +1507,7 @@ menu(int failing)
     char inc;
     int  rnum;
     int  ret;
+    int  ch;
 
     printf("\nWould you like to (c)ontinue, (q)uit, "
       "%schange # of (r)etries%s:\n",
@@ -1517,7 +1518,7 @@ menu(int failing)
 
     ret = scanf(" %c", &inc);
     if (ret != 1)
-      continue;
+      break;
     switch(inc) {
     case 'c':
       return MENU_NOCHANGE;
@@ -1529,7 +1530,7 @@ menu(int failing)
       do {
 	printf("New retry limit? ");
 	fflush(stdout);
-	ret = scanf(" %d", &rnum);
+	ret = scanf(" %d%*c", &rnum);
 	if (ret == 1 && rnum >= 0) {
 	  for (int i = 0; i < COUNT_OF(retries); ++i)
 	    retries[i] = rnum;
@@ -1537,13 +1538,15 @@ menu(int failing)
 	  return MENU_NEWRETRIES;
 	}
 	printf("Invalid number.\n");
-      } while (1);
+	while ((ch = getchar()) != '\n' && ch != EOF);
+      } while (ch != EOF);
       break;
     default:
       printf("Input character '%c' unrecognized.\n", inc);
       break;
     }
-  } while (1);
+  } while (!feof(stdin) && !ferror(stdin));
+  return MENU_QUIT;
 }
 
 
