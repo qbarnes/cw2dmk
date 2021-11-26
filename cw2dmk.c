@@ -99,7 +99,7 @@ int kind = -1;
 int maxsize = 3;  /* 177x/179x look at only low-order 2 bits */
 unsigned long long accum, taccum;
 int bits;
-int ibyte, dbyte;
+int ibyte, dbyte, ebyte;
 int cwclock = -1;
 int fmthresh = -1;
 int mfmthresh1 = -1;
@@ -134,6 +134,14 @@ int menu_err_enabled = 0;
 volatile int menu_intr_enabled = 0;
 volatile int menu_requested = 0;
 
+unsigned quirk;
+#define QUIRK_ID_CRC    0x01
+#define QUIRK_DATA_CRC  0x02
+#define QUIRK_PREMARK   0x04
+#define QUIRK_EXTRA     0x08
+#define QUIRK_EXTRA_CRC 0x10
+#define QUIRK_ALL       0x1f
+
 char* plu(int val)
 {
   return (val == 1) ? "" : "s";
@@ -166,7 +174,7 @@ int cylseen = -1;
 int prevcylseen;
 
 /* Log a message. */
-void 
+void
 msg(int level, const char *fmt, ...)
 {
   va_list args;
@@ -211,7 +219,7 @@ dmk_in_range(void)
     return 0;
   }
   /* Stop at leading edge of last index unless in sector data. */
-  if (hole && index_edge >= 3 && dbyte == -1) {
+  if (hole && index_edge >= 3 && dbyte == -1 && ebyte == -1) {
     msg(OUT_HEX, "[index edge %d] ", index_edge);
     dmk_full = 1;
     return 0;
@@ -430,7 +438,7 @@ check_missing_dam(void)
 
   dmk_awaiting_dam = 0;
   dmk_valid_id = 0;
-  dbyte = ibyte = -1;
+  dbyte = ibyte = ebyte = -1;
   errcount++;
   if (accum_sectors)
     dmk_idam_p[-1] |= DMK_EXTRA_FLAG;
@@ -494,7 +502,7 @@ dmk_get_phys_sector(unsigned char *track, int n)
 }
 
 // Get length of sector N in rotational order
-int 
+int
 dmk_get_phys_sector_len(unsigned char *track, int n, int tracklen)
 {
   unsigned char* s0 = dmk_get_phys_sector(track, n);
@@ -602,7 +610,7 @@ dmk_merge_sectors(void)
 	   prev++) {
 	int seclen = dmk_get_phys_sector_len(dmk_merged_track, prev,
 					     dmk_merged_track_len);
-	if (dmk_get_sector_num(prev_sec) != secnum) 
+	if (dmk_get_sector_num(prev_sec) != secnum)
 	  continue;
 
 	// Ignore previous sector if it had an error
@@ -757,7 +765,7 @@ init_decoder(void)
   accum = 0;
   taccum = 0;
   bits = 0;
-  ibyte = dbyte = -1;
+  ibyte = dbyte = ebyte = -1;
   premark = 0;
   mark_after = -1;
   curenc = first_encoding;
@@ -811,7 +819,7 @@ process_bit(int bit)
   accum = (accum << 1) + bit;
   taccum = (taccum << 1) + bit;
   bits++;
-  if (mark_after >= 0) mark_after--;
+  if (mark_after > 0) mark_after--;
   if (write_splice > 0) write_splice--;
 
   /*
@@ -839,7 +847,8 @@ process_bit(int bit)
    * inside a region that can contain standard MFM data.
    */
   if (uencoding != MFM && bits >= 36 && !write_splice &&
-      (curenc != MFM || (ibyte == -1 && dbyte == -1 && mark_after == -1))) {
+      (curenc != MFM || (ibyte == -1 && dbyte == -1 && ebyte == -1 &&
+                         mark_after == -1))) {
     switch (accum & 0xfffffffffULL) {
     case 0x8aa2a2a88ULL:  /* 0xfc / 0xd7: Index address mark */
     case 0x8aa222aa8ULL:  /* 0xfe / 0xc7: ID address mark */
@@ -888,6 +897,12 @@ process_bit(int bit)
       mark_after = bits;
       break;
 
+    case 0x448944a9:
+      /* Quirky pre-address mark, 0xa1a1 with missing clock in only the
+         first 0xa1. */
+      if ((quirk & QUIRK_PREMARK) == 0) break;
+      /* fall thru */
+
     case 0x44894489:
       /* Pre-address mark, 0xa1a1 with missing clock between bits 4 & 5
 	 (using 0-origin big-endian counting!).  Would be 0x44a944a9
@@ -903,20 +918,31 @@ process_bit(int bit)
       break;
 
     case 0x55555555:
-      if (curenc == MFM && mark_after < 0 &&
-	  ibyte == -1 && dbyte == -1 && !(bits & 1)) {
-	/* ff ff in gap.  This should probably be 00 00, so drop 1/2 bit */
-	msg(OUT_HEX, "(-1)");
+      if ((quirk & QUIRK_EXTRA) == 0 && curenc == MFM && mark_after < 0 &&
+	  ibyte == -1 && dbyte == -1 && ebyte == -1 && !(bits & 1)) {
+	/* ff ff in gap.  This should probably be 00 00, so drop 1/2
+           bit to bit-align.  This heuristic is harmful if the disk
+           format has meaningful extra bytes in a gap following the
+           data CRC and prior to the write splice, so suppress it if
+           QUIRK_EXTRA is set.  We'll still bit-align when the premark
+           shows up, and if dmk2cw is used to write the disk back
+           later, it will force the bytes preceding the premark to be
+           00 then.  The DMK file just won't look as nice. */
+        msg(OUT_HEX, "(-1)");
 	bits--;
       }
       break;
 
     case 0x92549254:
-      if (mark_after < 0 && ibyte == -1 && dbyte == -1) {
-	/* 4e 4e in gap.  This should probably be byte-aligned */
+      if ((quirk & QUIRK_EXTRA) == 0 &&
+          mark_after < 0 && ibyte == -1 && dbyte == -1 && ebyte == -1) {
+	/* 4e 4e in gap.  This should probably be byte-aligned, so do
+           so by dropping bits.  This heuristic needs to be suppressed
+           by QUIRK_EXTRA too, as the extra bytes could theoretically
+           contain valid data that looks like 4e 4e when read with
+           wrong alignment. */
 	change_enc(MFM);
 	if (bits < 64 && bits > 48) {
-	  /* Byte-align by dropping bits */
 	  msg(OUT_HEX, "(-%d)", bits-48);
 	  bits = 48;
 	}
@@ -954,7 +980,7 @@ process_bit(int bit)
 #if 0 /* Bad idea: fires way too often in FM gaps. */
 	/* Check if it looks more like MFM */
 	if (uencoding != FM && uencoding != RX02 &&
-	    ibyte == -1 && dbyte == -1 && !write_splice &&
+	    ibyte == -1 && dbyte == -1 && ebyte == -1 && !write_splice &&
 	    (accum & 0xaaaaaaaa00000000ULL) &&
 	    (accum & 0x5555555500000000ULL)) {
 	  for (i = 1; i <= 2; i++) {
@@ -965,7 +991,7 @@ process_bit(int bit)
 	      return;
 	    }
 	  }
-	}	    
+	}
 #endif
 	/* Note bad clock pattern */
 	msg(OUT_HEX, "?");
@@ -1000,6 +1026,7 @@ process_bit(int bit)
       dmk_iam(0xfc, curenc);
       ibyte = -1;
       dbyte = -1;
+      ebyte = -1;
       return;
 
     case 0xfe:
@@ -1009,8 +1036,12 @@ process_bit(int bit)
       check_missing_dam();
       msg(OUT_IDS, "\n#fe ");
       dmk_idam(0xfe, curenc);
-      crc = calc_crc1((curenc == MFM) ? 0xcdb4 : 0xffff, val);
+      /* For normal MFM, premark a1a1a1 is included in the ID CRC.
+       * With QUIRK_ID_CRC, it is omitted. */
+      crc = calc_crc1((curenc == MFM && (quirk & QUIRK_ID_CRC) == 0) ?
+                      0xcdb4 : 0xffff, val);
       dbyte = -1;
+      ebyte = -1;
       return;
 
     case 0xf8: /* Standard deleted data address mark */
@@ -1035,10 +1066,13 @@ process_bit(int bit)
 			    uencoding == RX02)))) {
 	change_enc(RX02);
       }
-      /* For MFM, premark a1a1a1 is included in the CRC */
-      crc = calc_crc1((curenc == MFM) ? 0xcdb4 : 0xffff, val);
+      /* For MFM, premark a1a1a1 is included in the data CRC.
+       * With QUIRK_DATA_CRC, it is omitted. */
+      crc = calc_crc1((curenc == MFM && (quirk & QUIRK_DATA_CRC) == 0) ?
+                      0xcdb4 : 0xffff, val);
       ibyte = -1;
       dbyte = secsize(sizecode, curenc) + 2;
+      ebyte = -1;
       return;
 
     case 0x80: /* MFM DAM or IDAM premark read backward */
@@ -1049,8 +1083,9 @@ process_bit(int bit)
 
     default:
       /* Premark with no mark */
-      //msg(OUT_ERRORS, "[dangling premark] ");
-      //errcount++;
+      msg(OUT_ERRORS, "[dangling premark] ");
+      dmk_data(val, curenc);
+      // probably wraparound or write splice, so don't inc errcount
       break;
     }
   }
@@ -1112,6 +1147,7 @@ process_bit(int bit)
 
   if (ibyte >= 0) ibyte++;
   if (dbyte > 0) dbyte--;
+  if (ebyte > 0) ebyte--;
   crc = calc_crc1(crc, val);
 
   if (dbyte == 0) {
@@ -1142,6 +1178,22 @@ process_bit(int bit)
     if (curenc == RX02) {
       change_enc(FM);
     }
+    if (quirk & QUIRK_EXTRA_CRC) {
+      ebyte = 6;
+      crc = 0xffff;
+    }
+  }
+
+  if (ebyte == 0) {
+    if (crc == 0) {
+      msg(OUT_IDS, "[good extra CRC] ");
+    } else {
+      msg(OUT_ERRORS, "[bad extra CRC] ");
+      errcount++;
+    }
+    msg(OUT_HEX, "\n");
+    ebyte = -1;
+    write_splice = WRITE_SPLICE;
   }
 
   /* Predetect bad MFM clock pattern.  Can't detect at decode time
@@ -1189,7 +1241,7 @@ process_sample(int sample)
       /* Long */
       len = 4;
     }
-    
+
   }
   adj = (sample - (len/2.0 * mfmshort * cwclock)) * postcomp;
 
@@ -1310,7 +1362,7 @@ do_histogram(int drive, int track, int side, int histogram[128],
     peak = -1.0;
   } else {
     /* again not sure of +1.0 */
-    peak = ((float) psampsw) / psamps + 1.0; 
+    peak = ((float) psampsw) / psamps + 1.0;
   }
 
   *total_cycles = tc;
@@ -1373,7 +1425,7 @@ detect_kind(int drive)
       /* Data rate 500 kHz */
       kind = 3;
     }
-  }    
+  }
 
   if (kind == -1) {
     fprintf(stderr, "cw2dmk: Failed to detect drive and media type\n");
@@ -1480,6 +1532,13 @@ void usage(void)
   printf(" -z maxsize    Allow sector sizes up to 128<<maxsize [%d]\n",
 	 maxsize);
   printf(" -r reverse    0 = normal, 1 = reverse sides [%d]\n", reverse);
+  printf(" -q quirk      Bitmap of support for some format quirks\n");
+  printf("               0x01 = ID CRCs omit a1 a1 a1 premark\n");
+  printf("               0x02 = Data CRCs omit a1 a1 a1 premark\n");
+  printf("               0x04 = Third a1 a1 a1 premark isn't missing clock\n");
+  printf("               0x08 = Extra bytes (data only) after data CRC\n");
+  printf("               0x10 = Extra bytes (4 data + 2 CRC) after data CRC\n");
+
   printf("\n Fine-tuning options; effective only after the -k option\n");
   printf(" -c clock      Catweasel clock multipler [%d]\n", cwclock);
   printf(" -1 threshold  MFM threshold for short vs. medium [%d]\n",
@@ -1638,7 +1697,7 @@ main(int argc, char** argv)
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:c:1:2:f:l:jM:C:");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1720,6 +1779,10 @@ main(int argc, char** argv)
     case 'r':
       reverse = strtol(optarg, NULL, 0);
       if (reverse < 0 || reverse > 1) usage();
+      break;
+    case 'q':
+      quirk = strtol(optarg, NULL, 0);
+      if (quirk & ~QUIRK_ALL) usage();
       break;
     case 'c':
       cwclock = strtol(optarg, NULL, 0);
@@ -1944,7 +2007,7 @@ main(int argc, char** argv)
        * instead.  Read an extra 10% in case of sectors wrapping past
        * the hole.
        */
-      readtime = 1.1 * kinds[kind-1].readtime;    
+      readtime = 1.1 * kinds[kind-1].readtime;
     }
   } else {
     /* Read for 2 revolutions */
@@ -1972,7 +2035,7 @@ main(int argc, char** argv)
   /* Set DMK parameters */
   memset(&dmk_header, 0, sizeof(dmk_header));
   dmk_header.ntracks = tracks;
-  dmk_header.tracklen = dmktracklen; 
+  dmk_header.tracklen = dmktracklen;
   dmk_header.options = ((sides == 1) ? DMK_SSIDE_OPT : 0) +
 		       ((fmtimes == 1) ? DMK_SDEN_OPT : 0) +
 		       ((uencoding == RX02) ? DMK_RX02_OPT : 0);
@@ -2071,7 +2134,7 @@ main(int argc, char** argv)
 #endif
 	  /*
 	   * Index hole edge check.
-	   */ 
+	   */
 	  if ((oldb ^ b) & 0x80) {
 	    index_edge++;
 	    msg(OUT_HEX, (b & 0x80) ? "{" : "}");
@@ -2109,8 +2172,12 @@ main(int argc, char** argv)
 	  errcount++;
 	  msg(OUT_ERRORS, "[incomplete sector data] ");
 	}
+        if (ebyte != -1) {
+	  errcount++;
+	  msg(OUT_ERRORS, "[incomplete extra data] ");
+        }
 	msg(OUT_IDS, "\n");
-	if (track == 0 && side == 1 && good_sectors == 0 && 
+	if (track == 0 && side == 1 && good_sectors == 0 &&
 	    backward_am >= 9 && backward_am > errcount) {
 	  msg(OUT_ERRORS, "[possibly a flippy disk] ");
 	  flippy = 1;
@@ -2157,7 +2224,7 @@ main(int argc, char** argv)
 	      steps = 1;
 	      if (guess_tracks) tracks = TRACKS_GUESS / steps;
 	      goto restart;
-	    }	      
+	    }
 	  }
 	}
 	if (guess_tracks && (track == 35 || track >= 40) &&
@@ -2185,7 +2252,7 @@ main(int argc, char** argv)
 	  #endif
 
 	  dmk_merge_sectors();
-	} 
+	}
 
 	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0) &&
 		  (retry < retries[track]);
