@@ -93,7 +93,7 @@ Print "(-N)" or "(+N)"
 where the decoder dropped or duplicated N clock/data bits in an attempt to
 resynchronize itself with the data bit and byte boundaries.
 Print a "?" before any byte where a
-clock was unexpectedly missing or unexpectedly present even after the
+clock was missing or unexpectedly present even after the
 resynchronization heuristics were applied.
 .TP
 6
@@ -430,6 +430,37 @@ disk twice, once with -s1 -r0 and once with -s1 -r1, gives you a
 separate 1-sided DMK image of each side of the disk.  (Note: this
 option is not useful for reading the back of a flippy disk; see the
 -h0 option.)
+.TP
+.B \-q \fIquirk\fP
+Enable support for various format quirks.  To enable multiple quirks,
+add the values together.  The value can be given either in hex with a
+0x prefix or in decimal.  For example, -q17 enables quirks 1 and 16.
+.RS
+.TP
+0x01 (1)
+The ID CRCs are calculated without including the a1 a1 a1 premark bytes.
+.TP
+0x02 (2)
+The data CRCs are calculated without including the a1 a1 a1 premark bytes.
+.TP
+0x04 (4)
+In the a1 a1 a1 premark, possibly only the first two bytes have a missing clock.
+.TP
+0x08 (8)
+Immediately following the CRC of each data sector, there are an
+unspecified number of extra, meaningful data bytes.  This quirk
+suppresses resynchronizing the decoder when what appears to be an
+unsynchronized MFM 4e 4e or 00 00 sequence appears in the gap
+following a data sector, as doing that could damage the extra bytes.
+.TP
+0x10 (16)
+Immediately following the CRC of each data sector, there are four
+extra, meaningful data bytes followed by two extra CRC bytes that
+cover the four extra data bytes.  The extra CRC is checked and the
+track read retried if it is invalid.  Unlike with quirk 0x08, the
+decoder is allowed to resynchronize to MFM 4e 4e or 00 00 sequences in
+the gap after the extra CRC.
+.RE
 .P
 The next few options modify individual
 parameters that are normally set correctly by the -k option (or by
