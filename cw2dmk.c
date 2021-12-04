@@ -1190,6 +1190,11 @@ process_bit(int bit)
     } else {
       msg(OUT_ERRORS, "[bad extra CRC] ");
       errcount++;
+      if (accum_sectors) {
+	if (dmk_idam_p[-1] & DMK_EXTRA_FLAG)
+	  errcount--;
+	dmk_idam_p[-1] |= DMK_EXTRA_FLAG;
+      }
     }
     msg(OUT_HEX, "\n");
     ebyte = -1;
