@@ -435,31 +435,44 @@ option is not useful for reading the back of a flippy disk; see the
 Enable support for various format quirks.  To enable multiple quirks,
 add the values together.  The value can be given either in hex with a
 0x prefix or in decimal.  For example, -q17 enables quirks 1 and 16.
+So far these quirks have been seen only on UDOS disks; see Limitations.
 .RS
 .TP
-0x01 (1)
+0x01 (1) QUIRK_ID_CRC
 The ID CRCs are calculated without including the a1 a1 a1 premark bytes.
+If this quirk is needed but not enabled (or enabled when not needed!),
+cw2dmk will detect an ID CRC error on every sector.
 .TP
-0x02 (2)
+0x02 (2) QUIRK_DATA_CRC
 The data CRCs are calculated without including the a1 a1 a1 premark bytes.
+If this quirk is needed but not enabled (or enabled when not needed!),
+cw2dmk will detect a data CRC error on every sector.
 .TP
-0x04 (4)
-In the a1 a1 a1 premark, possibly only the first two bytes have a missing clock.
+0x04 (4) QUIRK_PREMARK
+In the a1 a1 a1 premark, possibly only the first two bytes have a
+missing clock.  If this quirk is needed but not enabled, cw2dmk will
+fail to detect some ID address marks and/or data address marks.  If
+this quirk is enabled when not needed, there is a very small chance it
+could lead to a problem where an address mark is falsely detected and
+cw2dmk reports it as an error.
 .TP
-0x08 (8)
-Immediately following the CRC of each data sector, there are an
-unspecified number of extra, meaningful data bytes.  This quirk
-suppresses resynchronizing the decoder when what appears to be an
-unsynchronized MFM 4e 4e or 00 00 sequence appears in the gap
-following a data sector, as doing that could damage the extra bytes.
+0x08 (8) QUIRK_EXTRA
+Immediately following the CRC of each data sector, there are some
+extra, meaningful data bytes.  This quirk prevents the extra
+bytes from being damaged, by forbidding the decoder from resynchronizing
+to apparent MFM 4e 4e or 00 00 byte sequences as expected in the
+gap.  As a result, the decoder generally will not resynchronize until
+the a1 a1 a1 sequence preceding the next ID address mark, so the gap
+bytes preceding it that should be 4e 4e... 00 00... are likely to be
+decoded incorrectly.
 .TP
-0x10 (16)
+0x10 (16) QUIRK_EXTRA_CRC
 Immediately following the CRC of each data sector, there are four
-extra, meaningful data bytes followed by two extra CRC bytes that
+extra, meaningful data bytes, followed by two extra CRC bytes that
 cover the four extra data bytes.  The extra CRC is checked and the
-track read retried if it is invalid.  Unlike with quirk 0x08, the
-decoder is allowed to resynchronize to MFM 4e 4e or 00 00 sequences in
-the gap after the extra CRC.
+track read is retried if the CRC is invalid.  Unlike with quirk 0x08,
+the decoder is allowed to resynchronize to apparent MFM 4e 4e or 00 00
+byte sequences following the extra CRC.
 .RE
 .P
 The next few options modify individual
@@ -553,6 +566,25 @@ a standard floppy drive, give the -h0 option to ignore the index hole
 position, the -k1 or -k2 option as needed to specify the kind of drive
 and media in use, and the -l 0x1A40 option to increase the DMK track
 length.  
+
+Various East German computers that used floppy disk controllers built
+from discrete logic and that ran variants of the UDOS operating system
+produce disks with nonstandard formats.  See
+https://www.robotrontechnik.de/html/software/udos.htm.  To read these
+disks, use cw2dmk's quirk support (-q option).  UDOS disks generally
+have four extra bytes of meaningful data following the data CRC,
+sometimes followed by a two-byte CRC covering only the extra bytes, so
+they require QUIRK_EXTRA or QUIRK_EXTRA_CRC to ensure the extra bytes
+are read correctly.  Some of the variants also have other nonstandard
+features that require QUIRK_PREMARK and/or QUIRK_ID_CRC.  The
+following information is based on a small sample of the disks, and
+does not cover all UDOS variants: UDOS PRG v4 disks need -q0x0d
+(QUIRK_ID_CRC, QUIRK_PREMARK, QUIRK_EXTRA).  UDOS 1526 v4 needs only
+-q0x08 (QUIRK_EXTRA).  UDOS 1526 v5 needs -q0x0c (QUIRK_PREMARK,
+QUIRK_EXTRA).  If you have a version of UDOS where the extra CRC is
+always present, it is preferable to use QUIRK_EXTRA_CRC instead of
+QUIRK_EXTRA, so that cw2dmk will check the extra CRC and retry if it
+shows an error.
 .SH Diagnostics
 .TP 
 .B cw2dmk: Must be setuid to root or be run as root
