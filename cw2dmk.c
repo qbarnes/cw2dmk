@@ -819,7 +819,7 @@ process_bit(int bit)
   accum = (accum << 1) + bit;
   taccum = (taccum << 1) + bit;
   bits++;
-  if (mark_after > 0) mark_after--;
+  if (mark_after >= 0) mark_after--;
   if (write_splice > 0) write_splice--;
 
   /*
