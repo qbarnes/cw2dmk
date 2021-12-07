@@ -1,3 +1,19 @@
+4.8.0 -- Tue Dec  7 20:52:50 UTC 2021 -- Quentin Barnes
+
+* This release is virtually all of Tim Mann's work, and most of
+  those changes are for adding UDOS support.
+
+* Add -q (quirk) option for extending cw2dmk to better support of
+  reading UDOS formatted disks.  UDOS disks may have a modified
+  ID premark and after each data sector may include an extra 4 data
+  bytes and a possible 2 bytes of CRC.  For details, see the cw2dmk
+  man page's description of the -q option.
+
+  The new -q option hasn't been tested with the -j option.  Bugs
+  may show up.  If found, please report them.
+
+* Add -a rate_adj and -e dither options to dmk2cw.
+
 4.7.1 -- Wed Oct 20 20:00:21 UTC 2021 -- Quentin Barnes
 
 * Add feature to "-x" option to allow per-track retry counts.
