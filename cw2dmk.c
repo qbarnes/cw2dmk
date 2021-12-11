@@ -192,7 +192,6 @@ msg(int level, const char *fmt, ...)
     va_start(args, fmt);
     vfprintf(out_file, fmt, args);
     va_end(args);
-    fflush(out_file);
   }
 }
 
@@ -2294,6 +2293,7 @@ main(int argc, char** argv)
 
       total_retries += retry;
       fflush(stdout);
+      if (out_file) fflush(out_file);
       if (accum_sectors) {
 	short *idam_p = (short *)dmk_track;
 	int i;
