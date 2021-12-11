@@ -1,3 +1,8 @@
+4.8.1 -- Sat Dec 11 01:12:14 UTC 2021 -- Quentin Barnes
+
+* Correct a substantial performance regression when doing high
+  level writes to the log file.
+
 4.8.0 -- Tue Dec  7 20:52:50 UTC 2021 -- Quentin Barnes
 
 * This release is virtually all of Tim Mann's work, and most of
