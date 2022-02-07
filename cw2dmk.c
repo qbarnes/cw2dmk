@@ -160,6 +160,7 @@ int out_level = OUT_TSUMMARY;
 int out_file_level = OUT_QUIET;
 char *out_file_name;
 FILE* out_file;
+int flush_out_file = 1;
 
 /* DMK stuff */
 
@@ -1499,6 +1500,7 @@ void usage(void)
   printf("               7 = like 5, but with Catweasel samples too\n");
   printf("               21 = level 2 to logfile, 1 to screen, etc.\n");
   printf(" -u logfile    Log output to the give file [none]\n");
+  printf(" -Z            Suppress flushing of logfile\n");
   printf(" -M {i,e,d}    Menu control [d]\n");
   printf("               i = Interrupt (^C) invokes menu\n");
   printf("               e = Errors equals retries invokes menu\n");
@@ -1701,7 +1703,7 @@ main(int argc, char** argv)
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:Z");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1828,6 +1830,9 @@ main(int argc, char** argv)
       break;
     case 'C':
       check_compat_sides = strtol(optarg, NULL, 0);
+      break;
+    case 'Z':
+      flush_out_file = 0;
       break;
     default:
       usage();
@@ -2293,7 +2298,7 @@ main(int argc, char** argv)
 
       total_retries += retry;
       fflush(stdout);
-      if (out_file) fflush(out_file);
+      if (out_file && flush_out_file) fflush(out_file);
       if (accum_sectors) {
 	short *idam_p = (short *)dmk_track;
 	int i;

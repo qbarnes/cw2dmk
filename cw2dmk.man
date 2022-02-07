@@ -115,6 +115,13 @@ is formed by stripping any extension off the DMK file name and
 appending .log instead.  If you give the -u option with a one-digit -v
 option, the same output is logged to the file and to the screen.
 .TP
+.B \-Z
+With each new track, cw2dmk writes out to long-term storage any
+pending (buffered) file operations to logfile.  This helps prevent
+loss of log data on program crash or interruption.  However, this
+flushing can result in a slower overall operation especially with
+MS-DOS.  Using this option restores the old performance.
+.TP
 .B \-M {i,e,d}\fP
 Controls interactive menu mode.  Option-argument "i" enables
 the menu when the interrupt key is pressed, typically ^C.
