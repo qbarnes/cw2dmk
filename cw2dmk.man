@@ -435,7 +435,9 @@ option is not useful for reading the back of a flippy disk; see the
 Enable support for various format quirks.  To enable multiple quirks,
 add the values together.  The value can be given either in hex with a
 0x prefix or in decimal.  For example, -q17 enables quirks 1 and 16.
-So far these quirks have been seen only on UDOS disks; see Limitations.
+The three QUIRK_EXTRA* quirks are mutually exclusive; don't use two of
+them together.  So far these quirks have been observed only on UDOS
+and CZ-SDOS disks; see Limitations.
 .RS
 .TP
 0x01 (1) QUIRK_ID_CRC
@@ -473,6 +475,12 @@ cover the four extra data bytes.  The extra CRC is checked and the
 track read is retried if the CRC is invalid.  Unlike with quirk 0x08,
 the decoder is allowed to resynchronize to apparent MFM 4e 4e or 00 00
 byte sequences following the extra CRC.
+.TP
+0x20 (32) QUIRK_EXTRA_DATA
+Each sector has 4 more data bytes preceding the CRC than its size code
+indicates.  For example, if the size code indicates 128 bytes, there
+are actually 132 data bytes, followed by a standard 2-byte CRC that
+covers the data address mark and all 132 data bytes.
 .RE
 .P
 The next few options modify individual
@@ -572,17 +580,24 @@ from discrete logic and that ran variants of the UDOS operating system
 produce disks with nonstandard formats.  See
 https://www.robotrontechnik.de/html/software/udos.htm.  To read these
 disks, use cw2dmk's quirk support (-q option).  UDOS disks generally
-have four extra bytes of meaningful data following the data CRC,
-sometimes followed by a two-byte CRC covering only the extra bytes, so
-they require QUIRK_EXTRA or QUIRK_EXTRA_CRC to ensure the extra bytes
-are read correctly.  Some of the variants also have other nonstandard
-features that require QUIRK_PREMARK and/or QUIRK_ID_CRC.  The
-following information is based on a small sample of the disks, and
-does not cover all UDOS variants: UDOS PRG v4 disks need -q0x0d
-(QUIRK_ID_CRC, QUIRK_PREMARK, QUIRK_EXTRA).  UDOS 1526 v4 needs only
--q0x08 (QUIRK_EXTRA).  UDOS 1526 v5 needs -q0x0c (QUIRK_PREMARK,
-QUIRK_EXTRA).  If you have a version of UDOS where the extra CRC is
-always present, it is preferable to use QUIRK_EXTRA_CRC instead of
+have four extra bytes of meaningful data for each sector.  These bytes
+may either follow the data CRC and have no CRC covering them (use
+QUIRK_EXTRA to ensure the bytes are read correctly), follow the data
+CRC and have their own CRC covering them (use QUIRK_EXTRA_CRC to
+ensure the bytes are read correctly and their CRC is checked), or
+precede the data CRC and are included in the data CRC's coverage (use
+QUIRK_EXTRA_DATA to avoid a data CRC error on every sector).  Some of
+the variants also have other nonstandard features that require
+QUIRK_PREMARK and/or QUIRK_ID_CRC.
+
+The following information is based on a small sample of UDOS disks.
+It does not cover all UDOS variants and may not be fully accurate, so
+try other combinations of quirks if these don't work: UDOS PRG v4
+disks need -q0x0d (QUIRK_ID_CRC, QUIRK_PREMARK, QUIRK_EXTRA).  UDOS
+1526 v4 needs only -q0x08 (QUIRK_EXTRA).  UDOS 1526 v5 needs -q0x0c
+(QUIRK_PREMARK, QUIRK_EXTRA).  CZ-SDOS needs -q0x20
+(QUIRK_EXTRA_DATA).  Note: If you have a version of UDOS where
+QUIRK_EXTRA_CRC works, it is preferable to use it instead of
 QUIRK_EXTRA, so that cw2dmk will check the extra CRC and retry if it
 shows an error.
 .SH Diagnostics

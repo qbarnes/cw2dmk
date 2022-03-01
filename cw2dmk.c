@@ -135,12 +135,13 @@ volatile int menu_intr_enabled = 0;
 volatile int menu_requested = 0;
 
 unsigned quirk;
-#define QUIRK_ID_CRC    0x01
-#define QUIRK_DATA_CRC  0x02
-#define QUIRK_PREMARK   0x04
-#define QUIRK_EXTRA     0x08
-#define QUIRK_EXTRA_CRC 0x10
-#define QUIRK_ALL       0x1f
+#define QUIRK_ID_CRC     0x01
+#define QUIRK_DATA_CRC   0x02
+#define QUIRK_PREMARK    0x04
+#define QUIRK_EXTRA      0x08
+#define QUIRK_EXTRA_CRC  0x10
+#define QUIRK_EXTRA_DATA 0x20
+#define QUIRK_ALL        0x3f
 
 char* plu(int val)
 {
@@ -729,13 +730,16 @@ dmk_merge_sectors(void)
 int
 secsize(int sizecode, int encoding)
 {
+  int size;
+
   switch (encoding) {
   case MFM:
     /* 179x can only do sizes 128, 256, 512, 1024, and ignores
        higher-order bits.  If you need to read a 765-formatted disk
        with larger sectors, change maxsize with the -z
        command line option. */
-    return 128 << (sizecode % (maxsize + 1));
+    size = 128 << (sizecode % (maxsize + 1));
+    break;
 
   case FM:
   default:
@@ -746,15 +750,22 @@ secsize(int sizecode, int encoding)
        data bytes, only for checking the CRC.  */
     if (sizecode <= maxsize) {
       /* IBM */
-      return 128 << sizecode;
+      size = 128 << sizecode;
     } else {
       /* non-IBM */
-      return 16 * (sizecode ? sizecode : 256);
+      size = 16 * (sizecode ? sizecode : 256);
     }
+    break;
 
   case RX02:
-    return 256 << (sizecode % (maxsize + 1));
+    size = 256 << (sizecode % (maxsize + 1));
+    break;
   }
+
+  if (quirk & QUIRK_EXTRA_DATA) {
+    size += 4;
+  }
+  return size;
 }
 
 
@@ -1542,6 +1553,7 @@ void usage(void)
   printf("               0x04 = Third a1 a1 a1 premark isn't missing clock\n");
   printf("               0x08 = Extra bytes (data only) after data CRC\n");
   printf("               0x10 = Extra bytes (4 data + 2 CRC) after data CRC\n");
+  printf("               0x20 = 4 extra data bytes before data CRC\n");
 
   printf("\n Fine-tuning options; effective only after the -k option\n");
   printf(" -c clock      Catweasel clock multipler [%d]\n", cwclock);
@@ -1787,6 +1799,13 @@ main(int argc, char** argv)
     case 'q':
       quirk = strtol(optarg, NULL, 0);
       if (quirk & ~QUIRK_ALL) usage();
+      if (((quirk & QUIRK_EXTRA) != 0) +
+          ((quirk & QUIRK_EXTRA_CRC) != 0) +
+          ((quirk & QUIRK_EXTRA_DATA) != 0) > 1) {
+        printf("Quirks %#x, %#x, and %#x cannot be used together.\n",
+               QUIRK_EXTRA, QUIRK_EXTRA_CRC, QUIRK_EXTRA_DATA);
+        exit(1);
+      }
       break;
     case 'c':
       cwclock = strtol(optarg, NULL, 0);
