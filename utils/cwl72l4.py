@@ -20,15 +20,13 @@ def cw2dmk_log_filter(infile: typing.TextIO, outfile: typing.TextIO):
     of a level 5 or higher log making it appear as as if it were a
     level 4 log.  Write the result to 'outfile'.
     """
-    lines = infile.readlines()
-
     re1str  = r'([0-9]+[sml] )+'
     re1str += r'|(<[0-9a-f]+> )+'
     re1str += r'|\([+-][0-9]+\)'
     re1str += r'|\?'
     re1 = re.compile(re1str)
 
-    for line in lines:
+    for line in infile:
         # First, remove \r's at the end of the line.  The log might
         # have been generated on an OS with \r\n EOLs.  If the line
         # left after stripping a \r is more than just a \n, scan it
