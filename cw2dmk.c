@@ -2056,18 +2056,8 @@ main(int argc, char** argv)
 
     /* Set parameters for reading with or without an index hole. */
     if (hole) {
-      if (c.mk == 1) {
-        /* With CW MK1, use hardware hole-to-hole read */
-        readtime = 0;
-      } else {
-        /*
-         * With CW MK3, hardware hole-to-hole read can't be made to
-         * store the hole locations in the data stream.  Use timed read
-         * instead.  Read an extra 10% in case of sectors wrapping past
-         * the hole.
-         */
-        readtime = 1.1 * kinds[kind-1].readtime;
-      }
+      /* Use hardware hole-to-hole read */
+      readtime = 0;
     } else {
       /* Read for 2 revolutions */
       readtime = 2 * kinds[kind-1].readtime;
