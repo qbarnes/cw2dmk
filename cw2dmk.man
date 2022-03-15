@@ -115,6 +115,17 @@ is formed by stripping any extension off the DMK file name and
 appending .log instead.  If you give the -u option with a one-digit -v
 option, the same output is logged to the file and to the screen.
 .TP
+.B \-R \fIlogfile\fP
+Replay a level 7 verbosity logfile instead of reading a new disk
+from the Catweasel.  This option can be useful to retry decoding
+a disk using different command line options, without physically
+rereading the disk.  First capture a logfile at verbosity level 7
+using the -v and -u options.  Then run cw2dmk as many times
+as desired, using the -R option to replay the logfile, together
+with other command line options as desired.  The -k option is
+always required with -R, while the -m, -M, -d, -p, -a, -h,
+and -r options have no effect.
+.TP
 .B \-M {i,e,d}\fP
 Controls interactive menu mode.  Option-argument "i" enables
 the menu when the interrupt key is pressed, typically ^C.
@@ -281,6 +292,13 @@ through end of media, but disable retries for track 33.
 Leave default retries (4) for all tracks except set it to 15 for
 tracks 27 through 30 set and 80 for tracks 35 through end of media.
 .RE
+.TP
+.B \-X
+Force retry.  With this option, cw2dmk will perform all
+the retries called for by the -x option, even if the track was
+decoded with no detected errors.  This can be useful when
+gathering a verbosity level 7 log for later replay, when replaying
+such a log, or with -j if some tries don't detect that a sector even exists.
 .TP
 .B \-a \fIalternate\fP
 This option is used only when when reading a 40-track disk in an
