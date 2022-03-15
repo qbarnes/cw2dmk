@@ -82,9 +82,9 @@ manpages: $(TXT)
 
 catweasl.$O: catweasl.c cwfloppy.h firmware.h
 
-cw2dmk$E: cw2dmk.c catweasl.$O cwpci.$O crc.c  \
+cw2dmk$E: cw2dmk.c catweasl.$O cwpci.$O parselog.$O crc.c  \
     cwfloppy.h kind.h dmk.h version.h
-	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB) -lm
+	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O parselog.$O $(PCILIB) -lm
 
 dmk2cw$E: dmk2cw.c catweasl.$O cwpci.$O crc.c \
     cwfloppy.h kind.h dmk.h version.h
@@ -100,6 +100,9 @@ cwtsthst$E: testhist.c catweasl.$O cwpci.$O cwfloppy.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O $(PCILIB) -lm
 
 crc$E: crc.c
+	$(CC) $(CFLAGS) -DTEST -o $@ $<
+
+parselog$E: parselog.c
 	$(CC) $(CFLAGS) -DTEST -o $@ $<
 
 firmware.h: $(FIRMWARE)

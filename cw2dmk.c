@@ -46,6 +46,7 @@
 #include "kind.h"
 #include "cwpci.h"
 #include "version.h"
+#include "parselog.h"
 
 struct catweasel_contr c;
 
@@ -108,6 +109,7 @@ int dmktracklen = -1;
 float mfmshort = -1.0;
 float postcomp = 0.5;
 int check_compat_sides = 1;
+int force_retry = 0;
 unsigned short crc;
 int sizecode;
 unsigned char premark;
@@ -1509,7 +1511,8 @@ void usage(void)
   printf("               6 = like 4, but with raw data too\n");
   printf("               7 = like 5, but with Catweasel samples too\n");
   printf("               21 = level 2 to logfile, 1 to screen, etc.\n");
-  printf(" -u logfile    Log output to the give file [none]\n");
+  printf(" -u logfile    Log output to the given file [none]\n");
+  printf(" -R logfile    Replay a level 7 log instead of reading from disk\n");
   printf(" -M {i,e,d}    Menu control [d]\n");
   printf("               i = Interrupt (^C) invokes menu\n");
   printf("               e = Errors equals retries invokes menu\n");
@@ -1529,6 +1532,7 @@ void usage(void)
   printf(" -w fmtimes    Write FM bytes 1 or 2 times [%d]\n", fmtimes);
   printf("\n Special options for hard to read diskettes\n");
   printf(" -x retries    Number of retries on errors [%d]\n", RETRIES_DEFAULT);
+  printf(" -X            Retry even if no errors\n");
   printf(" -a alternate  Alternate even/odd tracks on retries with -m2 [%d]\n",
 	 alternate);
   printf("               0 = always even\n");
@@ -1703,9 +1707,11 @@ parse_retries(const char *nptr, int *rav)
 int
 main(int argc, char** argv)
 {
-  int ch, track, side, headpos, readtime, i;
+  int ch, track, side, headpos, readtime = 0, i;
   int guess_sides = 0, guess_steps = 0, guess_tracks = 0;
   int cw_mk = 1;
+  char *replay = NULL;
+  FILE *replay_file = NULL;
 
   for (int i = 0; i < COUNT_OF(retries); ++i)
     retries[i] = RETRIES_DEFAULT;
@@ -1713,7 +1719,7 @@ main(int argc, char** argv)
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:R:X");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1848,10 +1854,32 @@ main(int argc, char** argv)
     case 'C':
       check_compat_sides = strtol(optarg, NULL, 0);
       break;
+    case 'R':
+      replay = optarg;
+      break;
+    case 'X':
+      force_retry = 1;
+      break;
     default:
       usage();
       break;
     }
+  }
+
+  if (replay) {
+    if (kind == -1) {
+      fprintf(stderr, "cw2dmk: Replay mode requires -k option\n");
+      exit(1);
+    }
+    if (tracks == -1) {
+      tracks = 1000000;
+    }
+    steps = 1;
+    if (sides == -1) {
+      sides = 2;
+    }
+    menu_intr_enabled = 0;
+    menu_err_enabled = 0;
   }
 
   if (optind >= argc) {
@@ -1888,31 +1916,44 @@ main(int argc, char** argv)
     }
   }
 
+  if (!replay) {
 #if linux
-  if (geteuid() != 0) {
-    fprintf(stderr, "cw2dmk: Must be setuid to root or be run as root\n");
-    exit(1);
-  }
+    if (geteuid() != 0) {
+      fprintf(stderr, "cw2dmk: Must be setuid to root or be run as root\n");
+      exit(1);
+    }
 #endif
-  /* Detect PCI catweasel */
-  if (port < 10) {
-    port = pci_find_catweasel(port, &cw_mk);
-  }
+    /* Detect PCI catweasel */
+    if (port < 10) {
+      port = pci_find_catweasel(port, &cw_mk);
+    }
 
 #if linux
-  /* Get port access and drop other root privileges */
-  /* We avoid opening files and calling msg() before this point */
-  if ((cw_mk == 1 &&
-       ioperm(port == -1 ? MK1_DEFAULT_PORT : port, 8, 1) == -1) ||
-      (cw_mk >= 3 && iopl(3) == -1)) {
-    fprintf(stderr, "cw2dmk: No access to I/O ports\n");
-    exit(1);
+    /* Get port access and drop other root privileges */
+    /* We avoid opening files and calling msg() before this point */
+    if ((cw_mk == 1 &&
+         ioperm(port == -1 ? MK1_DEFAULT_PORT : port, 8, 1) == -1) ||
+        (cw_mk >= 3 && iopl(3) == -1)) {
+      fprintf(stderr, "cw2dmk: No access to I/O ports\n");
+      exit(1);
+    }
+#endif
   }
+#if linux
   if (setuid(getuid()) != 0) {
     fprintf(stderr, "cw2dmk: setuid failed: %s\n", strerror(errno));
     exit(1);
   }
 #endif
+
+  /* Open replay file if specified */
+  if (replay) {
+    replay_file = fopen(replay, "r");
+    if (replay_file == NULL) {
+      perror(replay);
+      exit(1);
+    }
+  }
 
   /* Open log file if needed */
   if (out_file_name) {
@@ -1931,59 +1972,105 @@ main(int argc, char** argv)
   }
   msg(OUT_ERRORS, "\n");
 
-  /* Finish detecting and initializating Catweasel */
-  if (port == -1) {
-    port = MK1_DEFAULT_PORT;
-    msg(OUT_SUMMARY, "Failed to detect Catweasel MK3/4 on PCI bus; "
-	"looking for MK1 on ISA bus at 0x%x\n", port);
-    fflush(stdout);
-  }
-  ch = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
-    && catweasel_memtest(&c);
-  if (ch) {
-    msg(OUT_SUMMARY, "Detected Catweasel MK%d at port 0x%x\n", cw_mk, port);
-    fflush(stdout);
-  } else {
-    fprintf(stderr, "cw2dmk: Failed to detect Catweasel at port 0x%x\n", port);
-    exit(1);
-  }
-  if (cw_mk == 1 && cwclock == 4) {
-    fprintf(stderr, "cw2dmk: Catweasel MK1 does not support 4x clock\n");
-    exit(1);
-  }
+  if (!replay) {
+    /* Finish detecting and initializing Catweasel */
+    if (port == -1) {
+      port = MK1_DEFAULT_PORT;
+      msg(OUT_SUMMARY, "Failed to detect Catweasel MK3/4 on PCI bus; "
+          "looking for MK1 on ISA bus at 0x%x\n", port);
+      fflush(stdout);
+    }
+    ch = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
+      && catweasel_memtest(&c);
+    if (ch) {
+      msg(OUT_SUMMARY, "Detected Catweasel MK%d at port 0x%x\n", cw_mk, port);
+      fflush(stdout);
+    } else {
+      fprintf(stderr, "cw2dmk: Failed to detect Catweasel at port 0x%x\n",
+              port);
+      exit(1);
+    }
+    if (cw_mk == 1 && cwclock == 4) {
+      fprintf(stderr, "cw2dmk: Catweasel MK1 does not support 4x clock\n");
+      exit(1);
+    }
 
-  if (atexit(cleanup)) {
-    fprintf(stderr, "cw2dmk: Can't establish atexit() call.\n");
-    exit(1);
-  }
+    if (atexit(cleanup)) {
+      fprintf(stderr, "cw2dmk: Can't establish atexit() call.\n");
+      exit(1);
+    }
 
-  /* Detect drive */
-  if (drive == -1) {
-    for (drive = 0; drive < 2; drive++) {
+    /* Detect drive */
+    if (drive == -1) {
+      for (drive = 0; drive < 2; drive++) {
+        msg(OUT_SUMMARY, "Looking for drive %d...", drive);
+        fflush(stdout);
+        catweasel_detect_drive(&c.drives[drive]);
+        if (c.drives[drive].type == 1) {
+          msg(OUT_SUMMARY, "detected\n");
+          break;
+        } else {
+          msg(OUT_SUMMARY, "not detected\n");
+        }
+      }
+      if (drive == 2) {
+        fprintf(stderr, "cw2dmk: Failed to detect any drives\n");
+        exit(1);
+      }
+    } else {
       msg(OUT_SUMMARY, "Looking for drive %d...", drive);
       fflush(stdout);
       catweasel_detect_drive(&c.drives[drive]);
       if (c.drives[drive].type == 1) {
-	msg(OUT_SUMMARY, "detected\n");
-	break;
+        msg(OUT_SUMMARY, "detected\n");
       } else {
-	msg(OUT_SUMMARY, "not detected\n");
+        msg(OUT_SUMMARY, "not detected\n");
+        fprintf(stderr, "cw2dmk: Drive %d not detected; proceeding anyway\n",
+                drive);
       }
     }
-    if (drive == 2) {
-      fprintf(stderr, "cw2dmk: Failed to detect any drives\n");
-      exit(1);
+
+    /* Select drive, start motor, wait for spinup */
+    catweasel_select(&c, !drive, drive);
+    catweasel_set_motor(&c.drives[drive], 1);
+    catweasel_usleep(500000);
+
+    /* Guess various parameters if not supplied */
+    if (kind == -1) detect_kind(drive);
+    if (sides == -1) {
+      sides = detect_sides(drive);
+      guess_sides = 1; /* still allow this guess to be changed */
     }
-  } else {
-    msg(OUT_SUMMARY, "Looking for drive %d...", drive);
-    fflush(stdout);
-    catweasel_detect_drive(&c.drives[drive]);
-    if (c.drives[drive].type == 1) {
-      msg(OUT_SUMMARY, "detected\n");
+    if (steps == -1) {
+      if (kind == 1) {
+        steps = 2;
+      } else {
+        steps = 1;
+      }
+      guess_steps = 1;
+    }
+    if (tracks == -1) {
+      tracks = TRACKS_GUESS / steps;
+      guess_tracks = 1;
+    }
+
+    /* Set parameters for reading with or without an index hole. */
+    if (hole) {
+      if (c.mk == 1) {
+        /* With CW MK1, use hardware hole-to-hole read */
+        readtime = 0;
+      } else {
+        /*
+         * With CW MK3, hardware hole-to-hole read can't be made to
+         * store the hole locations in the data stream.  Use timed read
+         * instead.  Read an extra 10% in case of sectors wrapping past
+         * the hole.
+         */
+        readtime = 1.1 * kinds[kind-1].readtime;
+      }
     } else {
-      msg(OUT_SUMMARY, "not detected\n");
-      fprintf(stderr, "cw2dmk: Drive %d not detected; proceeding anyway\n",
-	      drive);
+      /* Read for 2 revolutions */
+      readtime = 2 * kinds[kind-1].readtime;
     }
   }
 
@@ -1992,49 +2079,6 @@ main(int argc, char** argv)
   if (dmk_file == NULL) {
     perror(argv[optind]);
     exit(1);
-  }
-
-  /* Select drive, start motor, wait for spinup */
-  catweasel_select(&c, !drive, drive);
-  catweasel_set_motor(&c.drives[drive], 1);
-  catweasel_usleep(500000);
-
-  /* Guess various parameters if not supplied */
-  if (kind == -1) detect_kind(drive);
-  if (sides == -1) {
-    sides = detect_sides(drive);
-    guess_sides = 1; /* still allow this guess to be changed */
-  }
-  if (steps == -1) {
-    if (kind == 1) {
-      steps = 2;
-    } else {
-      steps = 1;
-    }
-    guess_steps = 1;
-  }
-  if (tracks == -1) {
-    tracks = TRACKS_GUESS / steps;
-    guess_tracks = 1;
-  }
-
-  /* Set parameters for reading with or without an index hole. */
-  if (hole) {
-    if (c.mk == 1) {
-      /* With CW MK1, use hardware hole-to-hole read */
-      readtime = 0;
-    } else {
-      /*
-       * With CW MK3, hardware hole-to-hole read can't be made to
-       * store the hole locations in the data stream.  Use timed read
-       * instead.  Read an extra 10% in case of sectors wrapping past
-       * the hole.
-       */
-      readtime = 1.1 * kinds[kind-1].readtime;
-    }
-  } else {
-    /* Read for 2 revolutions */
-    readtime = 2 * kinds[kind-1].readtime;
   }
 
  restart:
@@ -2082,7 +2126,7 @@ main(int argc, char** argv)
     /* Loop over sides */
     for (side=0; side<sides; side++) {
       int retry = 0;
-      int failing;
+      int failing = 0;
 
       if (accum_sectors) {
 	dmk_merged_track_len = 0;
@@ -2093,54 +2137,98 @@ main(int argc, char** argv)
 
       /* Loop over retries */
       do {
+       try_start:
+        if (replay) {
+          /* Get track to replay */
+          int rtrack, rside, rpass;
+          rtrack = parse_track(replay_file, &rside, &rpass);
+          if (rtrack == EOF) {
+            msg(OUT_ERRORS, "[end of replay data] ");
+            if (retry == 0) {
+              goto done;
+            } else {
+              break;
+            }
+          } else if ((track > 0 || side > 0) &&
+                     rtrack == 0 && rside == 0 && rpass == 1) {
+            msg(OUT_ERRORS, "[restart] ");
+            goto restart;
+          } else if (sides == 2 && track == 0 && side == 1 &&
+                     rtrack == 1 && rpass == 1) {
+            /* Capture has only one side. */
+            sides = 1;
+            dmk_header.options |= DMK_SSIDE_OPT;
+            msg(OUT_ERRORS, "[only one side] ");
+            goto track_done;
+          } else if (rtrack > track ||
+                     (rtrack == track && rside > side)) {
+            /* This is a later track; done with retries. */
+            break;
+          } else if (rtrack == track - 1 ||
+                     (rtrack == track && rside < side)) {
+            /* This is a retry of the previous track; not needed. */
+            msg(OUT_ERRORS, "[skipping unneeded retry] ");
+            parse_sample(replay_file); // discard a sample to skip track
+            goto try_start;
+          } else if (rtrack != track) {
+            fprintf(stderr,
+                    "cw2dmk: Unexpected replay, track %d, side %d, pass %d\n",
+                    rtrack, rside, rpass);
+            exit(1);
+          }
+        } else /* not replay */ {
+          /* Seek to correct track */
+          if ((steps == 2) && (retry > 0) && (alternate & 2)) {
+            headpos ^= 1;
+          }
+          catweasel_seek(&c.drives[drive], headpos);
+#if DEBUG5
+          if (c.mk == 1) {
+            catweasel_fillmem(&c, DEBUG5_BYTE);
+          }
+#endif
+          int cw_ret;
+          if (hole) {
+            /*
+             * Do read from index hole to index hole.
+             */
+            cw_ret = catweasel_read(&c.drives[drive], side ^ reverse, cwclock,
+                                    0, 0);
+          } else {
+            /*
+             * Do read.  Store index holes in the data stream; this
+             * helps detect wraparound and avoid duplicating data.
+             */
+            cw_ret = catweasel_read(&c.drives[drive], side ^ reverse, cwclock,
+                                    readtime, 1);
+          }
+          if (!cw_ret) {
+            fprintf(stderr, "cw2dmk: Read error\n");
+            exit(1);
+          }
+        }
+
 	msg(OUT_TSUMMARY, "Track %d, side %d, pass %d:",
 	    track, side, retry + 1);
 	fflush(stdout);
 
-	int b = 0, oldb;
 #if DEBUG3
 	int histogram[128], i;
 	for (i=0; i<128; i++) histogram[i] = 0;
 #endif
-	/* Seek to correct track */
-	if ((steps == 2) && (retry > 0) && (alternate & 2)) {
-	  headpos ^= 1;
-	}
-	catweasel_seek(&c.drives[drive], headpos);
 	dmk_init_track();
 	init_decoder();
-#if DEBUG5
-	if (c.mk == 1) {
-	  catweasel_fillmem(&c, DEBUG5_BYTE);
-	}
-#endif
-
-	int cw_ret;
-	if (hole) {
-	  /*
-	   * Do read from index hole to index hole.
-	   */
-	  cw_ret = catweasel_read(&c.drives[drive], side ^ reverse, cwclock,
-			      0, 0);
-	} else {
-	  /*
-	   * Do read.  Store index holes in the data stream; this
-	   * helps detect wraparound and avoid duplicating data.
-	   */
-	  cw_ret = catweasel_read(&c.drives[drive], side ^ reverse, cwclock,
-			      readtime, 1);
-	}
-
-	if (!cw_ret) {
-	  fprintf(stderr, "cw2dmk: Read error\n");
-	  exit(1);
-	}
 
 	/* Loop over samples */
-	oldb = 0;
+	int b = 0;
+	int oldb = 0;
 	index_edge = 0;
 	while (!dmk_full) {
-	  b = catweasel_get_byte(&c);
+          if (replay) {
+            b = parse_sample(replay_file);
+          } else {
+            b = catweasel_get_byte(&c);
+          }
 	  if (b == -1 || (b == 0x00 && oldb == 0x80)) {
 	    msg(OUT_HEX, "[end of data] ");
 	    break;
@@ -2277,8 +2365,9 @@ main(int argc, char** argv)
 	  dmk_merge_sectors();
 	}
 
-	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0) &&
-		  (retry < retries[track]);
+	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0 ||
+                   force_retry) &&
+          (retry < retries[track]);
 
 	// Generally just reporting on the latest read.
 	if (failing) {
@@ -2309,7 +2398,6 @@ main(int argc, char** argv)
 	  menu_requested = 0;
 	}
       } while (failing && ++retry);
-
       total_retries += retry;
       fflush(stdout);
       if (out_file) fflush(out_file);
@@ -2330,10 +2418,13 @@ main(int argc, char** argv)
       }
       dmk_write();
     }
+   track_done:;
   }
  done:
 
-  cleanup();
+  if (!replay) {
+    cleanup();
+  }
   if (total_enc_count[RX02] > 0 && uencoding != RX02) {
     // XXX What if disk had some 0xf9 DAM sectors misinterpreted as
     // WD1771 FM instead of RX02-MFM before we detected RX02?  Ugh.
@@ -2342,8 +2433,8 @@ main(int argc, char** argv)
     // suspect the 0xf9 DAM is never or almost never actually used on
     // RX02 disks.
     dmk_header.options |= DMK_RX02_OPT;
-    dmk_write_header();
   }
+  dmk_write_header(); // rewrite to pick up any detected changes
   msg(OUT_SUMMARY, "\nTotals:\n");
   msg(OUT_SUMMARY,
       "%d good track%s, %d good sector%s (%d FM + %d MFM + %d RX02)\n",
