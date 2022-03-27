@@ -1870,9 +1870,6 @@ main(int argc, char** argv)
       fprintf(stderr, "cw2dmk: Replay mode requires -k option\n");
       exit(1);
     }
-    if (tracks == -1) {
-      tracks = MAX_TRACKS;
-    }
     steps = 1;
     if (sides == -1) {
       sides = 2;
@@ -2034,7 +2031,7 @@ main(int argc, char** argv)
     catweasel_set_motor(&c.drives[drive], 1);
     catweasel_usleep(500000);
 
-    /* Guess various parameters if not supplied */
+    /* Guess or detect various parameters if not supplied */
     if (kind == -1) detect_kind(drive);
     if (sides == -1) {
       sides = detect_sides(drive);
@@ -2048,10 +2045,6 @@ main(int argc, char** argv)
       }
       guess_steps = 1;
     }
-    if (tracks == -1) {
-      tracks = TRACKS_GUESS / steps;
-      guess_tracks = 1;
-    }
 
     /* Set parameters for reading with or without an index hole. */
     if (hole) {
@@ -2061,6 +2054,12 @@ main(int argc, char** argv)
       /* Read for 2 revolutions */
       readtime = 2 * kinds[kind-1].readtime;
     }
+  }
+
+  /* Guess tracks if not supplied */
+  if (tracks == -1) {
+    tracks = TRACKS_GUESS / steps;
+    guess_tracks = 1;
   }
 
   /* Open output file */
@@ -2132,8 +2131,9 @@ main(int argc, char** argv)
           int rtrack, rside, rpass;
           rtrack = parse_track(replay_file, &rside, &rpass);
           if (rtrack == EOF) {
-            msg(OUT_ERRORS, "[end of replay data] ");
+            msg(OUT_ERRORS, "[end of replay data]\n");
             if (retry == 0) {
+              dmk_header.ntracks = track;
               goto done;
             } else {
               break;
@@ -2147,7 +2147,7 @@ main(int argc, char** argv)
             /* Capture has only one side. */
             sides = 1;
             dmk_header.options |= DMK_SSIDE_OPT;
-            msg(OUT_ERRORS, "[only one side] ");
+            msg(OUT_ERRORS, "[apparently single-sided]\n");
             goto track_done;
           } else if (rtrack > track ||
                      (rtrack == track && rside > side)) {
@@ -2156,7 +2156,7 @@ main(int argc, char** argv)
           } else if (rtrack == track - 1 ||
                      (rtrack == track && rside < side)) {
             /* This is a retry of the previous track; not needed. */
-            msg(OUT_ERRORS, "[skipping unneeded retry] ");
+            msg(OUT_ERRORS, "[skipping unneeded retry]\n");
             parse_sample(replay_file); // discard a sample to skip track
             goto try_start;
           } else if (rtrack != track) {
@@ -2300,9 +2300,10 @@ main(int argc, char** argv)
 	if (guess_sides && side == 1) {
 	  guess_sides = 0;
 	  if (good_sectors == 0) {
-	    msg(OUT_QUIET + 1, "[apparently single-sided; restarting]\n");
 	    sides = 1;
-	    goto restart;
+	    dmk_header.options |= DMK_SSIDE_OPT;
+	    msg(OUT_QUIET + 1, "[apparently single-sided]\n");
+	    goto track_done;
 	  }
 	}
 	if (guess_steps) {
@@ -2333,7 +2334,6 @@ main(int argc, char** argv)
 	     (side == 0 && track >= 80 && cylseen == track/2))) {
 	  msg(OUT_QUIET + 1, "[apparently only %d tracks; done]\n", track);
 	  dmk_header.ntracks = track;
-	  dmk_write_header();
 	  goto done;
 	}
 
