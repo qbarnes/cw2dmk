@@ -1871,7 +1871,7 @@ main(int argc, char** argv)
       exit(1);
     }
     if (tracks == -1) {
-      tracks = 1000000;
+      tracks = MAX_TRACKS;
     }
     steps = 1;
     if (sides == -1) {
