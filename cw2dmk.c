@@ -1539,8 +1539,7 @@ void usage(void)
   printf("               1 = always odd\n");
   printf("               2 = even, then odd\n");
   printf("               3 = odd, then even\n");
-  printf(" -j            Join sectors between retries (%s)\n",
-	 accum_sectors ? "on" : "off");
+  printf(" -j            Join sectors between retries\n");
   printf(" -o postcomp   Amount of read-postcompensation (0.0-1.0) [%.2f]\n",
 	 postcomp);
   printf(" -h hole       Track start: 1 = index hole, 0 = anywhere [%d]\n",
