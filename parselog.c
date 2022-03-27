@@ -20,6 +20,7 @@
 #include <stdio.h>
 
 static int unread_track = -1, unread_side, unread_pass;
+static int hibit;
 
 /*
  * XXX Currently parses only the physical track/side/pass messages and
@@ -33,13 +34,6 @@ static int unread_track = -1, unread_side, unread_pass;
  * Parse the command line for the Catweasel clock rate (-c), in
  * case the user specified that differently from the default for this
  * disk kind.
- *
- * Parse '{' and '}' in case the capture was with the index hole
- * sensor value in the high-order bit of each sample, and reconstitute
- * that info.  Also, there is a bug in cw2dmk logging where a 0x80
- * sample that is really an end of data marker gets logged as if it
- * were a 0-valued sample with index hole detected.  Should fix that,
- * but also can work around it here for captures from older logs.
  */
 
 /*
@@ -53,6 +47,8 @@ int
 parse_track(FILE *log_file, int *side, int *pass)
 {
   int ret, c;
+
+  hibit = 0;
 
   if (unread_track == -1) {
     for (;;) {
@@ -87,16 +83,18 @@ int
 parse_sample(FILE *log_file)
 {
   int ret, c, sample;
+  char junk[2];
+
   unread_track = -1;
 
   for (;;) {
     // Try to read a sample here.
-    ret = fscanf(log_file, " %d%*[sml]%*[ ]", &sample);
+    ret = fscanf(log_file, " %d%1[sml]%*[ ]", &sample, &junk[0]);
     if (ret == EOF) {
       return EOF;
     }
-    if (ret == 1) {
-      return sample;
+    if (ret == 2) {
+      return sample | hibit;
     }
 
     // No sample here; what is it?
@@ -128,9 +126,18 @@ parse_sample(FILE *log_file)
       } while (c != EOF && c != ']');
       break;
     case '{':
+      // Leading index edge; turn on high bit in upcoming sample(s).
+      /*
+       * Note: due to a bug in logging (XXX to be fixed later), this may
+       * also mean the next sample will be the end of track marker,
+       * which was originally 0x80 but logged as 0x00.  Either way,
+       * setting the high bit will reconstitute the original sample.
+       */
+      hibit = 0x80;
+      break;
     case '}':
-      // Index edge, or part of an incorrectly logged end of track marker.
-      // Just skip this byte for now; see comment at top of file.
+      // Trailing index edge; turn off high bit in upcoming sample(s).
+      hibit = 0;
       break;
     case '?':
       // Decoder saw missing/extra clock; skip.
@@ -150,7 +157,17 @@ int
 main(int argc, char **argv)
 {
   int track, side, pass, sample;
-  FILE *log_file = fopen(argv[1], "r");
+  FILE *log_file;
+
+  if (argc != 2) {
+    fprintf(stderr, "usage: %s logfile\n", argv[0]);
+    return 2;
+  }
+  log_file = fopen(argv[1], "r");
+  if (log_file == NULL) {
+    perror(argv[1]);
+    return 1;
+  }
   do {
     track = parse_track(log_file, &side, &pass);
     printf("=== track %d, side %d, pass %d ===\n", track, side, pass);
