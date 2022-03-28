@@ -71,13 +71,13 @@ int enc_count[N_ENCS];
 int enc_sec[DMK_TKHDR_SIZE / 2];
 int total_enc_count[N_ENCS];
 
+/* Maximum tracks we'll ever read. */
+#define MAX_TRACKS 86
+
 /* Note: if track guess is too low, we won't notice, so we go very
    high.  I actually have seen a 43-track disk made in a 40-track
    drive.  However, many drives can't step that far. */
-#define TRACKS_GUESS 86
-
-/* Maximum tracks we'll ever read. */
-#define MAX_TRACKS	88
+#define TRACKS_GUESS MAX_TRACKS
 
 /* Suppress FM address mark detection for a few bit times after each
    data CRC is seen.  Helps prevent seeing bogus marks in write
@@ -1758,7 +1758,7 @@ main(int argc, char** argv)
       break;
     case 't':
       tracks = strtol(optarg, NULL, 0);
-      if (tracks < 0 || tracks > 85) usage();
+      if (tracks < 0 || tracks > MAX_TRACKS) usage();
       break;
     case 's':
       sides = strtol(optarg, NULL, 0);
@@ -1867,7 +1867,14 @@ main(int argc, char** argv)
 
   if (replay) {
     if (kind == -1) {
-      fprintf(stderr, "cw2dmk: Replay mode requires -k option\n");
+      fprintf(stderr, "cw2dmk: Replay (-R) mode requires -k option\n");
+      exit(1);
+    }
+    if (steps != -1 || menu_intr_enabled != 0 || menu_err_enabled != 0 ||
+        drive != -1 || port != 0 || alternate != 0 || hole != 1 ||
+        reverse != 0) {
+      fprintf(stderr, "cw2dmk: Replay (-R) mode does not support "
+              "options -m, -M, -d, -p, -a, -h, or -r\n");
       exit(1);
     }
     steps = 1;
@@ -2114,7 +2121,7 @@ main(int argc, char** argv)
     /* Loop over sides */
     for (side=0; side<sides; side++) {
       int retry = 0;
-      int failing = 0;
+      int failing;
 
       if (accum_sectors) {
 	dmk_merged_track_len = 0;
