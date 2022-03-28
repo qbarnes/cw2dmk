@@ -1807,8 +1807,9 @@ main(int argc, char** argv)
       if (((quirk & QUIRK_EXTRA) != 0) +
           ((quirk & QUIRK_EXTRA_CRC) != 0) +
           ((quirk & QUIRK_EXTRA_DATA) != 0) > 1) {
-        printf("Quirks %#x, %#x, and %#x cannot be used together.\n",
-               QUIRK_EXTRA, QUIRK_EXTRA_CRC, QUIRK_EXTRA_DATA);
+        fprintf(stderr, "cw2dmk: Quirks %#x, %#x, and %#x "
+                "cannot be used together.\n",
+                QUIRK_EXTRA, QUIRK_EXTRA_CRC, QUIRK_EXTRA_DATA);
         exit(1);
       }
       break;
