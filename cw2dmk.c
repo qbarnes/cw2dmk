@@ -72,7 +72,7 @@ int enc_sec[DMK_TKHDR_SIZE / 2];
 int total_enc_count[N_ENCS];
 
 /* Maximum tracks we'll ever read. */
-#define MAX_TRACKS 86
+#define MAX_TRACKS 88
 
 /* Note: if track guess is too low, we won't notice, so we go very
    high.  I actually have seen a 43-track disk made in a 40-track
