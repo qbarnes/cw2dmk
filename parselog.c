@@ -38,7 +38,7 @@ static int hibit;
 
 /*
  * Find start of next unread track capture in file.  If called
- * repeatedly without calling next_sample, returns the same values
+ * repeatedly without calling parse_sample, returns the same values
  * again.  Return physical track number, or EOF if no more track
  * captures in file.  Return physical side and pass numbers in *side
  * and *pass.
