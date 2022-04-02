@@ -124,7 +124,7 @@ using the -v and -u options.  Then run cw2dmk as many times
 as desired, using the -R option to replay the logfile, together
 with other command line options as desired.  The -k option is
 always required with -R, while the -m, -M, -d, -p, -a, -h,
-and -r options are not allowed.
+-r, and -x options are not allowed.
 .TP
 .B \-M {i,e,d}\fP
 Controls interactive menu mode.  Option-argument "i" enables

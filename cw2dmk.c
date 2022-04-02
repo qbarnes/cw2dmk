@@ -1707,7 +1707,7 @@ int
 main(int argc, char** argv)
 {
   int ch, track, side, headpos, readtime = 0, i;
-  int guess_sides = 0, guess_steps = 0, guess_tracks = 0;
+  int guess_sides = 0, guess_steps = 0, guess_tracks = 0, x_given = 0;
   int cw_mk = 1;
   char *replay = NULL;
   FILE *replay_file = NULL;
@@ -1774,6 +1774,7 @@ main(int argc, char** argv)
       break;
     case 'x':
       if (parse_retries(optarg, retries)) usage();
+      x_given = 1;
       break;
     case 'a':
       alternate = strtol(optarg, NULL, 0);
@@ -1873,9 +1874,9 @@ main(int argc, char** argv)
     }
     if (steps != -1 || menu_intr_enabled != 0 || menu_err_enabled != 0 ||
         drive != -1 || port != 0 || alternate != 0 || hole != 1 ||
-        reverse != 0) {
+        reverse != 0 || x_given != 0) {
       fprintf(stderr, "cw2dmk: Replay (-R) mode does not support "
-              "options -m, -M, -d, -p, -a, -h, or -r\n");
+              "options -m, -M, -d, -p, -a, -h, -r, or -x\n");
       exit(1);
     }
     steps = 1;
@@ -2364,7 +2365,7 @@ main(int argc, char** argv)
 
 	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0 ||
                    force_retry) &&
-          (retry < retries[track]);
+          (replay || retry < retries[track]);
 
 	// Generally just reporting on the latest read.
 	if (failing) {
