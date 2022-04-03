@@ -296,9 +296,9 @@ tracks 27 through 30 set and 80 for tracks 35 through end of media.
 .B \-X
 Force retry.  With this option, cw2dmk will perform all
 the retries called for by the -x option, even if the track was
-decoded with no detected errors.  This can be useful when
-gathering a verbosity level 7 log for later replay, when replaying
-such a log, or with -j if some tries don't detect that a sector even exists.
+decoded with no detected errors.  This can be useful when gathering
+a level 7 verbosity log for later replay, in order to be sure that
+each track is captured multiple times.
 .TP
 .B \-a \fIalternate\fP
 This option is used only when when reading a 40-track disk in an
