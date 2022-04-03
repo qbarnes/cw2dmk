@@ -20,6 +20,7 @@
 #include <stdio.h>
 
 static int unread_track = -1, unread_side, unread_pass;
+static int prev_track = -1;
 static int hibit;
 
 /*
@@ -46,7 +47,7 @@ static int hibit;
 int
 parse_track(FILE *log_file, int *side, int *pass)
 {
-  int ret, c;
+  int ret;
 
   hibit = 0;
 
@@ -62,12 +63,22 @@ parse_track(FILE *log_file, int *side, int *pass)
       if (ret == 3) {
         break; // success
       }
+      if (ret == 2) {
+        // Log from an old cw2dmk version without pass numbers
+        unread_pass = 1;
+        break; // success
+      }
 
-      // Track start message not found here; skip to next line.
-      do {
-        c = fgetc(log_file);
-      } while (c != EOF && c != '\n');
+      // Try to read old-style (original 4.4 and earlier) retry message.
+      ret = fscanf(log_file, "; retry %d]", &unread_pass);
+      if (ret == 1) {
+        unread_pass++;
+        unread_track = prev_track;
+        break;
+      }
+      (void) fgetc(log_file);
     }
+    prev_track = unread_track;
   }
 
   *side = unread_side;
@@ -120,9 +131,14 @@ parse_sample(FILE *log_file)
       } while (c != EOF && c != ')');
       break;
     case '[':
-      // Informational message; skip through closing ']'.
+      // Informational message; usually just skip through closing ']'.
       do {
         c = fgetc(log_file);
+        if (c == ';') {
+          // Assume old-style retry message starts here.
+          ungetc(c, log_file);
+          return EOF;
+        }
       } while (c != EOF && c != ']');
       break;
     case '{':
@@ -143,10 +159,7 @@ parse_sample(FILE *log_file)
       // Decoder saw missing/extra clock; skip.
       break;
     default:
-      // Anything else; skip to whitespace.
-      do {
-        c = fgetc(log_file);
-      } while (c != EOF && c != ' ' && c != '\n');
+      // Anything else; skip.
       break;
     }
   }
