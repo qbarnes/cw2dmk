@@ -2151,7 +2151,8 @@ main(int argc, char** argv)
                      rtrack == 0 && rside == 0 && rpass == 1) {
             msg(OUT_ERRORS, "[restart] ");
             goto restart;
-          } else if (sides == 2 && track == 0 && side == 1 &&
+          } else if (sides == 2 &&
+                     track == 0 && side == 1 && retry == 0 &&
                      rtrack == 1 && rpass == 1) {
             /* Capture has only one side. */
             sides = 1;
