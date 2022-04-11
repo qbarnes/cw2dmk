@@ -499,6 +499,11 @@ Each sector has 4 more data bytes preceding the CRC than its size code
 indicates.  For example, if the size code indicates 128 bytes, there
 are actually 132 data bytes, followed by a standard 2-byte CRC that
 covers the data address mark and all 132 data bytes.
+.TP
+0x40 (64) QUIRK_IAM
+A standard index address mark (IAM) in FM is the data value 0xfc with
+a 0xd7 clock pattern. If this quirk is specified, cw2dmk recognizes
+0xfc with either a 0xd7 or 0xc7 clock pattern as an IAM.
 .RE
 .P
 The next few options modify individual
@@ -606,15 +611,15 @@ ensure the bytes are read correctly and their CRC is checked), or
 precede the data CRC and are included in the data CRC's coverage (use
 QUIRK_EXTRA_DATA to avoid a data CRC error on every sector).  Some of
 the variants also have other nonstandard features that require
-QUIRK_PREMARK and/or QUIRK_ID_CRC.
+QUIRK_PREMARK, QUIRK_ID_CRC, and/or QUIRK_IAM.
 
 The following information is based on a small sample of UDOS disks.
 It does not cover all UDOS variants and may not be fully accurate, so
 try other combinations of quirks if these don't work: UDOS PRG v4
 disks need -q0x0d (QUIRK_ID_CRC, QUIRK_PREMARK, QUIRK_EXTRA).  UDOS
 1526 v4 needs only -q0x08 (QUIRK_EXTRA).  UDOS 1526 v5 needs -q0x0c
-(QUIRK_PREMARK, QUIRK_EXTRA).  CZ-SDOS needs -q0x20
-(QUIRK_EXTRA_DATA).  Note: If you have a version of UDOS where
+(QUIRK_PREMARK, QUIRK_EXTRA).  CZ-SDOS needs -q0x60
+(QUIRK_EXTRA_DATA, QUIRK_IAM).  Note: If you have a version of UDOS where
 QUIRK_EXTRA_CRC works, it is preferable to use it instead of
 QUIRK_EXTRA, so that cw2dmk will check the extra CRC and retry if it
 shows an error.

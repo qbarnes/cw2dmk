@@ -143,7 +143,8 @@ unsigned quirk;
 #define QUIRK_EXTRA      0x08
 #define QUIRK_EXTRA_CRC  0x10
 #define QUIRK_EXTRA_DATA 0x20
-#define QUIRK_ALL        0x3f
+#define QUIRK_IAM        0x40
+#define QUIRK_ALL        0x7f
 
 char* plu(int val)
 {
@@ -862,6 +863,9 @@ process_bit(int bit)
       (curenc != MFM || (ibyte == -1 && dbyte == -1 && ebyte == -1 &&
                          mark_after == -1))) {
     switch (accum & 0xfffffffffULL) {
+    case 0x8aa222a88ULL:  /* 0xfc / 0xc7: Quirky index address mark */
+      if ((quirk & QUIRK_IAM) == 0) break;
+      /* fall through */
     case 0x8aa2a2a88ULL:  /* 0xfc / 0xd7: Index address mark */
     case 0x8aa222aa8ULL:  /* 0xfe / 0xc7: ID address mark */
     case 0x8aa222888ULL:  /* 0xf8 / 0xc7: Standard deleted DAM */
@@ -882,6 +886,8 @@ process_bit(int bit)
       break;
 
     case 0xa222a8888ULL:  /* Backward 0xf8-0xfd DAM */
+      if (mark_after > 0) break; // avoid firing on quirky IAM
+      if (good_sectors > 0) break; // discourage firing on noise or splices
       change_enc(FM);
       backward_am++;
       msg(OUT_ERRORS, "[backward AM] ");
@@ -1005,7 +1011,13 @@ process_bit(int bit)
 	  }
 	}
 #endif
-	/* Note bad clock pattern */
+	/* Note bad clock pattern.  This doesn't mean the next data
+           byte to be output actually has a bad clock pattern.  It
+           just means that we see a bad clock pattern in the top half
+           of accum, and we don't have a complete predetected mark
+           there that we're just about to output (that is, mark_after
+           != 0).  The bad clock pattern may get fixed by a bit drop
+           or repeat heuristic before we output the next data byte. */
 	msg(OUT_HEX, "?");
       }
     }
@@ -1557,6 +1569,7 @@ void usage(void)
   printf("               0x08 = Extra bytes (data only) after data CRC\n");
   printf("               0x10 = Extra bytes (4 data + 2 CRC) after data CRC\n");
   printf("               0x20 = 4 extra data bytes before data CRC\n");
+  printf("               0x40 = FM IAM can have either 0xd7 or 0xc7 clock\n");
 
   printf("\n Fine-tuning options; effective only after the -k option\n");
   printf(" -c clock      Catweasel clock multipler [%d]\n", cwclock);
