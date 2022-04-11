@@ -89,7 +89,7 @@ Index address mark
 
         ------f ------c
 data:   1 1 1 1 1 1 0 0
-clock: 1 1 0 1 0 1 1 1 
+clock: 1 1 0 1 0 1 1 1
        ---f---7---7---a
 
 At the MFM double data rate, preceded by one extra 0 bit, this looks
@@ -107,7 +107,7 @@ ID address mark
 
         ------f ------e
 data:   1 1 1 1 1 1 1 0
-clock: 1 1 0 0 0 1 1 1 
+clock: 1 1 0 0 0 1 1 1
        ---f---5---7---e
 
              ------------f   ------------e
@@ -122,7 +122,7 @@ Standard deleted data address mark
 
         ------f ------8
 data:   1 1 1 1 1 0 0 0
-clock: 1 1 0 0 0 1 1 1 
+clock: 1 1 0 0 0 1 1 1
        ---f---5---5---a
 
              ------------f   ------------8
@@ -138,7 +138,7 @@ Also used as RX02 deleted data address mark (see below)
 
         ------f ------9
 data:   1 1 1 1 1 0 0 1
-clock: 1 1 0 0 0 1 1 1 
+clock: 1 1 0 0 0 1 1 1
        ---f---5---5---b
 
              ------------f   ------------9
@@ -153,7 +153,7 @@ Nonstandard data address mark available with WD1771 FDCs
 
         ------f ------a
 data:   1 1 1 1 1 0 1 0
-clock: 1 1 0 0 0 1 1 1 
+clock: 1 1 0 0 0 1 1 1
        ---f---5---5---e
 
              ------------f   ------------a
@@ -168,7 +168,7 @@ Standard normal data address mark
 
         ------f ------b
 data:   1 1 1 1 1 0 1 1
-clock: 1 1 0 0 0 1 1 1 
+clock: 1 1 0 0 0 1 1 1
        ---f---5---5---f
 
              ------------f   ------------b
@@ -183,15 +183,37 @@ RX02 normal data address mark (see below)
 
         ------f ------d
 data:   1 1 1 1 1 1 0 1
-clock: 1 1 0 0 0 1 1 1 
+clock: 1 1 0 0 0 1 1 1
        ---f---5---7---b
 
-             ------------f   ------------d         
+             ------------f   ------------d
 data:    0   1   1   1   1   1   1   0   1
 clock: 1   1   1   0   0   0   1   1   1
 space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
        ---8---a---a---2---2---2---a---8---a
 
+
+Quirky FM IAM
+-------------
+
+At least one CZ-SDOS disk has been seen that sometimes uses 0xfc with
+a 0xc7 clock pattern as an IAM instead of the standard 0xfc with 0xd7
+clock pattern.  Strangely, the disk actually has a mix of both.
+Turning on QUIRK_IAM recognizes both as IAMs.
+
+Quirky index address mark
+0xfc with 0xc7 clock pattern:
+
+        ------f ------c
+data:   1 1 1 1 1 1 0 0
+clock: 1 1 0 0 0 1 1 1
+       ---f---5---7---a
+
+             ------------f   ------------c
+data:    0   1   1   1   1   1   1   0   0
+clock: 1   1   1   0   0   0   1   1   1
+space:  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+       ---8---a---a---2---2---2---a---8---8
 
 Backward FM
 -----------
@@ -199,13 +221,18 @@ Backward FM
 Reading any of the data address marks (0xf8, 0xf9, 0xfa, 0xfb, or 0xfd
 with 0xc7 clock) backward, starting from just before the three data
 bits that distinguish them from each other and continuing into the
-preceding 00 byte, happens to yield a unique pattern that is also
-missing clock bits but does not match any of the FM address marks read
-forward.  Like forward FM address marks, the pattern is legal within
-MFM data, so the decoder doesn't look for it within MFM ID or sector
-data.
+preceding 00 byte, happens to yield a pattern that is also missing
+clock bits but does not match any of the FM address marks read forward
+except the quirky FM IAM.
 
-That is:
+Like forward FM address marks, the pattern is legal within MFM data,
+so the decoder doesn't look for it within MFM ID or sector data.  To
+avoid firing on the quirky FM IAM, the decoder doesn't look for a
+backward FM IAM if a mark has already been predetected; this works
+because the quriky IAM pattern matches earlier in the data stream than
+the backward IAM pattern.  To avoid firing so often on write splices
+and other noise, the detector also doesn't look for a backward FM IAM
+if any good sectors have already been seen on the track.
 
         X-----< f-----<
 data:   X X X 1 1 1 1 1 0 0 0 0
@@ -248,7 +275,7 @@ Premark c2 c2 with missing clock (indicated as "o"):
 
         ------c ------2 ------c ------2
 data:   1 1 0 0 0 0 1 0 1 1 0 0 0 0 1 0
-clock: 0 0 0 1 o 1 0 0 0 0 0 1 o 1 0 0 
+clock: 0 0 0 1 o 1 0 0 0 0 0 1 o 1 0 0
        ---5---2---2---4---5---2---2---4
 
 Premark a1 a1 with missing clock (indicated as "o"):
