@@ -1,4 +1,6 @@
-* Various minor cleanup of code and the cw2dmk usage message.
+* Add QUIRK_IAM to -q option in cw2dmk.
+
+* Various minor cleanup of code and the cw2dmk	usage message.
 
 * Add -X (force retry) feature to cw2dmk.  In the future this may be
   changed to take an argument giving the number of retries to force,
