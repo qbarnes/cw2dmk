@@ -260,7 +260,7 @@ around the problem if it does.
 .P
 The following are special options for dealing with hard to read disks.
 .TP
-.B \-x \fIretries\fP
+.B \-x \fImax_retry\fP
 While reading a track, cw2dmk tries to recognize sector IDs and sector
 data, and it checks that each ID has a corresponding sector and that
 both have correct CRCs.  If any of these checks fail, cw2dmk will try
@@ -272,10 +272,10 @@ copy-protected disk with intentional CRC errors, or other strange
 formatting that cw2dmk interprets as a possible error, you might want
 to reduce or eliminate the retries to speed up the conversion.
 
-The \fIretries\fP argument can be just a number or optionally a
+The \fImax_retry\fP argument can be just a number or optionally a
 comma-separated list in the format \fBretries[:{start[\-[end]]}]\fP
 giving track ranges for alternate retry values.  Arguments are
-parsed left to right with later arguments taking precident.
+parsed left to right with later arguments taking precedence.
 Examples:
 
 .RS
@@ -293,12 +293,16 @@ Leave default retries (4) for all tracks except set it to 15 for
 tracks 27 through 30 set and 80 for tracks 35 through end of media.
 .RE
 .TP
-.B \-X
-Force retry.  With this option, cw2dmk will perform all
-the retries called for by the -x option, even if the track was
-decoded with no detected errors.  This can be useful when gathering
-a level 7 verbosity log for later replay, in order to be sure that
-each track is captured multiple times.
+.B \-X \fImin_retry\fP
+This option asks cw2dmk to retry reading a track at least the given
+minimum number of times, even if the track was decoded with no
+detected errors.  Except in replay mode, however, the number of
+retries is still limited by the track's \fImax_retry\fP value as
+specified by the -x option.  The \fImin_retry\fP argument accepts the
+same syntax as the \fImax_retry\fP argument.  The default value is 0.
+This feature can be useful when gathering a level 7 verbosity log for
+later replay, in order to be sure that each track is captured multiple
+times.
 .TP
 .B \-a \fIalternate\fP
 This option is used only when when reading a 40-track disk in an

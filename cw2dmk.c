@@ -109,7 +109,6 @@ int dmktracklen = -1;
 float mfmshort = -1.0;
 float postcomp = 0.5;
 int check_compat_sides = 1;
-int force_retry = 0;
 unsigned short crc;
 int sizecode;
 unsigned char premark;
@@ -1506,6 +1505,7 @@ int steps = -1;
 int drive = -1;
 int alternate = 0;
 int retries[MAX_TRACKS];
+int min_retries[MAX_TRACKS];
 
 void usage(void)
 {
@@ -1543,8 +1543,8 @@ void usage(void)
   printf(" -e encoding   1 = FM (SD), 2 = MFM (DD or HD), 3 = RX02\n");
   printf(" -w fmtimes    Write FM bytes 1 or 2 times [%d]\n", fmtimes);
   printf("\n Special options for hard to read diskettes\n");
-  printf(" -x retries    Number of retries on errors [%d]\n", RETRIES_DEFAULT);
-  printf(" -X            Retry even if no errors\n");
+  printf(" -x max_retry  Max retries on errors [%d]\n", RETRIES_DEFAULT);
+  printf(" -X min_retry  Min retries even if no errors [0]\n");
   printf(" -a alternate  Alternate even/odd tracks on retries with -m2 [%d]\n",
 	 alternate);
   printf("               0 = always even\n");
@@ -1640,7 +1640,7 @@ menu(int failing)
 
 /* Return 0 on success, non-zero on parse failure. */
 int
-parse_retries(const char *nptr, int *rav)
+parse_tracks(const char *nptr, int *rav)
 {
   static const char optxre[] = "^([0-9]+)(:([0-9]+)(-([0-9]+)?)?)?(,|$)";
   int      err = 0;
@@ -1731,7 +1731,7 @@ main(int argc, char** argv)
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:R:X");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:R:X:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -1786,7 +1786,7 @@ main(int argc, char** argv)
       if (fmtimes != 1 && fmtimes != 2) usage();
       break;
     case 'x':
-      if (parse_retries(optarg, retries)) usage();
+      if (parse_tracks(optarg, retries)) usage();
       x_given = 1;
       break;
     case 'a':
@@ -1872,7 +1872,7 @@ main(int argc, char** argv)
       replay = optarg;
       break;
     case 'X':
-      force_retry = 1;
+      if (parse_tracks(optarg, min_retries)) usage();
       break;
     default:
       usage();
@@ -2378,7 +2378,7 @@ main(int argc, char** argv)
 	}
 
 	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0 ||
-                   force_retry) &&
+                   retry < min_retries[track]) &&
           (replay || retry < retries[track]);
 
 	// Generally just reporting on the latest read.
