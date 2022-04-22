@@ -1886,10 +1886,10 @@ main(int argc, char** argv)
       exit(1);
     }
     if (steps != -1 || menu_intr_enabled != 0 || menu_err_enabled != 0 ||
-        drive != -1 || port != 0 || alternate != 0 || hole != 1 ||
+        drive != -1 || port != 0 || alternate != 0 ||
         reverse != 0 || x_given != 0) {
       fprintf(stderr, "cw2dmk: Replay (-R) mode does not support "
-              "options -m, -M, -d, -p, -a, -h, -r, or -x\n");
+              "options -m, -M, -d, -p, -a, -r, or -x\n");
       exit(1);
     }
     steps = 1;

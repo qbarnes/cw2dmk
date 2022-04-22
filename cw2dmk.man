@@ -116,15 +116,16 @@ appending .log instead.  If you give the -u option with a one-digit -v
 option, the same output is logged to the file and to the screen.
 .TP
 .B \-R \fIlogfile\fP
-Replay a level 7 verbosity logfile instead of reading a new disk
-from the Catweasel.  This option can be useful to retry decoding
-a disk using different command line options, without physically
-rereading the disk.  First capture a logfile at verbosity level 7
-using the -v and -u options.  Then run cw2dmk as many times
-as desired, using the -R option to replay the logfile, together
-with other command line options as desired.  The -k option is
-always required with -R, while the -m, -M, -d, -p, -a, -h,
--r, and -x options are not allowed.
+Replay a level 7 verbosity logfile instead of reading a new disk from
+the Catweasel.  This option can be useful to retry decoding a disk
+using different command line options, without physically rereading the
+disk.  First capture a logfile at verbosity level 7 using the -v and
+-u options.  Then run cw2dmk as many times as desired, using the -R
+option to replay the logfile, together with other command line options
+as desired.  The -k option is always required with -R, and the -h0
+option generally should be used if the original capture was performed
+with -h0, while the -m, -M, -d, -p, -a, -r, and -x options are not
+allowed.
 .TP
 .B \-M {i,e,d}\fP
 Controls interactive menu mode.  Option-argument "i" enables
@@ -351,13 +352,19 @@ option before being added to the next interval.
 .TP
 .B \-h \fIhole\fP
 If hole is 1 (the default), cw2dmk uses the disk's index hole to
-determine where each track starts.  If hole is set to 0, cw2dmk reads
-disks without using the index hole.  With -h0, the tracks in the DMK
-file will not start with the same sector as on the original disk (but
-the -i option can sometimes fix this; see below).  Note that if the
-disk actually has no index hole, cw2dmk cannot autodetect the
-drive/media type, so you must also give the -k option to specify the
-type.
+determine where each track starts.
+
+If hole is set to 0, cw2dmk reads disks without using the index hole.
+With -h0, the tracks in the DMK file will not start with the same
+sector as on the original disk.  Instead, each track will start 48
+bytes before the ID address mark (IDAM) of the first sector that
+cw2dmk happens to read on the media.  Alternatively, if the tracks
+have an index address mark (IAM), the -i option (see below) can be
+used to position the track start relative to the IAM.
+
+Note that if a disk actually has no index hole, cw2dmk cannot
+autodetect the drive/media type, so you must give the -k option
+to specify the type as well as giving -h0.
 
 One case where the -h0 option is useful is if the last sector on a
 track wraps around far past the index hole and is partially cut off by
