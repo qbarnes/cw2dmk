@@ -71,7 +71,7 @@ endif
 BUILD_TARGETS   = firmware.h $(TXT) $(EXE)
 RELEASE_TARGETS = COPYING README ChangeLog $(TXT) $(EXE)
 
-clean = $(EXE) $(TAR_TARGETS) crc$E *.$O *~
+clean = $(EXE) $(TAR_TARGETS) crc$E parselog$E *.$O *~
 veryclean = $(clean) $(TXT) firmware.h *.exe *.obj *.o *.tar.gz
 
 all: progs manpages
