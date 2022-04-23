@@ -202,8 +202,8 @@ set or autodetected to be 1; otherwise the initial guess is 1.
 .TP
 .B \-t \fItracks\fP
 Specifies the number of tracks per side.  If this option is not given,
-cw2dmk will guess 43 if the -m option is set (or guessed) to be 2,
-otherwise 86.  If cw2dmk is operating with a guessed value for -t, and
+cw2dmk will guess 44 if the -m option is set (or guessed) to be 2,
+otherwise 88.  If cw2dmk is operating with a guessed value for -t, and
 the next track after one of the more likely ending places 
 (35, 40, 77, or 80 tracks) has no valid sectors or has the same logical
 track number as the previous track, it will lower its guess
@@ -562,8 +562,8 @@ help is the -o option.  In rare cases, tweaking thresholds with the
 option or the separate cwtsthst program may help you find the best
 thresholds.
 
-If the disk was formatted with more than 43 tracks in a 40-track
-drive, or more than 86 tracks in an 80-track drive, use the -t
+If the disk was formatted with more than 44 tracks in a 40-track
+drive, or more than 88 tracks in an 80-track drive, use the -t
 option.
 
 Double-stepping is used to read 35- or 40-track disks in an 80-track
