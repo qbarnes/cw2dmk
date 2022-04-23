@@ -1275,8 +1275,10 @@ process_sample(int sample)
 
   msg(OUT_SAMPLES, "%c ", "--sml"[len]);
 
-  process_bit(1);
-  while (--len) process_bit(0);
+  if (!dmk_full) {
+    process_bit(1);
+    while (--len) process_bit(0);
+  }
 }
 
 
@@ -2235,7 +2237,7 @@ main(int argc, char** argv)
 	int b = 0;
 	int oldb = 0;
 	index_edge = 0;
-	while (!dmk_full) {
+	while (!dmk_full || out_level >= OUT_SAMPLES) {
           if (replay) {
             b = parse_sample(replay_file);
           } else {
