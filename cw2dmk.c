@@ -417,7 +417,8 @@ dmk_write_header(void)
 {
   rewind(dmk_file);
   /* assumes this machine is little-endian: */
-  fwrite(&dmk_header, sizeof(dmk_header), 1, dmk_file);
+  if (fwrite(&dmk_header, sizeof(dmk_header), 1, dmk_file) != 1)
+    fatal_msg(1, "Error writing header to DMK file\n");
 }
 
 
@@ -445,7 +446,8 @@ dmk_write(void)
   for (i = 0; i < N_ENCS; i++) {
     total_enc_count[i] += enc_count[i];
   }
-  fwrite(dmk_track, dmk_header.tracklen, 1, dmk_file);
+  if (fwrite(dmk_track, dmk_header.tracklen, 1, dmk_file) != 1)
+    fatal_msg(1, "Error writing to DMK file\n");
 }
 
 
@@ -2378,14 +2380,16 @@ main(int argc, char** argv)
 	if (accum_sectors) {
 	  // Dump track before merging (unifdef for debugging)
 	  #if 0
-	  char filename[32];
+	  char filename[40];
 	  sprintf(filename, "c_s%dt%02d_%d.trk", side, track, retry);
 	  FILE *fp = fopen(filename, "wb");
 	  if (!fp)
 	    error_msg("Could not write to '%s'\n", filename);
 	  else {
-	    fwrite(dmk_track, dmk_data_p - dmk_track, 1, fp);
-	    fclose(fp);
+	    if (fwrite(dmk_track, dmk_data_p - dmk_track, 1, fp) != 1)
+	      error_msg("Error writing track to '%s'\n", filename);
+	    if (fclose(fp))
+	      error_msg("Error closing '%s'\n", filename);
 	  }
 	  #endif
 
