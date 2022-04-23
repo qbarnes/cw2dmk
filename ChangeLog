@@ -1,3 +1,6 @@
+* Catch errors when writing to files.   Report and exit when errors
+  are seen.
+
 * Add -X min_retry feature to cw2dmk, accepting the same syntax for
   min_retry as for -x max_retry.
 
