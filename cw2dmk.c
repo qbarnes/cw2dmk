@@ -176,6 +176,46 @@ int dmk_full;
 int cylseen = -1;
 int prevcylseen;
 
+
+/* Error and fatal message handling functions. */
+
+int
+error_vmsg(const char *fmt, va_list ap)
+{
+  fflush(stdout);
+  int ret = fprintf(stderr, "cw2dmk: ");
+  if (ret != -1) {
+    int ret2 = vfprintf(stderr, fmt, ap);
+    ret = (ret2 != -1) ? ret + ret2 : -1;
+  }
+  return ret;
+}
+
+
+int
+error_msg(const char *fmt, ...)
+{
+  va_list args;
+
+  va_start(args, fmt);
+  int ret = error_vmsg(fmt, args);
+  va_end(args);
+  return ret;
+}
+
+
+void
+fatal_msg(int exit_code, const char *fmt, ...)
+{
+  va_list args;
+
+  va_start(args, fmt);
+  error_vmsg(fmt, args);
+  va_end(args);
+  exit(exit_code);
+}
+
+
 /* Log a message. */
 void
 msg(int level, const char *fmt, ...)
@@ -1413,20 +1453,16 @@ detect_kind(int drive)
   if (!do_histogram(drive, 0, 0, histogram,
 		    &total_cycles, &total_samples, &peak)) {
     if (hole) {
-      fprintf(stderr, "cw2dmk: No index hole detected\n");
+      fatal_msg(1, "No index hole detected\n");
     } else {
-      fprintf(stderr,
-	      "cw2dmk: No index hole; can't detect drive and media type\n");
-      fprintf(stderr,
-	      "  Try using the -k flag to specify the correct type\n");
+      fatal_msg(1, "No index hole; can't detect drive and media type\n"
+		"  Try using the -k flag to specify the correct type\n");
     }
-    exit(1);
   }
 
   if (peak < 0.0) {
     /* Track is blank */
-    fprintf(stderr, "cw2dmk: Track 0 side 0 is unformatted\n");
-    exit(1);
+    fatal_msg(1, "Track 0 side 0 is unformatted\n");
   } else {
     dclock = 7080.5 / peak;
   }
@@ -1458,10 +1494,9 @@ detect_kind(int drive)
   }
 
   if (kind == -1) {
-    fprintf(stderr, "cw2dmk: Failed to detect drive and media type\n");
-    fprintf(stderr, "  Data clock approx %f kHz\n", dclock);
-    fprintf(stderr, "  Drive speed approx %f RPM\n", rpm);
-    exit(1);
+    fatal_msg(1, "Failed to detect drive and media type\n"
+	      "  Data clock approx %f kHz\n"
+	      "  Drive speed approx %f RPM\n", dclock, rpm);
   }
   set_kind();
 
@@ -1481,9 +1516,7 @@ detect_sides(int drive)
 
   if (!do_histogram(drive, 0, 1, histogram,
 		    &total_cycles, &total_samples, &peak)) {
-    fprintf(stderr,
-	    "cw2dmk: No index hole; can't detect if side 1 is formatted\n");
-    exit(1);
+    fatal_msg(1, "No index hole; can't detect if side 1 is formatted\n");
   }
 
   if (peak > 0.0) {
@@ -1648,10 +1681,8 @@ parse_tracks(const char *nptr, int *rav)
   int      err = 0;
   regex_t  regex;
 
-  if (regcomp(&regex, optxre, REG_EXTENDED|REG_NEWLINE)) {
-    fprintf(stderr, "regcomp() failed\n");
-    exit(1);
-  }
+  if (regcomp(&regex, optxre, REG_EXTENDED|REG_NEWLINE))
+    fatal_msg(1, "regcomp() failed\n");
 
   while (!err && *nptr != '\0') {
     int	nr = -1, start = -1, end = -1;
@@ -1740,11 +1771,10 @@ main(int argc, char** argv)
       port = strtol(optarg, NULL, 16);
       if (port < 0 || (port >= MK3_MAX_CARDS && port < MK1_MIN_PORT) ||
 	  (port > MK1_MAX_PORT)) {
-	fprintf(stderr,
-		"cw2dmk: -p must be between 0x%x and 0x%x for MK3/4 cards,\n"
+	fatal_msg(1, 
+		"-p must be between 0x%x and 0x%x for MK3/4 cards,\n"
 		"  or between 0x%x and 0x%x for MK1 cards.\n",
 		0, MK3_MAX_CARDS-1, MK1_MIN_PORT, MK1_MAX_PORT);
-	exit(1);
       }
       break;
     case 'd':
@@ -1823,10 +1853,9 @@ main(int argc, char** argv)
       if (((quirk & QUIRK_EXTRA) != 0) +
           ((quirk & QUIRK_EXTRA_CRC) != 0) +
           ((quirk & QUIRK_EXTRA_DATA) != 0) > 1) {
-        fprintf(stderr, "cw2dmk: Quirks %#x, %#x, and %#x "
-                "cannot be used together.\n",
-                QUIRK_EXTRA, QUIRK_EXTRA_CRC, QUIRK_EXTRA_DATA);
-        exit(1);
+	fatal_msg(1, "Quirks %#x, %#x, and %#x "
+		  "cannot be used together.\n",
+		  QUIRK_EXTRA, QUIRK_EXTRA_CRC, QUIRK_EXTRA_DATA);
       }
       break;
     case 'c':
@@ -1884,15 +1913,13 @@ main(int argc, char** argv)
 
   if (replay) {
     if (kind == -1) {
-      fprintf(stderr, "cw2dmk: Replay (-R) mode requires -k option\n");
-      exit(1);
+      fatal_msg(1, "Replay (-R) mode requires -k option\n");
     }
     if (steps != -1 || menu_intr_enabled != 0 || menu_err_enabled != 0 ||
         drive != -1 || port != 0 || alternate != 0 ||
         reverse != 0 || x_given != 0) {
-      fprintf(stderr, "cw2dmk: Replay (-R) mode does not support "
+      fatal_msg(1, "Replay (-R) mode does not support "
               "options -m, -M, -d, -p, -a, -r, or -x\n");
-      exit(1);
     }
     steps = 1;
     if (sides == -1) {
@@ -1930,18 +1957,14 @@ main(int argc, char** argv)
   int sigs[] = { SIGHUP, SIGINT, SIGQUIT, SIGPIPE, SIGTERM };
 
   for (int s = 0; s < sizeof(sigs)/sizeof(*sigs); ++s) {
-    if (sigaction(sigs[s], sigs[s] == SIGINT ? &sa_int : &sa_def, 0) == -1) {
-      fprintf(stderr, "sigaction failed for signal %d.\n", sigs[s]);
-      exit(1);
-    }
+    if (sigaction(sigs[s], sigs[s] == SIGINT ? &sa_int : &sa_def, 0) == -1)
+      fatal_msg(1, "sigaction failed for signal %d.\n", sigs[s]);
   }
 
   if (!replay) {
 #if linux
-    if (geteuid() != 0) {
-      fprintf(stderr, "cw2dmk: Must be setuid to root or be run as root\n");
-      exit(1);
-    }
+    if (geteuid() != 0)
+      fatal_msg(1, "Must be setuid to root or be run as root\n");
 #endif
     /* Detect PCI catweasel */
     if (port < 10) {
@@ -1954,34 +1977,27 @@ main(int argc, char** argv)
     if ((cw_mk == 1 &&
          ioperm(port == -1 ? MK1_DEFAULT_PORT : port, 8, 1) == -1) ||
         (cw_mk >= 3 && iopl(3) == -1)) {
-      fprintf(stderr, "cw2dmk: No access to I/O ports\n");
-      exit(1);
+      fatal_msg(1, "No access to I/O ports\n");
     }
 #endif
   }
 #if linux
-  if (setuid(getuid()) != 0) {
-    fprintf(stderr, "cw2dmk: setuid failed: %s\n", strerror(errno));
-    exit(1);
-  }
+  if (setuid(getuid()) != 0)
+    fatal_msg(1, "setuid failed: %s\n", strerror(errno));
 #endif
 
   /* Open replay file if specified */
   if (replay) {
     replay_file = fopen(replay, "r");
-    if (replay_file == NULL) {
-      perror(replay);
-      exit(1);
-    }
+    if (replay_file == NULL)
+      fatal_msg(1, "Failed to open '%s': %s\n", replay, strerror(errno));
   }
 
   /* Open log file if needed */
   if (out_file_name) {
     out_file = fopen(out_file_name, "w");
-    if (out_file == NULL) {
-      perror(out_file_name);
-      exit(1);
-    }
+    if (out_file == NULL)
+      fatal_msg(1, "Failed to open '%s': %s\n", out_file_name, strerror(errno));
   }
 
   /* Log the version number and command line */
@@ -2006,19 +2022,14 @@ main(int argc, char** argv)
       msg(OUT_SUMMARY, "Detected Catweasel MK%d at port 0x%x\n", cw_mk, port);
       fflush(stdout);
     } else {
-      fprintf(stderr, "cw2dmk: Failed to detect Catweasel at port 0x%x\n",
-              port);
-      exit(1);
+      fatal_msg(1, "Failed to detect Catweasel at port 0x%x\n", port);
     }
     if (cw_mk == 1 && cwclock == 4) {
-      fprintf(stderr, "cw2dmk: Catweasel MK1 does not support 4x clock\n");
-      exit(1);
+      fatal_msg(1, "Catweasel MK1 does not support 4x clock\n");
     }
 
-    if (atexit(cleanup)) {
-      fprintf(stderr, "cw2dmk: Can't establish atexit() call.\n");
-      exit(1);
-    }
+    if (atexit(cleanup))
+      fatal_msg(1, "Can't establish atexit() call.\n");
 
     /* Detect drive */
     if (drive == -1) {
@@ -2033,10 +2044,8 @@ main(int argc, char** argv)
           msg(OUT_SUMMARY, "not detected\n");
         }
       }
-      if (drive == 2) {
-        fprintf(stderr, "cw2dmk: Failed to detect any drives\n");
-        exit(1);
-      }
+      if (drive == 2)
+	fatal_msg(1, "Failed to detect any drives\n");
     } else {
       msg(OUT_SUMMARY, "Looking for drive %d...", drive);
       fflush(stdout);
@@ -2045,8 +2054,7 @@ main(int argc, char** argv)
         msg(OUT_SUMMARY, "detected\n");
       } else {
         msg(OUT_SUMMARY, "not detected\n");
-        fprintf(stderr, "cw2dmk: Drive %d not detected; proceeding anyway\n",
-                drive);
+	error_msg("Drive %d not detected; proceeding anyway\n", drive);
       }
     }
 
@@ -2088,10 +2096,8 @@ main(int argc, char** argv)
 
   /* Open output file */
   dmk_file = fopen(argv[optind], "wb");
-  if (dmk_file == NULL) {
-    perror(argv[optind]);
-    exit(1);
-  }
+  if (dmk_file == NULL)
+    fatal_msg(1, "Failed to open '%s': %s\n", argv[optind], strerror(errno));
 
  restart:
   if (guess_sides || guess_steps || guess_tracks) {
@@ -2185,10 +2191,8 @@ main(int argc, char** argv)
             parse_sample(replay_file); // discard a sample to skip track
             goto try_start;
           } else if (rtrack != track) {
-            fprintf(stderr,
-                    "cw2dmk: Unexpected replay, track %d, side %d, pass %d\n",
+	    fatal_msg(1, "Unexpected replay, track %d, side %d, pass %d\n",
                     rtrack, rside, rpass);
-            exit(1);
           }
         } else /* not replay */ {
           /* Seek to correct track */
@@ -2216,10 +2220,8 @@ main(int argc, char** argv)
             cw_ret = catweasel_read(&c.drives[drive], side ^ reverse, cwclock,
                                     readtime, 1);
           }
-          if (!cw_ret) {
-            fprintf(stderr, "cw2dmk: Read error\n");
-            exit(1);
-          }
+          if (!cw_ret)
+	    fatal_msg(1, "Read error\n");
         }
 
 	msg(OUT_TSUMMARY, "Track %d, side %d, pass %d:",
@@ -2251,10 +2253,8 @@ main(int argc, char** argv)
 	  if (c.mk == 1 && b == DEBUG5_BYTE) {
 	    static int ecount = 0;
 	    ecount++;
-	    if (ecount == 16) {
-	      fprintf(stderr,
-		      "cw2dmk: Catweasel memory error?! See cw2dmk.txt\n");
-	    }
+	    if (ecount == 16)
+	      error_msg("Catweasel memory error?! See cw2dmk.txt\n");
 	  }
 #endif
 	  /*
@@ -2369,7 +2369,7 @@ main(int argc, char** argv)
 	  sprintf(filename, "c_s%dt%02d_%d.trk", side, track, retry);
 	  FILE *fp = fopen(filename, "wb");
 	  if (!fp)
-	    fprintf(stderr, "Could not write to '%s'\n", filename);
+	    error_msg("Could not write to '%s'\n", filename);
 	  else {
 	    fwrite(dmk_track, dmk_data_p - dmk_track, 1, fp);
 	    fclose(fp);
@@ -2404,8 +2404,7 @@ main(int argc, char** argv)
 		failing = 0;
 	      break;
 	    default:
-	      fprintf(stderr, "Bad return value from menu().\n");
-	      exit(1);
+	      fatal_msg(1, "Bad return value from menu().\n");
 	      break;
 	  }
 	  catweasel_set_motor(&c.drives[drive], 1);
