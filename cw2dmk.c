@@ -177,6 +177,19 @@ int cylseen = -1;
 int prevcylseen;
 
 
+#ifdef __GNUC__
+int error_vmsg(const char *fmt, va_list ap) __attribute__((format(printf,1,0)));
+
+int error_msg(const char *fmt, ...) __attribute__((format(printf,1,2)));
+
+void fatal_msg(int exit_code, const char *fmt, ...)
+					  __attribute__((format(printf,2,3)))
+					  __attribute__((noreturn));
+
+void msg(int level, const char *fmt, ...) __attribute__((format(printf,2,3)));
+#endif
+
+
 /* Error and fatal message handling functions. */
 
 int
@@ -1202,7 +1215,7 @@ process_bit(int bit)
     msg(OUT_SAMPLES, "<");
     msg(OUT_HEX, "%02x", val);
     msg(OUT_SAMPLES, ">");
-    msg(OUT_HEX, " ", val);
+    msg(OUT_HEX, " ");
     msg(OUT_RAW, "%c", val);
   }
 
