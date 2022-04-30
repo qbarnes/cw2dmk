@@ -28,6 +28,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 #include <math.h>
 #include <limits.h>
 #include <regex.h>
@@ -38,7 +39,6 @@
 #endif
 #if linux
 #include <sys/io.h>
-#include <errno.h>
 #endif
 #include "crc.c"
 #include "cwfloppy.h"
