@@ -2254,7 +2254,8 @@ main(int argc, char** argv)
 	int b = 0;
 	int oldb = 0;
 	index_edge = 0;
-	while (!dmk_full || out_level >= OUT_SAMPLES) {
+	while (!dmk_full ||
+               out_level >= OUT_SAMPLES || out_file_level >= OUT_SAMPLES) {
           if (replay) {
             b = parse_sample(replay_file);
           } else {
