@@ -74,6 +74,8 @@ int reverse = 0;
 int datalen = -1;
 double rate_adj = 1.0;
 int dither = 0;
+unsigned step_ms = 6;
+unsigned settle_ms = 0;
 
 void usage()
 {
@@ -92,6 +94,8 @@ void usage()
   printf("               3 = %s\n", kinds[2].description);
   printf("               4 = %s\n", kinds[3].description);
   printf(" -m steps      Step multiplier, 1 or 2 [%d]\n", steps);
+  printf(" -T stp[,stl]  Step time [%u] and head settling time [%u] ms\n",
+         step_ms, settle_ms);
   printf(" -s maxsides   Maximum number of sides, 1 or 2 [%d]\n", maxsides);
   printf("\nThese values normally need not be changed:\n");
   printf(" -p port       I/O port base (MK1) or card number (MK3/4) [%d]\n",
@@ -386,7 +390,7 @@ main(int argc, char** argv)
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "p:d:v:k:m:s:o:c:h:l:g:i:r:f:a:e:y:");
+    ch = getopt(argc, argv, "p:d:v:k:m:s:o:c:h:l:g:i:r:f:a:e:y:T:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -467,6 +471,10 @@ main(int argc, char** argv)
       testmode = strtol(optarg, NULL, 0);
       break;
 #endif
+    case 'T':
+      i = sscanf(optarg, "%u,%u", &step_ms, &settle_ms);
+      if (i < 1) usage();
+      break;
     default:
       usage();
       break;
@@ -531,7 +539,8 @@ main(int argc, char** argv)
     exit(1);
   }
 #endif
-  ret = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
+  ret = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"),
+                                  step_ms, settle_ms)
     && catweasel_memtest(&c);
   if (ret) {
     if (out_fmt >= OUT_QUIET) {

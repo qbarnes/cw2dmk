@@ -124,7 +124,7 @@ disk.  First capture a logfile at verbosity level 7 using the -v and
 option to replay the logfile, together with other command line options
 as desired.  The -k option is always required with -R, and the -h0
 option generally should be used if the original capture was performed
-with -h0, while the -m, -M, -d, -p, -a, -r, and -x options are not
+with -h0, while the -m, -T, -M, -d, -p, -a, -r, and -x options are not
 allowed.
 .TP
 .B \-M {i,e,d}\fP
@@ -200,6 +200,16 @@ wrong even after having been checked (which can happen only with
 copy-protected disks that are formatted with nonstandard track
 numbers).  The initial guess is 2 if the drive/media type (-k option) is
 set or autodetected to be 1; otherwise the initial guess is 1.
+.TP
+.B \-T \fIstep_time[,settling_time]\fP
+Time in milliseconds to delay after each step pulse (sometimes called
+"step rate"), and additional time to delay after the last step pulse (head
+settling time).  The defaults are 6 ms step time and 0 ms settling time.
+The comma and settling_time value are optional.
+If your drive has difficulty stepping, try a slower step rate.  If you often
+see errors on the first sector or first few sectors of a track, especially
+when reading with -h0, or if you know your drive requires it,
+add some head settling time.
 .TP
 .B \-t \fItracks\fP
 Specifies the number of tracks per side.  If this option is not given,
