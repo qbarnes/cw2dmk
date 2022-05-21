@@ -121,6 +121,15 @@ you set -m2, you should bulk-erase the media first to eliminate
 residual magnetization from the odd numbered tracks that may cause
 problems when the disk is read in a 40-track drive.
 .TP
+.B \-T \fIstep_time[,settling_time]\fP
+Time in milliseconds to delay after each step pulse (sometimes called
+"step rate"), and additional time to delay after the last step pulse (head
+settling time).  The defaults are 6 ms step time and 0 ms settling time.
+The comma and settling_time value are optional.
+If your drive has difficulty stepping, try a slower step rate.  If you often
+see errors when reading back the first sector or first few sectors
+of a track, or if you know your drive requires it, add some head settling time.
+.TP
 .B \-s \fIsides\fP
 Maximum number of sides, 1 or 2.  Use -s1 if your physical floppy drive
 has only one head (that is, if it can only write to side 0 of the disk).

@@ -326,9 +326,9 @@ static void
 CWTriggerStep(catweasel_contr *c)
 {
     CWSetCReg(c, CBIT(c, CatStep), 0);
-    catweasel_usleep(3000);
+    catweasel_usleep(c->step_us/2);
     CWSetCReg(c, 0, CBIT(c, CatStep));
-    catweasel_usleep(3000);
+    catweasel_usleep(c->step_us/2);
 }
 
 static int
@@ -340,7 +340,8 @@ CWTrack0(catweasel_contr *c)
 
 /* Return true if successful */
 int
-catweasel_init_controller(catweasel_contr *c, int iobase, int mk, char *fwname)
+catweasel_init_controller(catweasel_contr *c, int iobase, int mk, char *fwname,
+                          unsigned step_ms, unsigned settle_ms)
 {
     int i;
     FILE* f = NULL;
@@ -350,6 +351,8 @@ catweasel_init_controller(catweasel_contr *c, int iobase, int mk, char *fwname)
 
     c->iobase = iobase;
     c->mk = mk;
+    c->step_us = step_ms * 1000;
+    c->settle_us = settle_ms * 1000;
 
     switch (mk) {
     case 1:
@@ -608,6 +611,9 @@ catweasel_seek(catweasel_drive *d, int t)
 
     while (x--) {
 	CWTriggerStep(d->contr);
+    }
+    if (d->contr->settle_us > 0) {
+	catweasel_usleep(d->contr->settle_us);
     }
 
     d->track = t;

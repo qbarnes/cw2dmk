@@ -134,6 +134,8 @@ int accum_sectors = 0;
 int menu_err_enabled = 0;
 volatile int menu_intr_enabled = 0;
 volatile int menu_requested = 0;
+unsigned step_ms = 6;
+unsigned settle_ms = 0;
 
 unsigned quirk;
 #define QUIRK_ID_CRC     0x01
@@ -1588,6 +1590,8 @@ void usage(void)
   printf("               3 = %s\n", kinds[2].description);
   printf("               4 = %s\n", kinds[3].description);
   printf(" -m steps      Step multiplier, 1 or 2\n");
+  printf(" -T stp[,stl]  Step time [%u] and head settling time [%u] ms\n",
+         step_ms, settle_ms);
   printf(" -t tracks     Number of tracks per side\n");
   printf(" -s sides      Number of sides\n");
   printf(" -e encoding   1 = FM (SD), 2 = MFM (DD or HD), 3 = RX02\n");
@@ -1769,6 +1773,7 @@ main(int argc, char** argv)
 {
   int ch, track, side, headpos, readtime = 0, i;
   int guess_sides = 0, guess_steps = 0, guess_tracks = 0, x_given = 0;
+  int T_given = 0;
   int cw_mk = 1;
   char *replay = NULL;
   FILE *replay_file = NULL;
@@ -1779,14 +1784,14 @@ main(int argc, char** argv)
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:R:X:");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:R:X:T:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
       port = strtol(optarg, NULL, 16);
       if (port < 0 || (port >= MK3_MAX_CARDS && port < MK1_MIN_PORT) ||
 	  (port > MK1_MAX_PORT)) {
-	fatal_msg(1, 
+	fatal_msg(1,
 		"-p must be between 0x%x and 0x%x for MK3/4 cards,\n"
 		"  or between 0x%x and 0x%x for MK1 cards.\n",
 		0, MK3_MAX_CARDS-1, MK1_MIN_PORT, MK1_MAX_PORT);
@@ -1920,6 +1925,11 @@ main(int argc, char** argv)
     case 'X':
       if (parse_tracks(optarg, min_retries)) usage();
       break;
+    case 'T':
+      i = sscanf(optarg, "%u,%u", &step_ms, &settle_ms);
+      if (i < 1) usage();
+      T_given = 1;
+      break;
     default:
       usage();
       break;
@@ -1932,9 +1942,9 @@ main(int argc, char** argv)
     }
     if (steps != -1 || menu_intr_enabled != 0 || menu_err_enabled != 0 ||
         drive != -1 || port != 0 || alternate != 0 ||
-        reverse != 0 || x_given != 0) {
+        reverse != 0 || x_given != 0 || T_given != 0) {
       fatal_msg(1, "Replay (-R) mode does not support "
-              "options -m, -M, -d, -p, -a, -r, or -x\n");
+              "options -m, -T, -M, -d, -p, -a, -r, or -x\n");
     }
     steps = 1;
     if (sides == -1) {
@@ -2031,7 +2041,8 @@ main(int argc, char** argv)
           "looking for MK1 on ISA bus at 0x%x\n", port);
       fflush(stdout);
     }
-    ch = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
+    ch = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"),
+                                   step_ms, settle_ms)
       && catweasel_memtest(&c);
     if (ch) {
       msg(OUT_SUMMARY, "Detected Catweasel MK%d at port 0x%x\n", cw_mk, port);

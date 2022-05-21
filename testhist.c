@@ -204,7 +204,8 @@ int main(int argc, char **argv) {
       exit(1);
     }
 #endif
-    ret = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"))
+    ret = catweasel_init_controller(&c, port, cw_mk, getenv("CW4FIRMWARE"),
+                                    6, 0)
       && catweasel_memtest(&c);
     if (!ret) {
       fprintf(stderr, "testhist: Failed to detect Catweasel at port 0x%x\n", port);
