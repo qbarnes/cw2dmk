@@ -1,3 +1,9 @@
+* Add -T step_time,settling_time feature to both cw2dmk and dmk2cw.
+
+* Log all Catweasel samples when at verbosity level 7, instead of
+  stopping when the DMK buffer is full.  (This change was actually
+  made in 4.9.0, but it had a bug that is now fixed.)
+
 4.9.0 -- Sat Apr 30 17:07:57 UTC 2022 -- Tim Mann, Quentin Barnes
 
 * Catch errors when writing to files.   Report and exit when errors
