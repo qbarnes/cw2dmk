@@ -134,10 +134,10 @@ int accum_sectors = 0;
 int menu_err_enabled = 0;
 volatile int menu_intr_enabled = 0;
 volatile int menu_requested = 0;
-unsigned step_ms = 6;
-unsigned settle_ms = 0;
+unsigned int step_ms = 6;
+unsigned int settle_ms = 0;
 
-unsigned quirk;
+unsigned int quirk;
 #define QUIRK_ID_CRC     0x01
 #define QUIRK_DATA_CRC   0x02
 #define QUIRK_PREMARK    0x04

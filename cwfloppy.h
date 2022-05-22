@@ -24,13 +24,13 @@ typedef struct catweasel_contr {
     unsigned char *ctrl;
     catweasel_drive drives[2];     /* max. two drives on each controller */
     int private[4];                /* private data */
-    unsigned step_us, settle_us;
+    unsigned int step_us, settle_us;
 } catweasel_contr;
 
 /* Initialize a Catweasel controller.  Return true on success. */
 int catweasel_init_controller(catweasel_contr *c, int iobase, int mk,
 			      char *fwname,
-                              unsigned step_ms, unsigned settle_ms);
+                              unsigned int step_ms, unsigned int settle_ms);
 
 /* Detect whether drive is present using track0 sensor */
 void catweasel_detect_drive(catweasel_drive *d);

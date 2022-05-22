@@ -158,7 +158,7 @@ unsigned char Mk3StatusBit[] = {
 };
 
 /* Control bit position names (write CatControl) */
-enum CatControlBit { 
+enum CatControlBit {
     CatStep, CatSideSelect, CatMotor0, CatDirection,
     CatSelect0, CatSelect1, CatMotor1, CatDensityOut
 };
@@ -326,9 +326,8 @@ static void
 CWTriggerStep(catweasel_contr *c)
 {
     CWSetCReg(c, CBIT(c, CatStep), 0);
-    catweasel_usleep(c->step_us/2);
     CWSetCReg(c, 0, CBIT(c, CatStep));
-    catweasel_usleep(c->step_us/2);
+    catweasel_usleep(c->step_us);
 }
 
 static int
@@ -341,7 +340,7 @@ CWTrack0(catweasel_contr *c)
 /* Return true if successful */
 int
 catweasel_init_controller(catweasel_contr *c, int iobase, int mk, char *fwname,
-                          unsigned step_ms, unsigned settle_ms)
+                          unsigned int step_ms, unsigned int settle_ms)
 {
     int i;
     FILE* f = NULL;
@@ -450,7 +449,7 @@ catweasel_init_controller(catweasel_contr *c, int iobase, int mk, char *fwname,
 		fprintf(stderr, "timeout loading MK4 firmware\n");
 		catweasel_free_controller(c);
 		return 0;
-	    }    
+	    }
 	    outb(b, iobase + 0xc0);
 	}
 	if (f) {
@@ -475,7 +474,7 @@ catweasel_init_controller(catweasel_contr *c, int iobase, int mk, char *fwname,
 	    fprintf(stderr, "timeout waiting for MK4 to start\n");
 	    catweasel_free_controller(c);
 	    return 0;
-        }    
+        }
 
 	outb(0x41, iobase + 0x3);
 	break;
@@ -501,7 +500,7 @@ catweasel_detect_drive(catweasel_drive *d)
     if (!c->iobase) {
 	return;
     }
-	
+
     /* select drive and start motor */
     catweasel_select(c, d->number == 0, d->number == 1);
     catweasel_set_motor(d, 1);
@@ -527,12 +526,12 @@ catweasel_detect_drive(catweasel_drive *d)
 	CWTriggerStep(c);
     }
     d->track = 0;
-	
+
     if (j == 90) {
 	/* drive without working track 0 sensor, or no drive */
 	d->type = 0;
     }
-    
+
     /* deselect all drives, stop motor */
     catweasel_set_motor(d, 0);
     catweasel_select(c, 0, 0);
@@ -580,7 +579,7 @@ void
 catweasel_set_motor(catweasel_drive *d, int on)
 {
     int mask = CBIT(d->contr, d->number ? CatMotor1 : CatMotor0);
-    
+
     if (on) {
 	CWSetCReg(d->contr, mask, 0);
     } else {

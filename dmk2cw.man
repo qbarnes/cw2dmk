@@ -126,6 +126,7 @@ Time in milliseconds to delay after each step pulse (sometimes called
 "step rate"), and additional time to delay after the last step pulse (head
 settling time).  The defaults are 6 ms step time and 0 ms settling time.
 The comma and settling_time value are optional.
+
 If your drive has difficulty stepping, try a slower step rate.  If you often
 see errors when reading back the first sector or first few sectors
 of a track, or if you know your drive requires it, add some head settling time.
