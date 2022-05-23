@@ -1,3 +1,5 @@
+4.9.1 -- Mon May 23 15:56:42 UTC 2022 -- Tim Mann
+
 * Add -T step_time,settling_time feature to both cw2dmk and dmk2cw.
 
 * Log all Catweasel samples when at verbosity level 7, instead of
