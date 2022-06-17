@@ -15,10 +15,15 @@ $ sudo apt-get update
 $ sudo apt-get install -y bsdmainutils groff-base git make gcc libpci-dev
 ```
 
-To build for Linux, just run:
+To build native Linux binaries,
+[clone the repo with ssh](#cloning-the-repo),
+change into its top level directory, and run:
 ```
 $ make
 ```
+
+The Linux binaries are in the top level directory with the names
+`cw2dmk`, `dmk2cw`, `jv2dmk`, `dmk2jv3`, and `cwtsthst`.
 
 ## Cross-building for MS-DOS Using Linux
 
@@ -46,7 +51,31 @@ $ wget https://github.com/andrewwutw/build-djgpp/releases/download/v3.1/djgpp-li
 $ sudo tar -C /usr/local -xf djgpp-linux64-gcc1020.tar.bz2
 ```
 
-To cross-build using the DJGPP tools, from the repo's top directory, run:
+To cross-build MS-DOS binaries using the DJGPP tools,
+[clone the repo with ssh](#cloning-the-repo),
+change into its top level directory, and run:
 ```
 $ make TARGET_OS=MSDOS CC=/usr/local/djgpp/bin/i586-pc-msdosdjgpp-gcc
 ```
+
+The MS-DOS binaries are in the top level directory with the names
+`cw2dmk.exe`, `dmk2cw.exe`, `jv2dmk.exe`, `dmk2jv3.exe`, `cwtsthst.exe`,
+and `cwsdpmi.exe`.
+
+## Cloning the Repo
+
+This section provides common assistance with cloning the repo with
+an ssh certificate for authenication with GitHub.
+
+Using the ssh method of authentication is necessary for the way
+submodules are referenced.
+
+To clone the repo using an ssh certificate, run:
+```
+$ git clone --recursive git@github.com:qbarnes/cw2dmk
+```
+
+The `--recursive` option clones the source along with any submodules.
+
+If you have trouble running the above command, see Github docs for help with
+[Connecting to GitHub with SSH](https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
