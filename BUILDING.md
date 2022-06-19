@@ -65,7 +65,7 @@ and `cwsdpmi.exe`.
 ## Cloning the Repo
 
 This section provides common assistance with cloning the repo with
-an ssh certificate for authenication with GitHub.
+an ssh certificate for authentication with GitHub.
 
 Using the ssh method of authentication is necessary for the way
 submodules are referenced.
@@ -77,5 +77,5 @@ $ git clone --recursive git@github.com:qbarnes/cw2dmk
 
 The `--recursive` option clones the source along with any submodules.
 
-If you have trouble running the above command, see Github docs for help with
+If you have trouble running the above command, see GitHub docs for help with
 [Connecting to GitHub with SSH](https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
