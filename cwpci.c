@@ -3,7 +3,6 @@
  * PCI detection routines
  *
  * Copyright (C) 2002 by Timothy Mann
- * $Id: cwpci.c,v 1.6 2010/01/15 19:28:46 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

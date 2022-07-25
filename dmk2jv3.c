@@ -1,7 +1,6 @@
 /*
  * dmk2jv3: Convert a DMK format emulated floppy to JV3 format if possible
  * Copyright (C) 2002 Timothy Mann
- * $Id: dmk2jv3.c,v 1.10 2010/01/15 19:28:46 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

@@ -1,7 +1,6 @@
 /* Catweasel test program
    From cwfloppy-0.2.1 package, copyright (c) 1998 Michael Krause
    Modified by Timothy Mann
-   $Id: testhist.c,v 1.13 2005/04/24 04:16:45 mann Exp $
 
    Reads a track and prints a histogram of the samples (flux
    transition interarrival times) returned.  Also guesses the drive

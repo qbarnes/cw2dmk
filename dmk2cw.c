@@ -1,7 +1,6 @@
 /*
  * dmk2cw: Write a .dmk to a real floppy disk using the Catweasel.
  * Copyright (C) 2001 Timothy Mann
- * $Id: dmk2cw.c,v 1.17 2010/01/15 19:28:46 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *

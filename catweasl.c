@@ -5,7 +5,6 @@
  *
  * Copyright (C) 1998 Michael Krause
  * Modifications by Timothy Mann for use with cw2dmk
- * $Id: catweasl.c,v 1.22 2010/01/15 22:55:20 mann Exp $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
