@@ -322,6 +322,15 @@ This message usually means that there is no disk in the
 drive.  It might also appear in some cases if the drive is not connected
 properly, the door is not closed, the disk is inserted upside-down, etc.
 .TP
+.B dmk2cw: Some data did not fit on track
+Some valid sector data from the DMK file did not fit on the physical
+track.  Note: This error can be detected only with Catweasel MK4, not
+MK1 or MK3.  Depending on exactly why the track was too long to fit,
+using the -g, -i, or -a options may help.  If you created the DMK file
+by reading a physical disk with cw2dmk in -h0 mode, if the disk has
+one IAM (index address mark) on each track, rereading the original
+disk with a small value for the -i option (say, -i4) may help.
+.TP
 .B dmk2cw: Drive is 1-sided but DMK file is 2-sided
 This message means that there is space reserved in the DMK file for
 two sides, and some apparently valid data was found on side 1, but you

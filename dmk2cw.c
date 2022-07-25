@@ -358,15 +358,19 @@ approx(int a, int b)
 #define MFM_GAP3Z 8 /*12 nominal, but that is too many.  3 is too few! */
 #define FM_GAP3Z  4 /*6 nominal */
 
-/* Byte encodings */
-#define SKIP    0  /* padding byte in FM area of a DMK */
-#define FM      1  /* FM with FF clock */
-#define FM_IAM  2  /* FM with D7 clock (IAM) */
-#define FM_AM   3  /* FM with C7 clock (IDAM or DAM) */
-#define MFM     4  /* MFM with normal clocking algorithm */
-#define MFM_IAM 5  /* MFM C2 with missing clock */
-#define MFM_AM  6  /* MFM A1 with missing clock */
-#define RX02    7  /* DEC-modified MFM as in RX02 */
+/* Byte encodings and letters used when logging them */
+#define SKIP    0  /* -  padding byte in FM area of a DMK */
+#define FM      1  /* F  FM with FF clock */
+#define FM_IAM  2  /* I  FM with D7 clock (IAM) */
+#define FM_AM   3  /* A  FM with C7 clock (IDAM or DAM) */
+#define MFM     4  /* M  MFM with normal clocking algorithm */
+#define MFM_IAM 5  /* J  MFM C2 with missing clock */
+#define MFM_AM  6  /* B  MFM A1 with missing clock */
+#define RX02    7  /* X  DEC-modified MFM as in RX02 */
+#define encoding_letter "-FIAMJBX"
+
+/* Or'ed into encoding at end of sector data */
+#define SECTOR_END 8
 
 int
 main(int argc, char** argv)
@@ -383,9 +387,11 @@ main(int argc, char** argv)
   int dam_min, dam_max, got_iam, skip;
   int byte, bit;
   double mult;
-  int rx02_data = 0;
+  int rx02_data;
+  int sector_data;
   int cw_mk = 1;
   int tracklen;
+  int extra;
 
   opterr = 0;
   for (;;) {
@@ -603,6 +609,15 @@ main(int argc, char** argv)
   }
   dmk_track = (unsigned char*) malloc(tracklen);
   dmk_encoding = (unsigned char*) malloc(tracklen);
+  if (dmk_header.quirks & QUIRK_EXTRA_CRC) {
+    extra = 6;
+  } else if (dmk_header.quirks & QUIRK_EXTRA_DATA) {
+    extra = 4;
+  } else if (dmk_header.quirks & QUIRK_EXTRA) {
+    extra = 6; // unspecified, use 6 in case really QUIRK_EXTRA_CRC
+  } else {
+    extra = 0;
+  }
 
   /* Select drive, start motor, wait for spinup */
   catweasel_select(&c, !drive, drive);
@@ -684,6 +699,8 @@ main(int argc, char** argv)
       dam_max = 0;
       got_iam = 0;
       skip = 0;
+      rx02_data = 0;
+      sector_data = 0;
 
       /* First IDAM pointer has some special uses; need to get it here */
       next_idamp = dmk_track[idampp++];
@@ -813,13 +830,16 @@ main(int argc, char** argv)
 	    rx02_data = 2 + (256 << dmk_track[idamp+4]);
 	    /* Follow CRC with one RX02-MFM FF */
 	    dmk_track[fmtimes + datap + rx02_data++] = 0xff;
-	  }
+	  } else {
+            /* Compute expected sector size */
+            sector_data = 2 + (128 << dmk_track[idamp+4]) + extra;
+          }
 
-	} else if (datap > DMK_TKHDR_SIZE && datap <= first_idamp
+	} else if (datap >= DMK_TKHDR_SIZE && datap <= first_idamp
 		   && !got_iam && dmk_track[datap] == 0xfc &&
 		   ((encoding == MFM && dmk_track[datap-1] == 0xc2) ||
-		    (encoding == FM && (dmk_track[datap-2] == 0x00 ||
-					dmk_track[datap-2] == 0xff)))) {
+		    (encoding == FM && (dmk_track[datap-fmtimes] == 0x00 ||
+					dmk_track[datap-fmtimes] == 0xff)))) {
 	  /* Index address mark */
 	  got_iam = datap;
 	  skip = 1;
@@ -858,6 +878,9 @@ main(int argc, char** argv)
 	    /* Encode an rx02-modified MFM byte */
 	    dmk_encoding[datap] = RX02;
 	    rx02_data--;
+            if (rx02_data == 0) {
+              dmk_encoding[datap] |= SECTOR_END;
+            }
 	  }
 
 	} else if (encoding == FM && fmtimes == 2 && skip) {
@@ -869,6 +892,12 @@ main(int argc, char** argv)
 	  /* Normal case */
 	  dmk_encoding[datap] = encoding;
 	  skip = !skip;
+          if (sector_data > 0) {
+            sector_data--;
+            if (sector_data == 0) {
+              dmk_encoding[datap] |= SECTOR_END;
+            }
+          }
 	}
       }
 
@@ -908,9 +937,9 @@ main(int argc, char** argv)
 	  }
 	  if (out_fmt >= OUT_BYTES) {
 	    printf("%s%c%02x", out_fmt >= OUT_SAMPLES ? "\n" : "",
-		   "-FIAMJBX"[encoding], byte);
+		   encoding_letter[encoding], byte);
 	  }
-	  switch (encoding) {
+	  switch (encoding & ~SECTOR_END) {
 	  case SKIP:    /* padding byte in FM area of a DMK */
 	    break;
 
@@ -952,7 +981,14 @@ main(int argc, char** argv)
 	    }
 	    break;
 	  }
-	}
+
+          if (encoding & SECTOR_END) {
+            if (catweasel_sector_end(&c) < 0) {
+              fprintf(stderr, "dmk2cw: Catweasel memory full\n");
+              exit(1);
+            }
+          }
+        }
 
 	rx02_bitpair(RX02_BITPAIR_FLUSH, mult);
 
@@ -962,7 +998,8 @@ main(int argc, char** argv)
 	switch (fill) {
 	case 0:
 	  /* Fill with a standard gap byte in most recent encoding */
-	  switch (encoding) {
+	  switch (encoding & ~SECTOR_END) {
+          case SKIP:
 	  case FM:
 	  case FM_IAM:
 	  case FM_AM:
@@ -1034,9 +1071,13 @@ main(int argc, char** argv)
 
       catweasel_set_hd(&c, (hd & 1) ^ ((hd > 1) && (track > 43)));
 
-      if (!catweasel_write(&c.drives[drive], side ^ reverse, cwclock, -1)) {
+      ret = catweasel_write(&c.drives[drive], side ^ reverse, cwclock, -1);
+      if (ret == 0) {
 	fprintf(stderr, "dmk2cw: Write error\n");
 	exit(1);
+      } else if (ret == -1) {
+        printf("dmk2cw: Some data did not fit on track %d, side %d\n",
+               track, side);
       }
     }
   }

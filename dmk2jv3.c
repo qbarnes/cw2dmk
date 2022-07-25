@@ -273,6 +273,11 @@ main(int argc, char** argv)
     fprintf(stderr, "dmk2jv3: JV3 does not support RX02 encoding\n");
     exit(1);
   }
+  if (dmk_header.quirks != 0 && out_fmt >= OUT_WARNINGS) {
+    printf("[Warning: JV3 does not support quirks; ignoring %02x]\n",
+           dmk_header.quirks);
+    jv3.warncount++;
+  }
 
   jv3_file = fopen(jv3_name, "wb");
   if (jv3_file == NULL) {
