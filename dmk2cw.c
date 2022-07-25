@@ -372,6 +372,24 @@ approx(int a, int b)
 /* Or'ed into encoding at end of sector data */
 #define SECTOR_END 8
 
+/*
+ * Like strtol, but exit with a fatal error message if there are any
+ * invalid characters or the string is empty.
+ */
+long int
+strtol_strict(const char *nptr, int base, const char name)
+{
+  long int res;
+  char *endptr;
+
+  res = strtol(nptr, &endptr, base);
+  if (*nptr == '\0' || *endptr != '\0') {
+    fprintf(stderr, "dmk2cw: -%c requires a numeric argument\n", name);
+    exit(1);
+  }
+  return res;
+}
+
 int
 main(int argc, char** argv)
 {
@@ -399,7 +417,7 @@ main(int argc, char** argv)
     if (ch == -1) break;
     switch (ch) {
     case 'p':
-      port = strtol(optarg, NULL, 16);
+      port = strtol_strict(optarg, 16, ch);
       if (port < 0 || (port >= MK3_MAX_CARDS && port < MK1_MIN_PORT) ||
 	  (port > MK1_MAX_PORT)) {
 	fprintf(stderr,
@@ -410,23 +428,23 @@ main(int argc, char** argv)
       }
       break;
     case 'd':
-      drive = strtol(optarg, NULL, 0);
+      drive = strtol_strict(optarg, 0, ch);
       if (drive < 0 || drive > 1) usage();
       break;
     case 'v':
-      out_fmt = strtol(optarg, NULL, 0);
+      out_fmt = strtol_strict(optarg, 0, ch);
       if (out_fmt < OUT_MIN || out_fmt > OUT_MAX) usage();
       break;
     case 'k':
-      kind = strtol(optarg, NULL, 0);
+      kind = strtol_strict(optarg, 0, ch);
       if (kind < 0 || kind > NKINDS) usage();
       break;
     case 'm':
-      steps = strtol(optarg, NULL, 0);
+      steps = strtol_strict(optarg, 0, ch);
       if (steps < 1 || steps > 2) usage();
       break;
     case 's':
-      maxsides = strtol(optarg, NULL, 0);
+      maxsides = strtol_strict(optarg, 0, ch);
       if (maxsides < 1 || maxsides > 2) usage();
       break;
     case 'o':
@@ -436,28 +454,28 @@ main(int argc, char** argv)
       if (precomplo < 0.0 || precomphi < 0.0) usage();
       break;
     case 'c':
-      cwclock = strtol(optarg, NULL, 0);
+      cwclock = strtol_strict(optarg, 0, ch);
       if (cwclock != 1 && cwclock != 2 && cwclock != 4) usage();
       break;
     case 'h':
-      hd = strtol(optarg, NULL, 0);
+      hd = strtol_strict(optarg, 0, ch);
       if (hd < 0 || hd > 4) usage();
       break;
     case 'l':
-      datalen = strtol(optarg, NULL, 0);
+      datalen = strtol_strict(optarg, 0, ch);
       break;
     case 'g':
-      ignore = strtol(optarg, NULL, 0);
+      ignore = strtol_strict(optarg, 0, ch);
       break;
     case 'i':
-      iam_pos = strtol(optarg, NULL, 0);
+      iam_pos = strtol_strict(optarg, 0, ch);
       break;
     case 'r':
-      reverse = strtol(optarg, NULL, 0);
+      reverse = strtol_strict(optarg, 0, ch);
       if (reverse < 0 || reverse > 1) usage();
       break;
     case 'f':
-      fill = strtol(optarg, NULL, 0);
+      fill = strtol_strict(optarg, 0, ch);
       if (fill < 0 || (fill > 3 && fill < 0x100) || fill > 0x2ff) {
 	usage();
       }
@@ -468,12 +486,12 @@ main(int argc, char** argv)
       if (rate_adj < 0.0) usage();
       break;
     case 'e':
-      dither = strtol(optarg, NULL, 0);
+      dither = strtol_strict(optarg, 0, ch);
       if (dither < 0 || dither > 1) usage();
       break;
 #if DEBUG6
     case 'y':
-      testmode = strtol(optarg, NULL, 0);
+      testmode = strtol_strict(optarg, 0, ch);
       break;
 #endif
     case 'T':
