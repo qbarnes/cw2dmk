@@ -48,11 +48,22 @@
 #define DMK_EXTRA_FLAG    0x4000  /* unused */
 #define DMK_IDAMP_BITS    0x3fff
 
+/* Bit assignments in quirks byte (cw2dmk addition) */
+#define QUIRK_ID_CRC     0x01
+#define QUIRK_DATA_CRC   0x02
+#define QUIRK_PREMARK    0x04
+#define QUIRK_EXTRA      0x08
+#define QUIRK_EXTRA_CRC  0x10
+#define QUIRK_EXTRA_DATA 0x20
+#define QUIRK_IAM        0x40
+#define QUIRK_ALL        0x7f
+
 typedef struct {
   uint8_t	writeprot;
   uint8_t	ntracks;
   uint16_t	tracklen;
   uint8_t	options;
-  uint8_t	padding[7];
+  uint8_t	quirks;
+  uint8_t	padding[6];
   uint32_t	mbz;
 } dmk_header_t;

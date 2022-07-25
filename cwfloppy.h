@@ -60,6 +60,11 @@ int catweasel_read(catweasel_drive *d, int side, int clock, int time, int idx);
 
 /* Write data -- msdelay will be used */
 /* If time = 0, write from index hole to index hole */
+/* Return values:
+   1 = Success.
+   0 = Write error, probably no disk.
+  -1 = Some sector data (as marked by catweasel_sector_end) did not fit.
+*/
 int catweasel_write(catweasel_drive *d, int side, int clock, int time);
 
 /* Trivial Catweasel memory test.  Returns number of seemingly good bytes;
@@ -87,6 +92,10 @@ void catweasel_reset_pointer(catweasel_contr *c);
 /* Put one byte to Catweasel memory.  Return 0 if OK, -1 if
    memory was full.  */
 int catweasel_put_byte(catweasel_contr *c, unsigned char val);
+
+/* Note the end of sector data.  Returns 0 if ok, -1 if memory is
+   already full, meaning some of the sector will be lost. */
+int catweasel_sector_end(catweasel_contr *c);
 
 /* Working version of usleep */
 unsigned int catweasel_usleep(unsigned int _useconds);

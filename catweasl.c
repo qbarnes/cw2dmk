@@ -46,6 +46,7 @@
 //#define DEBUG10 1
 //#define DEBUG11 1
 //#define DEBUG12 1
+//#define DEBUG13 1
 
 #if DEBUG10
 unsigned char INB(unsigned short port)
@@ -187,6 +188,7 @@ unsigned char Mk3ControlBit[] = {
 #define MEMSIZE 131072
 #define CREG(c) (c->private[0])
 #define PTR(c) (c->private[1])
+#define SECTEND(c) (c->private[2])
 #define INREG(c, name) inb((c)->iobase + (c)->reg[name])
 #define OUTREG(c, name, val) outb((val), (c)->iobase + (c)->reg[name])
 #define SBIT(c, name) ((c)->stat[name])
@@ -764,6 +766,10 @@ int
 catweasel_write(catweasel_drive *d, int side, int clockmult, int time)
 {
     catweasel_contr *c = d->contr;
+    int res = 1;
+#if DEBUG13
+    int end_fill = PTR(c);
+#endif
 
 #if CHECK_DISK_CHANGED
     if (!CWAwaitCReg(c, 0, SBIT(c, CatDiskChange))) return 0;
@@ -801,11 +807,21 @@ catweasel_write(catweasel_drive *d, int side, int clockmult, int time)
 	/* wait for prescribed time */
 	catweasel_usleep(time*1000);
     }
+    if (c->mk == 4) {
+        int p = CWReadPointer(c);
+        if (p < SECTEND(c)) {
+          res = -1;
+        }
+#if DEBUG13
+	printf("catweasel_write: ptr is %d; end is %d; end_fill is %d\n",
+               p, SECTEND(c), end_fill);
+#endif
+    }
     /* stop writing and reset RA */
     catweasel_abort(c);
     catweasel_reset_pointer(c);
 
-    return 1;
+    return res;
 }
 
 int catweasel_await_index(catweasel_drive *d)
@@ -830,33 +846,44 @@ void catweasel_set_hd(catweasel_contr *c, int hd)
 
 int catweasel_get_byte(catweasel_contr *c)
 {
-#if DEBUG13
-    int p;
-    if (c->mk == 4 && (p = CWReadPointer(c)) != PTR(c)) {
-	printf("ptr is %d; expected %d\n", p, PTR(c));
-    }
-#endif
-
     if (PTR(c) >= MEMSIZE) {
 	return -1;
     }
-    ++PTR(c);
+#if DEBUG13
+    int p;
+    if (c->mk == 4 && (p = CWReadPointer(c)) != PTR(c)) {
+	printf("catweasel_get_byte: ptr is %d; expected %d\n", p, PTR(c));
+    }
+#endif
+    PTR(c)++;
     return INREG(c, CatMem);
 }
 
 int catweasel_put_byte(catweasel_contr *c, unsigned char val)
 {
+    if (PTR(c) >= MEMSIZE) {
+        return -1;
+    }
 #if DEBUG13
     int p;
     if (c->mk == 4 && (p = CWReadPointer(c)) != PTR(c)) {
-	printf("ptr is %d; expected %d\n", p, PTR(c));
+	printf("catweasel_put_byte: ptr is %d; expected %d\n", p, PTR(c));
     }
 #endif
-
-    if (++PTR(c) > MEMSIZE) {
-      return -1;
-    }
     OUTREG(c, CatMem, val);
+    PTR(c)++;
 
+    return 0;
+}
+
+int catweasel_sector_end(catweasel_contr *c)
+{
+    SECTEND(c) = PTR(c);
+#if DEBUG13
+    printf("@%d ", SECTEND(c));
+#endif
+    if (PTR(c) >= MEMSIZE) {
+	return -1;
+    }
     return 0;
 }

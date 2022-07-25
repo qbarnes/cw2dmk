@@ -137,14 +137,6 @@ unsigned int step_ms = 6;
 unsigned int settle_ms = 0;
 
 unsigned int quirk;
-#define QUIRK_ID_CRC     0x01
-#define QUIRK_DATA_CRC   0x02
-#define QUIRK_PREMARK    0x04
-#define QUIRK_EXTRA      0x08
-#define QUIRK_EXTRA_CRC  0x10
-#define QUIRK_EXTRA_DATA 0x20
-#define QUIRK_IAM        0x40
-#define QUIRK_ALL        0x7f
 
 char* plu(int val)
 {
@@ -2149,6 +2141,7 @@ main(int argc, char** argv)
   dmk_header.options = ((sides == 1) ? DMK_SSIDE_OPT : 0) +
 		       ((fmtimes == 1) ? DMK_SDEN_OPT : 0) +
 		       ((uencoding == RX02) ? DMK_RX02_OPT : 0);
+  dmk_header.quirks = quirk;
   dmk_write_header();
   if (dmk_track) free(dmk_track);
   dmk_track = (unsigned char*) malloc(dmktracklen);
