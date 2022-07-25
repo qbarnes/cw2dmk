@@ -1,7 +1,6 @@
 /*
  * cw2dmk: Dump floppy disk from Catweasel to .dmk format.
  * Copyright (C) 2000 Timothy Mann
- * $Id: cw2dmk.c,v 1.38 2010/01/15 20:32:56 mann Exp $
  *
  * Depends on Linux Catweasel driver code by Michael Krause
  *

@@ -1,5 +1,3 @@
-/* $Id: cwfloppy.h,v 1.12 2005/04/24 04:16:45 mann Exp $ */
-
 #ifndef _CWFLOPPY_H
 #define _CWFLOPPY_H
 
