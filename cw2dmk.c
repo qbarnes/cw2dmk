@@ -1764,14 +1764,14 @@ parse_tracks(const char *nptr, int *rav)
  * invalid characters or the string is empty.
  */
 long int
-strtol_strict(const char *nptr, int base, const char name)
+strtol_strict(const char *nptr, int base, const char *name)
 {
   long int res;
   char *endptr;
 
   res = strtol(nptr, &endptr, base);
   if (*nptr == '\0' || *endptr != '\0') {
-    fatal_msg(1, "-%c requires a numeric argument\n", name);
+    fatal_msg(1, "%s requires a numeric argument\n", name);
   }
   return res;
 }
@@ -1781,14 +1781,14 @@ strtol_strict(const char *nptr, int base, const char name)
  * invalid characters or the string is empty.
  */
 double
-strtod_strict(const char *nptr, const char name)
+strtod_strict(const char *nptr, const char *name)
 {
   double res;
   char *endptr;
 
   res = strtod(nptr, &endptr);
   if (*nptr == '\0' || *endptr != '\0') {
-    fatal_msg(1, "-%c requires a numeric argument\n", name);
+    fatal_msg(1, "%s requires a numeric argument\n", name);
   }
   return res;
 }
@@ -1802,6 +1802,7 @@ main(int argc, char** argv)
   int cw_mk = 1;
   char *replay = NULL;
   FILE *replay_file = NULL;
+  char optname[3] = "-?";
 
   for (int i = 0; i < COUNT_OF(retries); ++i)
     retries[i] = RETRIES_DEFAULT;
@@ -1811,9 +1812,10 @@ main(int argc, char** argv)
     ch = getopt(argc, argv,
 		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:R:X:T:");
     if (ch == -1) break;
+    optname[1] = ch;
     switch (ch) {
     case 'p':
-      port = strtol_strict(optarg, 16, ch);
+      port = strtol_strict(optarg, 16, optname);
       if (port < 0 || (port >= MK3_MAX_CARDS && port < MK1_MIN_PORT) ||
 	  (port > MK1_MAX_PORT)) {
 	fatal_msg(1,
@@ -1823,11 +1825,11 @@ main(int argc, char** argv)
       }
       break;
     case 'd':
-      drive = strtol_strict(optarg, 0, ch);
+      drive = strtol_strict(optarg, 0, optname);
       if (drive < -1 || drive > 1) usage();
       break;
     case 'v':
-      out_level = strtol_strict(optarg, 0, ch);
+      out_level = strtol_strict(optarg, 0, optname);
       if (out_level < OUT_QUIET || out_level > OUT_SAMPLES * 11) {
 	usage();
       }
@@ -1838,28 +1840,28 @@ main(int argc, char** argv)
       out_file_name = optarg;
       break;
     case 'k':
-      kind = strtol_strict(optarg, 0, ch);
+      kind = strtol_strict(optarg, 0, optname);
       if (kind < 1 || kind > NKINDS) usage();
       set_kind();
       break;
     case 'm':
-      steps = strtol_strict(optarg, 0, ch);
+      steps = strtol_strict(optarg, 0, optname);
       if (steps < 1 || steps > 2) usage();
       break;
     case 't':
-      tracks = strtol_strict(optarg, 0, ch);
+      tracks = strtol_strict(optarg, 0, optname);
       if (tracks < 0 || tracks > MAX_TRACKS) usage();
       break;
     case 's':
-      sides = strtol_strict(optarg, 0, ch);
+      sides = strtol_strict(optarg, 0, optname);
       if (sides < 1 || sides > 2) usage();
       break;
     case 'e':
-      uencoding = strtol_strict(optarg, 0, ch);
+      uencoding = strtol_strict(optarg, 0, optname);
       if (uencoding < FM || uencoding > RX02) usage();
       break;
     case 'w':
-      fmtimes = strtol_strict(optarg, 0, ch);
+      fmtimes = strtol_strict(optarg, 0, optname);
       if (fmtimes != 1 && fmtimes != 2) usage();
       break;
     case 'x':
@@ -1867,33 +1869,33 @@ main(int argc, char** argv)
       x_given = 1;
       break;
     case 'a':
-      alternate = strtol_strict(optarg, 0, ch);
+      alternate = strtol_strict(optarg, 0, optname);
       if (alternate < 0 || alternate > 3) usage();
       break;
     case 'o':
-      postcomp = strtod_strict(optarg, ch);
+      postcomp = strtod_strict(optarg, optname);
       if (postcomp < 0.0 || postcomp > 1.0) usage();
       break;
     case 'h':
-      hole = strtol_strict(optarg, 0, ch);
+      hole = strtol_strict(optarg, 0, optname);
       if (hole < 0 || hole > 1) usage();
       break;
     case 'g':
-      dmk_ignore = strtol_strict(optarg, 0, ch);
+      dmk_ignore = strtol_strict(optarg, 0, optname);
       break;
     case 'i':
-      dmk_iam_pos = strtol_strict(optarg, 0, ch);
+      dmk_iam_pos = strtol_strict(optarg, 0, optname);
       break;
     case 'z':
-      maxsize = strtol_strict(optarg, 0, ch);
+      maxsize = strtol_strict(optarg, 0, optname);
       if (maxsize < 0 || maxsize > 255) usage();
       break;
     case 'r':
-      reverse = strtol_strict(optarg, 0, ch);
+      reverse = strtol_strict(optarg, 0, optname);
       if (reverse < 0 || reverse > 1) usage();
       break;
     case 'q':
-      quirk = strtol_strict(optarg, 0, ch);
+      quirk = strtol_strict(optarg, 0, optname);
       if (quirk & ~QUIRK_ALL) usage();
       if (((quirk & QUIRK_EXTRA) != 0) +
           ((quirk & QUIRK_EXTRA_CRC) != 0) +
@@ -1904,25 +1906,25 @@ main(int argc, char** argv)
       }
       break;
     case 'c':
-      cwclock = strtol_strict(optarg, 0, ch);
+      cwclock = strtol_strict(optarg, 0, optname);
       if (kind == -1 || (cwclock != 1 && cwclock != 2 && cwclock != 4)) {
 	usage();
       }
       break;
     case '1':
-      mfmthresh1 = strtol_strict(optarg, 0, ch);
+      mfmthresh1 = strtol_strict(optarg, 0, optname);
       if (kind == -1) usage();
       break;
     case '2':
-      mfmthresh2 = strtol_strict(optarg, 0, ch);
+      mfmthresh2 = strtol_strict(optarg, 0, optname);
       if (kind == -1) usage();
       break;
     case 'f':
-      fmthresh = strtol_strict(optarg, 0, ch);
+      fmthresh = strtol_strict(optarg, 0, optname);
       if (kind == -1) usage();
       break;
     case 'l':
-      dmktracklen = strtol_strict(optarg, 0, ch);
+      dmktracklen = strtol_strict(optarg, 0, optname);
       if (dmktracklen < 0 || dmktracklen > 0x4000) usage();
       if (kind == -1) usage();
       break;
@@ -1942,7 +1944,7 @@ main(int argc, char** argv)
       }
       break;
     case 'C':
-      check_compat_sides = strtol_strict(optarg, 0, ch);
+      check_compat_sides = strtol_strict(optarg, 0, optname);
       break;
     case 'R':
       replay = optarg;
