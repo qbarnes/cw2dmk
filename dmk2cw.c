@@ -371,6 +371,9 @@ approx(int a, int b)
 
 /* Or'ed into encoding at end of sector data */
 #define SECTOR_END 8
+#define enc(encoding) ((encoding) & ~SECTOR_END)
+#define isend(encoding) (((encoding) & SECTOR_END) != 0)
+#define ismfm(encoding) (enc(encoding) >= MFM && enc(encoding) <= MFM_AM)
 
 /*
  * Like strtol, but exit with a fatal error message if there are any
@@ -953,13 +956,13 @@ main(int argc, char** argv)
 	    byte = dmk_track[datap];
 	    encoding = dmk_encoding[datap];
 	  } else {
-	    byte = (encoding == MFM) ? 0x4e : 0xff;
+	    byte = ismfm(encoding) ? 0x4e : 0xff;
 	  }
 	  if (out_fmt >= OUT_BYTES) {
 	    printf("%s%c%02x", out_fmt >= OUT_SAMPLES ? "\n" : "",
-		   encoding_letter[encoding], byte);
+		   encoding_letter[enc(encoding)], byte);
 	  }
-	  switch (encoding & ~SECTOR_END) {
+	  switch (enc(encoding)) {
 	  case SKIP:    /* padding byte in FM area of a DMK */
 	    break;
 
@@ -988,7 +991,7 @@ main(int argc, char** argv)
 	    break;
 
 	  case RX02:    /* DEC-modified MFM as in RX02 */
-	    if (dmk_encoding[datap-1] != RX02) {
+	    if (enc(dmk_encoding[datap-1]) != RX02) {
 	      rx02_bitpair(RX02_BITPAIR_INIT, mult);
 	    }
 	    for (i=0; i<8; i++) {
@@ -996,13 +999,13 @@ main(int argc, char** argv)
 	      rx02_bitpair(bit, mult);
 	      byte <<= 1;
 	    }
-	    if (dmk_encoding[datap+1] != RX02) {
+	    if (enc(dmk_encoding[datap+1]) != RX02) {
 	      rx02_bitpair(RX02_BITPAIR_FLUSH, mult);
 	    }
 	    break;
 	  }
 
-          if (encoding & SECTOR_END) {
+          if (isend(encoding)) {
             if (catweasel_sector_end(&c) < 0) {
               fprintf(stderr, "dmk2cw: Catweasel memory full\n");
               exit(1);
@@ -1018,25 +1021,16 @@ main(int argc, char** argv)
 	switch (fill) {
 	case 0:
 	  /* Fill with a standard gap byte in most recent encoding */
-	  switch (encoding & ~SECTOR_END) {
-          case SKIP:
-	  case FM:
-	  case FM_IAM:
-	  case FM_AM:
-	  case RX02:
-	    for (;;) {
-	      if (fm_byte(0xff, 0xff, mult, &bit) < 0) break;
-	    }
-	    break;
-	  case MFM:
-	  case MFM_IAM:
-	  case MFM_AM:
+          if (ismfm(encoding)) {
 	    for (;;) {
 	      if (mfm_byte(0x4e, -1, mult, &bit) < 0) break;
 	    }
-	    break;
-	  }
-	  break;
+          } else {
+	    for (;;) {
+	      if (fm_byte(0xff, 0xff, mult, &bit) < 0) break;
+	    }
+          }
+          break;
 
 	case 1:
 	  /* Erase remainder of track and write nothing. */
