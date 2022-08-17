@@ -750,4 +750,3 @@ program from ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.
 Look for files with names of the form csdpmi*.zip.  Note: the highest
 version that has been tested with cw2dmk at this writing is 5.
 
-$Id: cw2dmk.man,v 1.31 2010/01/15 23:11:54 mann Exp $

@@ -349,6 +349,3 @@ You can download the source code and/or binary updates for this
 program from ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/.
 Look for files with names of the form csdpmi*.zip.  Note: the highest
 version that has been tested with dmk2cw at this writing is 5.
-
-$Id: dmk2cw.man,v 1.16 2010/01/15 19:28:46 mann Exp $
-
