@@ -1,3 +1,12 @@
+* Make the -v2 and -v3 output of dmk2cw more readable.
+
+* Check that numeric option arguments are valid numbers.
+
+* Make dmk2cw warn if not all sector data fits on the physical track.
+  To help support the feature (and because it generally seems useful),
+  cw2dmk now records the quirk flags in the previously unused/reserved
+  byte 5 of the DMK file header.
+
 4.9.1 -- Mon May 23 15:56:42 UTC 2022 -- Tim Mann
 
 * Add -T step_time,settling_time feature to both cw2dmk and dmk2cw.
