@@ -370,10 +370,12 @@ approx(int a, int b)
 #define encoding_letter "-FIAMJBX"
 
 /* Or'ed into encoding at end of sector data */
-#define SECTOR_END 8
+#define SECTOR_END 0x80
 #define enc(encoding) ((encoding) & ~SECTOR_END)
 #define isend(encoding) (((encoding) & SECTOR_END) != 0)
 #define ismfm(encoding) (enc(encoding) >= MFM && enc(encoding) <= MFM_AM)
+
+#include "secsize.c"
 
 /*
  * Like strtol, but exit with a fatal error message if there are any
@@ -412,7 +414,7 @@ main(int argc, char** argv)
   int sector_data;
   int cw_mk = 1;
   int tracklen;
-  int extra;
+  int extra_bytes;
   char optname[3] = "-?";
 
   opterr = 0;
@@ -632,14 +634,16 @@ main(int argc, char** argv)
   }
   dmk_track = (unsigned char*) malloc(tracklen);
   dmk_encoding = (unsigned char*) malloc(tracklen);
+  /*
+   * Extra bytes after the data CRC, if any.  secsize() accounts for
+   * extra bytes before the data CRC.
+   */
   if (dmk_header.quirks & QUIRK_EXTRA_CRC) {
-    extra = 6;
-  } else if (dmk_header.quirks & QUIRK_EXTRA_DATA) {
-    extra = 4;
+    extra_bytes = 6;
   } else if (dmk_header.quirks & QUIRK_EXTRA) {
-    extra = 6; // unspecified, use 6 in case really QUIRK_EXTRA_CRC
+    extra_bytes = 6; // unspecified, use 6 in case really QUIRK_EXTRA_CRC
   } else {
-    extra = 0;
+    extra_bytes = 0;
   }
 
   /* Select drive, start motor, wait for spinup */
@@ -854,8 +858,13 @@ main(int argc, char** argv)
 	    /* Follow CRC with one RX02-MFM FF */
 	    dmk_track[fmtimes + datap + rx02_data++] = 0xff;
 	  } else {
-            /* Compute expected sector size */
-            sector_data = 2 + (128 << dmk_track[idamp+4]) + extra;
+            /* Compute expected sector size, including CRC and any extra
+             * bytes after the CRC.  This matters only for warning if
+             * the entire sector didn't fit, so be liberal and use
+             * maxsize = 7 instead of burdening the user with yet
+             * another command line option.*/
+            sector_data = secsize(dmk_track[idamp+4], encoding, 7,
+                                  dmk_header.quirks) + 2 + extra_bytes;
           }
 
 	} else if (datap >= DMK_TKHDR_SIZE && datap <= first_idamp
