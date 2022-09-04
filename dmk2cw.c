@@ -374,6 +374,10 @@ approx(int a, int b)
 #define enc(encoding) ((encoding) & ~SECTOR_END)
 #define isend(encoding) (((encoding) & SECTOR_END) != 0)
 #define ismfm(encoding) (enc(encoding) >= MFM && enc(encoding) <= MFM_AM)
+#define ismark(encoding) (enc(encoding) == FM_IAM || \
+                          enc(encoding) == FM_AM || \
+                          enc(encoding) == MFM_IAM || \
+                          enc(encoding) == MFM_AM)
 
 #include "secsize.c"
 
@@ -406,7 +410,7 @@ main(int argc, char** argv)
   int ch, ret, i;
   int track, side;
   int idampp, first_idamp, idamp, next_idamp, datap;
-  int encoding, next_encoding;
+  int encoding, next_encoding, prev_encoding;
   int dam_min, dam_max, got_iam, skip;
   int byte, bit;
   double mult;
@@ -951,6 +955,7 @@ main(int argc, char** argv)
 	cw_bit(CW_BIT_INIT, mult);
 	bit = 0;
 	encoding = dmk_encoding[DMK_TKHDR_SIZE];
+        prev_encoding = SKIP;
 	if (iam_pos >= 0) {
 	  if (got_iam == 0) {
 	    fprintf(stderr,
@@ -967,9 +972,16 @@ main(int argc, char** argv)
 	  } else {
 	    byte = ismfm(encoding) ? 0x4e : 0xff;
 	  }
-	  if (out_fmt >= OUT_BYTES) {
-	    printf("%s%c%02x", out_fmt >= OUT_SAMPLES ? "\n" : "",
-		   encoding_letter[enc(encoding)], byte);
+          if (encoding != SKIP) {
+            if (out_fmt >= OUT_SAMPLES) printf("\n");
+            if (out_fmt >= OUT_BYTES) {
+              if (enc(encoding) != enc(prev_encoding)) {
+                if (ismark(encoding) && prev_encoding != SKIP) printf("\n");
+                printf("<%c>", encoding_letter[enc(encoding)]);
+                prev_encoding = encoding;
+              }
+              printf("%02x%s ", byte, isend(encoding) ? "|" : "");
+            }
 	  }
 	  switch (enc(encoding)) {
 	  case SKIP:    /* padding byte in FM area of a DMK */

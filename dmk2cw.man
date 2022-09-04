@@ -75,16 +75,23 @@ No output.
 Print progress information.
 .TP
 2
-Also dump the bytes being written, prefixing each with the encoding used.
-This option is primarily for debugging purposes.
-The prefixes used are as follows: "-" means the byte is skipped
-(it was padding in the DMK file), "F" encoded as FM data,
-"I" encoded as an FM index address mark, "A" encoded as an FM data address
-mark or ID address mark, "M" encoded as MFM data, "J" encoded as an MFM
+Also dump the DMK bytes being processed, except for bytes being
+skipped because the DMK file was created with FM bytes written twice.
+When the encoding changes, print a character in angle brackets to show
+the new encoding, as follows: "F" means the following byte(s) are
+encoded as FM data, "I" as an FM index address mark, "A" as an FM data
+address mark or ID address mark, "M" as MFM data, "J" as an MFM
 pre-index address mark, "B" as an MFM pre-data or pre-ID address mark,
-and "X" as RX02-modified MFM data.
+and "X" as RX02-modified MFM data.  Output a newline before each
+address mark encoding.  Output a "|" after the last byte of valid data
+for a sector, counting the sector CRC and any extra bytes specified by
+quirks.
 .TP
 3
+Also dump the DMK bytes being written, prefixing each with the encoding used.
+This option is primarily for debugging purposes.
+.TP
+4
 Like 2, but also dump the Catweasel samples generated for each byte.
 This option is primarily for debugging purposes.
 .RE
