@@ -188,7 +188,7 @@ unsigned char Mk3ControlBit[] = {
 #define MEMSIZE 131072
 #define CREG(c) (c->private[0])
 #define PTR(c) (c->private[1])
-#define SECTEND(c) (c->private[2])
+#define LASTSECTEND(c) (c->private[2])
 #define INREG(c, name) inb((c)->iobase + (c)->reg[name])
 #define OUTREG(c, name, val) outb((val), (c)->iobase + (c)->reg[name])
 #define SBIT(c, name) ((c)->stat[name])
@@ -809,12 +809,12 @@ catweasel_write(catweasel_drive *d, int side, int clockmult, int time)
     }
     if (c->mk == 4) {
         int p = CWReadPointer(c);
-        if (p < SECTEND(c)) {
+        if (p < LASTSECTEND(c)) {
           res = -1;
         }
 #if DEBUG13
 	printf("catweasel_write: ptr is %d; end is %d; end_fill is %d\n",
-               p, SECTEND(c), end_fill);
+               p, LASTSECTEND(c), end_fill);
 #endif
     }
     /* stop writing and reset RA */
@@ -878,9 +878,9 @@ int catweasel_put_byte(catweasel_contr *c, unsigned char val)
 
 int catweasel_sector_end(catweasel_contr *c)
 {
-    SECTEND(c) = PTR(c);
+    LASTSECTEND(c) = PTR(c);
 #if DEBUG13
-    printf("@%d ", SECTEND(c));
+    printf("@%d ", LASTSECTEND(c));
 #endif
     if (PTR(c) >= MEMSIZE) {
 	return -1;

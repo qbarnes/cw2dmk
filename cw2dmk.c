@@ -70,6 +70,8 @@ int enc_count[N_ENCS];
 int enc_sec[DMK_TKHDR_SIZE / 2];
 int total_enc_count[N_ENCS];
 
+#include "secsize.c"
+
 /* Maximum tracks we'll ever read. */
 #define MAX_TRACKS 88
 
@@ -777,48 +779,6 @@ dmk_merge_sectors(void)
   merged_stat.errcount = best_errcount;
 }
 
-int
-secsize(int sizecode, int encoding)
-{
-  int size;
-
-  switch (encoding) {
-  case MFM:
-    /* 179x can only do sizes 128, 256, 512, 1024, and ignores
-       higher-order bits.  If you need to read a 765-formatted disk
-       with larger sectors, change maxsize with the -z
-       command line option. */
-    size = 128 << (sizecode % (maxsize + 1));
-    break;
-
-  case FM:
-  default:
-    /* WD1771 has two different encodings for sector size, depending on
-       a bit in the read/write command that is not recorded on disk.
-       We guess IBM encoding if the size is <= maxsize, non-IBM
-       if larger.  This doesn't really matter for demodulating the
-       data bytes, only for checking the CRC.  */
-    if (sizecode <= maxsize) {
-      /* IBM */
-      size = 128 << sizecode;
-    } else {
-      /* non-IBM */
-      size = 16 * (sizecode ? sizecode : 256);
-    }
-    break;
-
-  case RX02:
-    size = 256 << (sizecode % (maxsize + 1));
-    break;
-  }
-
-  if (quirk & QUIRK_EXTRA_DATA) {
-    size += 4;
-  }
-  return size;
-}
-
-
 void
 init_decoder(void)
 {
@@ -1142,7 +1102,7 @@ process_bit(int bit)
       crc = calc_crc1((curenc == MFM && (quirk & QUIRK_DATA_CRC) == 0) ?
                       0xcdb4 : 0xffff, val);
       ibyte = -1;
-      dbyte = secsize(sizecode, curenc) + 2;
+      dbyte = secsize(sizecode, curenc, maxsize, quirk) + 2;
       ebyte = -1;
       return;
 
@@ -2366,9 +2326,10 @@ main(int argc, char** argv)
 	  track == 0 && good_sectors > 0) {
 	  static int t0s0ss = -1;
 	  if (side == 0) {
-	    t0s0ss = secsize(sizecode, curenc);
+	    t0s0ss = secsize(sizecode, curenc, maxsize, quirk);
 	  } else {
-	    if (t0s0ss != 512 && secsize(sizecode, curenc) == 512) {
+	    if (t0s0ss != 512 &&
+                secsize(sizecode, curenc, maxsize, quirk) == 512) {
 	      msg(OUT_QUIET + 1, "[Incompatible formats detected "
 		"between sides; restarting single-sided]\n");
 	      t0s0ss = -1;
