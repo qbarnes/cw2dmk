@@ -1247,9 +1247,28 @@ process_bit(int bit)
 
 /*
  * Convert Catweasel samples to strings of alternating clock/data bits
- * and pass them to process_bit for further decoding.
- * Ad hoc method using two fixed thresholds modified by a postcomp
- * factor.
+ * and pass them to process_bit for further decoding.  Ad hoc method
+ * using two fixed thresholds modified by a postcomp factor.
+ *
+ * The input is the distance in Catweasel clocks between the previous
+ * magnetic transition (i.e., bit cell containing 1) and the current
+ * transition.  The output is a 1 for the previous transition,
+ * followed by a 0 for each empty bit cell prior to the current
+ * transition.
+ *
+ * When decoding FM (single density) we still use double density sized
+ * bit cells -- see decoder.txt -- so in the output a single density
+ * bit cell that contains 1 ends up represented as 10, and a single
+ * density bit cell that contains 0 ends up represented as 00.
+ *
+ * We assume (unless QUIRK_MFM_CLOCK is set) that there is never a
+ * transition in two consecutive bit cells.  We also assume there are
+ * never more than three empty bit cells between transitions.  These
+ * assumptions are valid for correctly encoded MFM, and for FM
+ * represented at the double data rate as explained in the previous
+ * paragraph.  (Future: If we want to support MMFM, we will need to
+ * extend this function to allow for as many as four empty bit cells
+ * between transitions.)
  */
 void
 process_sample(int sample)
@@ -1260,28 +1279,31 @@ process_sample(int sample)
   msg(OUT_SAMPLES, "%d", sample);
   if (uencoding == FM) {
     if (sample + adj <= fmthresh) {
-      /* Short */
+      /* Short: output 10 */
       len = 2;
     } else {
-      /* Long */
+      /* Long: output 1000 */
       len = 4;
     }
   } else {
-    if (sample + adj <= mfmthresh1) {
-      /* Short */
+    if ((quirk & QUIRK_MFM_CLOCK) && sample + adj <= mfmthresh1 * 0.6) {
+      /* Tiny: output 1 */
+      len = 1;
+    } else if (sample + adj <= mfmthresh1) {
+      /* Short: output 10 */
       len = 2;
     } else if (sample + adj <= mfmthresh2) {
-      /* Medium */
+      /* Medium: output 100 */
       len = 3;
     } else {
-      /* Long */
+      /* Long: output 1000 */
       len = 4;
     }
 
   }
   adj = (sample - (len/2.0 * mfmshort * cwclock)) * postcomp;
 
-  msg(OUT_SAMPLES, "%c ", "--sml"[len]);
+  msg(OUT_SAMPLES, "%c ", "-tsml"[len]);
 
   if (!dmk_full) {
     process_bit(1);

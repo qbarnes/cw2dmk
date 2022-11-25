@@ -100,7 +100,7 @@ parse_sample(FILE *log_file)
 
   for (;;) {
     // Try to read a sample here.
-    ret = fscanf(log_file, " %d%1[sml]%*[ ]", &sample, &junk[0]);
+    ret = fscanf(log_file, " %d%1[tsml]%*[ ]", &sample, &junk[0]);
     if (ret == EOF) {
       return EOF;
     }
