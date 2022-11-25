@@ -526,6 +526,17 @@ covers the data address mark and all 132 data bytes.
 A standard index address mark (IAM) in FM is the data value 0xfc with
 a 0xd7 clock pattern. If this quirk is specified, cw2dmk recognizes
 0xfc with either a 0xd7 or 0xc7 clock pattern as an IAM.
+.TP
+0x80 (128) QUIRK_MFM_CLOCK
+In general, floppy disk data is encoded as a stream of alternating
+clock and data bit cells.  With MFM encoding, a clock bit cell should
+contain a 1 if and only if the data bit cells immediately before and
+after it both contain 0.  If this quirk is not specified, cw2dmk makes
+a strong assumption that the MFM clocking rule is not violated, and so
+it may fail to decode a disk that has clock bits set to 1 that should
+be 0.  If this quirk is specified, cw2dmk relaxes that assumption and
+may successfully decode such a disk.  It is probably harmless to set
+this quirk even when not needed, but that is mostly untested.
 .RE
 .P
 The next few options modify individual

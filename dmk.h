@@ -56,7 +56,8 @@
 #define QUIRK_EXTRA_CRC  0x10
 #define QUIRK_EXTRA_DATA 0x20
 #define QUIRK_IAM        0x40
-#define QUIRK_ALL        0x7f
+#define QUIRK_MFM_CLOCK  0x80
+#define QUIRK_ALL        0xff
 
 typedef struct {
   uint8_t	writeprot;

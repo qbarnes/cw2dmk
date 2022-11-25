@@ -1,3 +1,7 @@
+* Add QUIRK_MFM_CLOCK.  This quirk was needed to read some old UDOS
+  1526 V.3 or V.2 disks, which have clock bits set in certain places
+  that violate the MFM clocking rules.
+
 4.9.2 -- Sun Sep 18 23:11:36 UTC 2022 -- Tim Mann
 
 * Make the -v2 and -v3 output of dmk2cw more readable.
