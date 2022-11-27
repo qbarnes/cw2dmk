@@ -1,3 +1,5 @@
+4.9.3 -- Sun Nov 27 20:04:04 UTC 2022 -- Tim Mann
+
 * Add QUIRK_MFM_CLOCK.  This quirk was needed to read some older UDOS
   disks with clock bits set in certain places that violate the MFM
   clocking rules.  The most frequent violation seen on a sample disk
