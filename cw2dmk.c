@@ -1597,6 +1597,7 @@ void usage(void)
   printf("               0x10 = Extra bytes (4 data + 2 CRC) after data CRC\n");
   printf("               0x20 = 4 extra data bytes before data CRC\n");
   printf("               0x40 = FM IAM can have either 0xd7 or 0xc7 clock\n");
+  printf("               0x80 = Extra MFM clocks may be present\n");
 
   printf("\n Fine-tuning options; effective only after the -k option\n");
   printf(" -c clock      Catweasel clock multipler [%d]\n", cwclock);
