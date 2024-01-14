@@ -343,8 +343,16 @@ dmk_idam(unsigned char byte, int encoding)
       msg(OUT_ERRORS, "[too many AMs on track] ");
       errcount++;
     } else {
-      if (accum_sectors)
+      if (accum_sectors) {
+        /* Initially set enc_sec[] for this sector to the current
+         * encoding.  However, if the disk is RX02 format and the
+         * sector is double density, then the current encoding is FM,
+         * but the sector data encoding is RX02.  In this case enc_sec
+         * will be updated after we read the DAM to detect the sector
+         * data encoding.
+         */
 	enc_sec[(dmk_idam_p - (unsigned short *)dmk_track)] = encoding;
+      }
       *dmk_idam_p++ = idamp;
       ibyte = 0;
       dmk_data(byte, encoding);
@@ -693,7 +701,8 @@ dmk_merge_sectors(void)
 	tmp_data_p += seclen;
 	replaced = 1;
 	tmp_stat.reused_sectors++;
-	tmp_stat.enc_count[enc_sec[cur]]++;
+	tmp_stat.enc_sec[cur] = merged_stat.enc_sec[cur];
+	tmp_stat.enc_count[merged_stat.enc_sec[cur]]++;
 	// There should be an error for every bad sector, but just
 	// to be careful.
 	if (tmp_stat.errcount > 0)
@@ -1096,6 +1105,9 @@ process_bit(int bit)
 	   (val == 0xf9 && (total_enc_count[RX02] + enc_count[RX02] > 0 ||
 			    uencoding == RX02)))) {
 	change_enc(RX02);
+        if (accum_sectors) {
+          enc_sec[(dmk_idam_p - (unsigned short *)dmk_track) - 1] = RX02;
+        }
       }
       /* For MFM, premark a1a1a1 is included in the data CRC.
        * With QUIRK_DATA_CRC, it is omitted. */
