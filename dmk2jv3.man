@@ -59,9 +59,16 @@ The specified input file was not in DMK format.
 .B dmk2jv3: Error writing to JV3 file
 The JV3 file could not be written.
 .TP
-.B dmk2jv3: JV3 does not support RX02 encoding
-DMK files of disks written in the DEC RX02 format cannot be converted
-to JV3 format at all.  No JV3 file is written.
+.B JV3 does not support RX02 encoding; faking it
+The specified input file uses DEC RX02 encoding.  The JV3 file format
+does not support RX02 encoding, so the JV3 file is written as if the
+disk were in IBM standard encoding.  RX02 double density sectors are
+written as IBM standard MFM, with DAM 0xf9 (RX02 deleted double
+density data) changed to 0xf8 (standard MFM deleted double density
+data), and DAM 0xfd (RX02 double density data) changed to 0xfb
+(standard MFM double density data).  Any single density sectors
+present (DAM 0xf8 or 0xfb) are represented unchanged, as DEC RX02 uses
+IBM standard FM encoding for such sectors.
 .TP
 .B Too many total sectors
 The extended JV3 format has a limit of 5802 total sectors.

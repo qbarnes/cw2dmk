@@ -146,7 +146,7 @@ jv3_id(unsigned char track, unsigned char side,
     jv3.warnSize = 1;
   }
   id.flags |= (sizecode ^ 1);
-    
+
   if (density == 0) {
     /* Single density */
     switch (dam) {
@@ -173,9 +173,11 @@ jv3_id(unsigned char track, unsigned char side,
     id.flags |= JV3_DENSITY;
     switch (dam) {
     case 0xf8:
+    case 0xf9: // RX02 fake support; record as deleted MFM data
       id.flags |= JV3_DAMDDF8;
       break;
     case 0xfb:
+    case 0xfd: // RX02 fake support; record as normal MFM data
       id.flags |= JV3_DAMDDFB;
       break;
     default:
@@ -270,8 +272,7 @@ main(int argc, char** argv)
   }
 
   if (rx02) {
-    fprintf(stderr, "dmk2jv3: JV3 does not support RX02 encoding\n");
-    exit(1);
+    printf("[JV3 does not support RX02 encoding; faking it]\n");
   }
   if (dmk_header.quirks != 0 && out_fmt >= OUT_WARNINGS) {
     printf("[Warning: JV3 does not support quirks; ignoring %02x]\n",
@@ -386,7 +387,8 @@ main(int argc, char** argv)
 	  while (--dam_range >= 0) {
 	    dam = dmk_track[datap];
 	    DMK_INC(datap);
-	    if (dam >= 0xf8 && dam <= 0xfb) break;
+	    if ((dam >= 0xf8 && dam <= 0xfb) ||
+                (dam == 0xfd && rx02)) break;
 	  }
 	  if (dam_range < 0) {
 	    printf("[Recording missing DAM as data CRC error]\n");
@@ -401,6 +403,13 @@ main(int argc, char** argv)
 	    crc = calc_crc1(0x968b, 0xa1); /* CRC of a1 a1 a1 */
 	  }
 	  crc = calc_crc1(crc, dam);
+
+          /* RX02 double density data?  Fake it as standard MFM. */
+          if (rx02 && (dam == 0xf9 || dam == 0xfd)) {
+            sizecode += 1;
+            size <<= 1;
+            density = 1;
+          }
 
 	  /* Write out data */
 	  while (size--) {
