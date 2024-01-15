@@ -124,6 +124,11 @@ error, so we record this condition as if it were a data CRC error.
 .B Recording missing DAM as data CRC error
 The JV3 format has no way to indicate that a sector ID has no matching
 data address mark, so we record this condition as if it were a data CRC error.
+.TP
+.B Warning: JV3 does not support quirks; ignoring
+The DMK input file was created using one or more cw2dmk quirk flags.
+JV3 format does not support any quirks, so the output file may be
+missing information and/or may have false CRC errors.
 .SH Author
 dmk2jv3 was written by Timothy Mann, http://tim-mann.org/.
 dmk2jv3 is free software, released under the GNU General Public License.
