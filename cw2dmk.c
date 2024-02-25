@@ -72,6 +72,9 @@ int total_enc_count[N_ENCS];
 
 #include "secsize.c"
 
+/* Max sectors per track.  Taken from DMK limit. */
+#define MAX_SECTORS 64
+
 /* Maximum tracks we'll ever read. */
 #define MAX_TRACKS 88
 
@@ -1541,8 +1544,9 @@ int sides = -1;
 int steps = -1;
 int drive = -1;
 int alternate = 0;
-int retries[MAX_TRACKS];
-int min_retries[MAX_TRACKS];
+int min_sectors[MAX_TRACKS][2];
+int retries[MAX_TRACKS][2];
+int min_retries[MAX_TRACKS][2];
 
 void usage(void)
 {
@@ -1584,6 +1588,7 @@ void usage(void)
   printf("\n Special options for hard to read diskettes\n");
   printf(" -x max_retry  Max retries on errors [%d]\n", RETRIES_DEFAULT);
   printf(" -X min_retry  Min retries even if no errors [0]\n");
+  printf(" -S min_sector Min sector count [0]\n");
   printf(" -a alternate  Alternate even/odd tracks on retries with -m2 [%d]\n",
 	 alternate);
   printf("               0 = always even\n");
@@ -1662,8 +1667,10 @@ menu(int failing)
 	fflush(stdout);
 	ret = scanf(" %d", &rnum);
 	if (ret == 1 && rnum >= 0) {
-	  for (int i = 0; i < COUNT_OF(retries); ++i)
-	    retries[i] = rnum;
+	  for (int i = 0; i < COUNT_OF(retries); ++i) {
+	    retries[i][0] = rnum;
+	    retries[i][1] = rnum;
+	  }
 	  printf("Retry limit is now %d.\n", rnum);
 	  return MENU_NEWRETRIES;
 	}
@@ -1678,81 +1685,126 @@ menu(int failing)
 }
 
 
-/* Return 0 on success, non-zero on parse failure. */
+/*
+ * Parse a list of track ranges.
+ * Returns:
+ *   0 - Success
+ *   1 - regcomp failure (internal error)
+ *   2 - Parse list failure (internal error)
+ *   3 - Track or side parameter out of range (user error)
+ */
+
 int
-parse_tracks(const char *nptr, int *rav)
+parse_tracks(const char *ss, int opt_matrix[MAX_TRACKS][2])
 {
-  static const char optxre[] = "^([0-9]+)(:([0-9]+)(-([0-9]+)?)?)?(,|$)";
-  int      err = 0;
-  regex_t  regex;
+  int	err = 0;
+  regex_t	regex;
+  static const char re[] =
+    "^([0-9]+)"
+      "(:[0-9]+((/[01])?(-([0-9]+(/[01])?)?)?)?)?"
+      "(,|$)";
 
-  if (regcomp(&regex, optxre, REG_EXTENDED|REG_NEWLINE))
-    fatal_msg(1, "regcomp() failed\n");
+  if (regcomp(&regex, re, REG_EXTENDED|REG_NEWLINE)) {
+    fprintf(stderr, "regcomp() failed.\n");
+    return 1;
+  }
 
-  while (!err && *nptr != '\0') {
-    int	nr = -1, start = -1, end = -1;
-    regmatch_t pmatch[7];
+  while (!err && *ss != '\0') {
+    regmatch_t	pmatch[9];
 
-    if (regexec(&regex, nptr, COUNT_OF(pmatch), pmatch, 0)) {
+    if (regexec(&regex, ss, COUNT_OF(pmatch), pmatch, 0)) {
       err = 1;
       break;
     }
 
-    long n[3] = { -1, -1, -1 };
-    for (int i = 0, ii[] = {1, 3, 5}; i < COUNT_OF(ii); ++i) {
-      regoff_t  off = pmatch[ii[i]].rm_so;
-      const char *p = nptr + off;
+    int range_value  = -1;
+    int range_track[2] = { -1, -1 };
+    int range_side[2]  = { -1, -1 };
+    int range_hyphen = 0;
 
-      if (off != -1) {
-	char *ep;
+    regoff_t	old_soff = INT_MAX;
 
-	n[i] = strtol(p, &ep, 0);
+    for (int i = 1; i < COUNT_OF(pmatch); ++i) {
+      regoff_t	soff = pmatch[i].rm_so;
+      regoff_t	eoff = pmatch[i].rm_eo;
+      const char	*p  = ss + soff;
+      char		*eip;
 
-	long llim = 0;
-	long ulim = (i == 0) ? INT_MAX : MAX_TRACKS - 1;
+      if (soff == -1)
+        break;
 
-	if (p == ep || n[i] < llim || n[i] > ulim) {
-	  err = 1;
-	  break;
-	}
+      /*
+       * Skip if its a null entry or if it's an
+       * entry that's a repeat.
+       */
+
+      if (soff == eoff || soff == old_soff)
+        continue;
+
+      if (range_value == -1) {
+        range_value = strtol(p, &eip, 0);
+      } else if (range_track[0] == -1 && p[0] == ':') {
+        range_track[0] = strtol(&p[1], &eip, 0);
+      } else if (range_side[0] == -1 &&  p[0] == '/') {
+        range_side[0] = strtol(&p[1], &eip, 0);
+      } else if (p[0] == '-') {
+        range_hyphen = 1;
+      } else if (range_track[1] == -1) {
+        range_track[1] = strtol(&p[0], &eip, 0);
+      } else if (range_side[1] == -1 && p[0] == '/') {
+        range_side[1] = strtol(&p[1], &eip, 0);
+      } else if (p[0] == ',') {
+        break;
       } else {
-	break;
+        fprintf(stderr, "track parse list failure.\n");
+        err = 2;
+        break;
       }
+
+      old_soff = soff;
     }
 
-    if (err) break;
+    if (err)
+      break;
 
-    nr = n[0];
-
-    if (n[1] != -1) {
-      start = n[1];
-
-      if (n[2] != -1) {
-	end = n[2];
-
-	if (end < start) {
-	  err = 1;
-	  break;
-	}
-      } else {
-	// Do we have a stand alone start number
-	// or have a "##-" open-ended range?
-	end = (pmatch[4].rm_so == -1) ? start : MAX_TRACKS - 1;
-      }
+    if (range_track[0] == -1) {
+      range_track[0] = 0;
+      range_side[0] = 0;
+      range_track[1] = MAX_TRACKS - 1;
+      range_side[1] = 1;
     } else {
-      // No track range given, so entire range.
-      start = 0;
-      end = MAX_TRACKS - 1;
+      if (range_side[0] == -1)
+        range_side[0] = 0;
+
+      if (range_track[1] == -1)
+        range_track[1] = range_hyphen ? MAX_TRACKS - 1 : range_track[0];
+
+      if (range_side[1] == -1)
+        range_side[1] = range_hyphen ? 1 : range_side[0];
     }
 
-    for (int i = start; i <= end; ++i)
-      rav[i] = nr;
+    /* Check to make sure tracks and sides are in order. */
 
-    nptr += pmatch[0].rm_eo;
+    if (range_track[1] < range_track[0] ||
+        (range_track[1] == range_track[0] &&
+         range_side[1] < range_side[0])) {
+      err = 3;
+      break;
+    }
+
+    /* Now set the opt_matrix for the range given. */
+
+    for (int tm = range_track[0] * 2 + range_side[0];
+         tm <= range_track[1] * 2 + range_side[1]; ++tm) {
+      opt_matrix[tm/2][tm%2] = range_value;
+    }
+
+    ss += pmatch[0].rm_eo;
   }
 
   return err;
 }
+
 
 /*
  * Like strtol, but exit with a fatal error message if there are any
@@ -1799,13 +1851,16 @@ main(int argc, char** argv)
   FILE *replay_file = NULL;
   char optname[3] = "-?";
 
-  for (int i = 0; i < COUNT_OF(retries); ++i)
-    retries[i] = RETRIES_DEFAULT;
+  for (int i = 0; i < COUNT_OF(retries); ++i) {
+    retries[i][0] = RETRIES_DEFAULT;
+    retries[i][1] = RETRIES_DEFAULT;
+  }
 
   opterr = 0;
   for (;;) {
     ch = getopt(argc, argv,
-		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:1:2:f:l:jM:C:R:X:T:");
+		"p:d:v:u:k:m:t:s:e:w:x:a:o:h:g:i:z:r:q:c:"
+		"1:2:f:l:jM:C:R:S:X:T:");
     if (ch == -1) break;
     optname[1] = ch;
     switch (ch) {
@@ -1943,6 +1998,9 @@ main(int argc, char** argv)
       break;
     case 'R':
       replay = optarg;
+      break;
+    case 'S':
+      if (parse_tracks(optarg, min_sectors)) usage();
       break;
     case 'X':
       if (parse_tracks(optarg, min_retries)) usage();
@@ -2433,16 +2491,22 @@ main(int argc, char** argv)
 	}
 
 	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0 ||
-                   retry < min_retries[track]) &&
-          (replay || retry < retries[track]);
+                   retry < min_retries[track][side] ||
+		   good_sectors < min_sectors[track][side])
+		   && (replay || retry < retries[track][side]);
 
 	// Generally just reporting on the latest read.
 	if (failing) {
-	  msg(OUT_TSUMMARY, "[%d good, %d error%s]\n",
-	      good_sectors, errcount, plu(errcount));
+	  if (good_sectors < min_sectors[track][side])
+	    msg(OUT_TSUMMARY, "[%d/%d", good_sectors, min_sectors[track][side]);
+	  else
+	    msg(OUT_TSUMMARY, "[%d", good_sectors);
+	  msg(OUT_TSUMMARY, " good, %d error%s]\n",
+	      errcount, plu(errcount));
 	}
 
-	if (menu_requested || (menu_err_enabled && (retry >= retries[track]))) {
+	if (menu_requested || (menu_err_enabled &&
+	    (retry >= retries[track][side]))) {
 	  catweasel_set_motor(&c.drives[drive], 0);
 	  switch (menu(failing)) {
 	    case MENU_NOCHANGE:
@@ -2453,7 +2517,7 @@ main(int argc, char** argv)
 	      failing = 0;
 	      break;
 	    case MENU_NEWRETRIES:
-	      if (retry >= retries[track])
+	      if (retry >= retries[track][side])
 		failing = 0;
 	      break;
 	    default:
