@@ -272,6 +272,19 @@ around the problem if it does.
 .P
 The following are special options for dealing with hard to read disks.
 .TP
+.B \-S \fImin_sectors\fP
+This option specifies the minimum number of sectors per track that
+must be seen before continuing without retry.
+
+This option is only useful when a sector is completely dropped
+without also triggering an error when reading a track.  For this
+situation to occur, both the IDAM and DAM for a given sector must be
+entirely missed.
+
+The \fImin_sectors\fP argument can be just a number or optionally a
+comma-separated list of track ranges.  See section List of Tracks
+and Sides for more information.
+.TP
 .B \-x \fImax_retry\fP
 While reading a track, cw2dmk tries to recognize sector IDs and sector
 data, and it checks that each ID has a corresponding sector and that
@@ -285,25 +298,8 @@ formatting that cw2dmk interprets as a possible error, you might want
 to reduce or eliminate the retries to speed up the conversion.
 
 The \fImax_retry\fP argument can be just a number or optionally a
-comma-separated list in the format \fBretries[:{start[\-[end]]}]\fP
-giving track ranges for alternate retry values.  Arguments are
-parsed left to right with later arguments taking precedence.
-Examples:
-
-.RS
-.TP
-\fB\-x 40,0:4-12\fP
-Set retries for all tracks to 40 except disable retries for tracks 4
-through 12.
-.TP
-\fB\-x 10,20:30-,0:33\fP
-Set retries for all tracks to 10 except set to 20 for tracks 30
-through end of media, but disable retries for track 33.
-.TP
-\fB\-x 15:27-30,80:35-\fP
-Leave default retries (4) for all tracks except set it to 15 for
-tracks 27 through 30 set and 80 for tracks 35 through end of media.
-.RE
+comma-separated list of track ranges.  See section List of Tracks
+and Sides for more information.
 .TP
 .B \-X \fImin_retry\fP
 This option asks cw2dmk to retry reading a track at least the given
@@ -574,6 +570,60 @@ around to the start of the track again and stops reading.  This
 heuristic will be defeated if you set the track length to a huge
 value, so set it at most a few percent higher than the default for the
 disk kind (-k option) you are using.
+
+.SH List of Tracks and Sides
+The options -S, -x, and -X allow a list of ranges giving tracks and
+sides.  These ranges can be straightforward for simple needs, but
+grow in complexity for more intricate specifications.
+
+The list are always parsed from left to right with the later
+ranges taking precedence.
+
+A track range always starts with the number to be used as the
+value for the option and may be followed by an optional colon and
+track and side ranges that the number applies to.
+
+The format of a track range is
+\fBnumber[:{start track[/side][\-[end track[/side]]]}]\fP.
+
+Sides are specified with a '0' (front) or '1' (back).
+
+If a '-' is given without an \fBend track\fP, the range is for all
+remaining tracks.
+
+A track list may have multiple track ranges separated by a commas.
+
+Some examples may make understanding the track list easier to
+follow.
+
+.RS
+.TP
+\fB\-x 40\fP
+Set the number of retries for all tracks and sides to 40.
+.TP
+\fB\-x 40,0:4-12\fP
+Set the number of retries for all tracks and sides to 40, except
+disable retries for tracks 4 through 12.
+.TP
+\fB\-x 10,20:30-,0:33/0\fP
+Set retries for all tracks and sides to 10, except set to 20 for
+tracks 30 through end of media, then disable retries for track 33
+side 0.
+.TP
+\fB\-x 15:27-30,80:35-\fP
+Leave default retries (4) for all tracks and sides except set it to
+15 for tracks 27 through 30, then set it to 80 for tracks 35 through
+end of media.
+.TP
+\fB\-S 18,10:0/0
+Set the minimum number of sectors for all tracks and sides to 18,
+except for track 0, side 0, make it 10.  (Common for a Model 1 DSDD
+disk.)
+.TP
+\fB\-X 5
+Set the minimum number of retries for all tracks and sides to 5.
+.RE
+
 .SH Limitations
 Here are some cases where the results may not be correct
 unless an additional command line option is given.
