@@ -284,6 +284,11 @@ entirely missed.
 The \fImin_sectors\fP argument can be just a number or optionally a
 comma-separated list of track ranges.  See section List of Tracks
 and Sides for more information.
+
+If more or less sectors are encountered during a track read than are
+anticipated by this option, a fractional sector number is reported
+with the denominator being the minimum sector value for that track's
+read (e.g. "9/10" or "19/18").
 .TP
 .B \-x \fImax_retry\fP
 While reading a track, cw2dmk tries to recognize sector IDs and sector
