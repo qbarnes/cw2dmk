@@ -429,14 +429,18 @@ dmk_write_header(void)
 
 
 void
-dmk_write(void)
+dmk_write(int min_sector_cnt)
 {
   int i;
 
   if (accum_sectors)
     good_sectors += reused_sectors;
 
-  msg(OUT_TSUMMARY, " %d good sector%s", good_sectors, plu(good_sectors));
+  if (min_sector_cnt && (good_sectors != min_sector_cnt))
+    msg(OUT_TSUMMARY, " %d/%d", good_sectors, min_sector_cnt);
+  else
+    msg(OUT_TSUMMARY, " %d", good_sectors);
+  msg(OUT_TSUMMARY, " good sector%s", plu(good_sectors));
   if (accum_sectors && reused_sectors > 0)
     msg(OUT_TSUMMARY, " (%d reused)", reused_sectors);
   msg(OUT_TSUMMARY, ", %d error%s\n", errcount, plu(errcount));
@@ -2491,13 +2495,14 @@ main(int argc, char** argv)
 	}
 
 	failing = ((accum_sectors ? merged_stat.errcount : errcount) > 0 ||
-                   retry < min_retries[track][side] ||
+		   retry < min_retries[track][side] ||
 		   good_sectors < min_sectors[track][side])
 		   && (replay || retry < retries[track][side]);
 
 	// Generally just reporting on the latest read.
 	if (failing) {
-	  if (good_sectors < min_sectors[track][side])
+	  if (min_sectors[track][side] &&
+	      (good_sectors != min_sectors[track][side]))
 	    msg(OUT_TSUMMARY, "[%d/%d", good_sectors, min_sectors[track][side]);
 	  else
 	    msg(OUT_TSUMMARY, "[%d", good_sectors);
@@ -2546,7 +2551,7 @@ main(int argc, char** argv)
 	memcpy(enc_count, merged_stat.enc_count, sizeof enc_count);
 	memcpy(enc_sec, merged_stat.enc_sec, sizeof enc_sec);
       }
-      dmk_write();
+      dmk_write(min_sectors[track][side]);
     }
    track_done:;
   }
