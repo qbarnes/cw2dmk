@@ -225,7 +225,7 @@ and immediately stop reading at that point.
 Specifies the number of sides.  If this option is not given, cw2dmk
 will guess 2 sides if the second side appears to be formatted, then
 revise its guess to 1 side if there are no valid sectors on the first
-track or two of the second side.  Giving the -s1 option explictly for
+track or two of the second side.  Giving the -s1 option explicitly for
 a single-sided disk will save the time needed for this autodetection.
 .TP
 .B \-C {0,1}\fP
@@ -285,7 +285,7 @@ The \fImin_sectors\fP argument can be just a number or optionally a
 comma-separated list of track ranges.  See section List of Tracks
 and Sides for more information.
 
-If more or less sectors are encountered during a track read than are
+If more or fewer sectors are encountered during a track read than are
 anticipated by this option, a fractional sector number is reported
 with the denominator being the minimum sector value for that track's
 read (e.g. "9/10" or "19/18").
@@ -359,7 +359,7 @@ With the postcomp option enabled, if cw2dmk observes that an interval
 is longer or shorter than its nominal length, it will assume that the
 interval's ending transition moved slightly, and will lengthen or
 shorten the next interval as a sort of read-postcompensation.  The
-deviation of each interval is multipled by the value of the postcomp
+deviation of each interval is multiplied by the value of the postcomp
 option before being added to the next interval.
 .TP
 .B \-h \fIhole\fP
@@ -426,7 +426,7 @@ the track, by ignoring bytes or adding padding at the start of the
 track as with the -g option.  The default value is -1, which disables
 this feature.
 
-This feature can be useful in conjuction with the -h0 option.  If your
+This feature can be useful in conjunction with the -h0 option.  If your
 disk was originally formatted with an IAM at the start of each track,
 cw2dmk can start the tracks at the same point in the DMK file, even
 though the -h0 option keeps it from being able to use the physical
@@ -596,7 +596,7 @@ Sides are specified with a '0' (front) or '1' (back).
 If a '-' is given without an \fBend track\fP, the range is for all
 remaining tracks.
 
-A track list may have multiple track ranges separated by a commas.
+A track list may have multiple track ranges separated by commas.
 
 Some examples may make understanding the track list easier to
 follow.
@@ -726,7 +726,7 @@ message will appear.
 A Catweasel card was not detected at the specified I/O ports.
 .TP
 .B cw2dmk: Failed to detect any drives
-You did not specify a drive to use with the -d opion, and no drives
+You did not specify a drive to use with the -d option, and no drives
 were detected.  The track 0 sensor is used to detect the presence of a
 drive, so you may get this message if your drive has a broken track 0
 sensor.  In that case, use the -d option to select which drive to use.
