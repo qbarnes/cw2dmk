@@ -1,3 +1,15 @@
+4.10.0 -- Mon Mar 11 19:30:33 UTC 2024 -- Tim Mann, Quentin Barnes
+
+* Add -S option.  This option allows the user to specify a minimum
+  number of sectors per track and side.  If that minimum is not
+  reached during a read, it'll trigger a retry.  See the man page
+  for more details.
+
+* Extend the -x and -X option argument syntax when specifying a track
+  range to also allow giving sides.
+
+* Add partial support for RX02 in dmk2jv3.
+
 4.9.3 -- Sun Nov 27 20:04:04 UTC 2022 -- Tim Mann
 
 * Add QUIRK_MFM_CLOCK.  This quirk was needed to read some older UDOS
