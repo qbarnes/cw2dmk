@@ -1,3 +1,8 @@
+* Fix bug with wraparound detection when the duplicate ID block gets
+  cut off by the DMK buffer filling up.  The fix is to stop decoding
+  when the buffer fills up, so that we don't detect such a header in
+  the first place.
+
 4.10.0 -- Mon Mar 11 19:30:33 UTC 2024 -- Tim Mann, Quentin Barnes
 
 * Add -S option.  This option allows the user to specify a minimum

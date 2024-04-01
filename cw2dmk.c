@@ -852,6 +852,7 @@ process_bit(int bit)
   unsigned char val = 0;
   int i;
 
+  if (dmk_full) return;
   accum = (accum << 1) + bit;
   taccum = (taccum << 1) + bit;
   bits++;
