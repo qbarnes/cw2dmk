@@ -2448,11 +2448,10 @@ main(int argc, char** argv)
 	if (guess_steps) {
 	  if (track == 3) guess_steps = 0;
 	  if (steps == 1) {
-	    if ((track & 1) &&
-		(good_sectors == 0 ||
-		 cylseen == track - 1 || cylseen == track + 1)) {
+	    if ((track & 1) && (good_sectors == 0)) {
 	      msg(OUT_QUIET + 1,
 		  "[double-stepping apparently needed; restarting]\n");
+	      guess_steps = 0;
 	      steps = 2;
 	      if (guess_tracks) tracks = TRACKS_GUESS / steps;
 	      goto restart;
