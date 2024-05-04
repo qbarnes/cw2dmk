@@ -1,3 +1,8 @@
+4.10.1 -- Sat May  4 19:04:22 UTC 2024 -- Tim Mann, Quentin Barnes
+
+* Fix indefinite looping while guessing head stepping rate when
+  encountering unusually formatted disks, often from copy protection.
+
 * Fix bug with wraparound detection when the duplicate ID block gets
   cut off by the DMK buffer filling up.  The fix is to stop decoding
   when the buffer fills up, so that we don't detect such a header in
