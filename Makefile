@@ -96,7 +96,7 @@ dmk2jv3$E: dmk2jv3.c crc.c dmk.h jv3.h
 jv2dmk$E: jv2dmk.c crc.c dmk.h jv3.h
 	$(CC) $(CFLAGS) -o $@ $<
 
-cwhisto$E: testhist.c catweasl.$O cwpci.$O parselog.$O cwfloppy.h
+cwhisto$E: cwhisto.c catweasl.$O cwpci.$O parselog.$O cwfloppy.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O parselog.$O $(PCILIB) -lm
 
 crc$E: crc.c
