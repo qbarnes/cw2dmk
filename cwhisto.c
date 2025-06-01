@@ -16,7 +16,8 @@
 
    Usage for direct reads from Catweasel:
 
-       cwhisto port drive track side clock [outfile]
+       cwhisto [-p port] [-d drive] [-t track] [-s side]
+               [-c clock] [-B binary_output]
 
        One track is read 4 times (value of NNN below) and the samples
        from all passes are accumulated together for analysis.
@@ -26,18 +27,18 @@
        * track: physical track number, 0 origin
        * side: physical side number, 0 or 1
        * clock: Catweasel clock; see -c in cw2dmk man page
-       * outfile: Optional file to dump raw samples to.
+       * binary_output: Optional file to dump raw samples to.
          When samples are being dumped to a file, each pass over the
          track is preceded by a pseudo-sample equal to 0x80 + read
          number (0-origin).  The actual samples can be at most 0x7f.
 
    Usage for replaying a log:
 
-       cwhisto infile clock split
+       cwhisto [-R replay_input] [-c clock] [-S split]
 
        All tracks in the log are read and analyzed.
 
-       * infile: the cw2dmk -v7 log to be replayed
+       * replay_input: the cw2dmk -v7 log to be replayed
        * clock: Catweasel clock; see -c in cw2dmk man page (usually 2).
        * split: If the log contains multiple consecutive passes over
          the same track and split=0, the passes are accumulated
@@ -50,7 +51,9 @@
 
    Some possible future improvements:
       * Clean up and refactor a bit more.
-      * Improve command line parsing, provide defaults.
+      * Check command line input for errors more carefully.
+      * More complete usage message.
+      * Maybe a man page.
       * Direct mode: add an option to loop through the whole disk.
       * Direct mode: add an option to specify the number of passes.
       * Replay mode: add an option to analyze only a specific track.
@@ -74,11 +77,10 @@
 #include "cwpci.h"
 #include "parselog.h"
 
-FILE *f;
+FILE *binoutf;
 struct catweasel_contr c;
-char *progname;
 
-int cwclock = 1;
+int cwclock = 2; //default
 
 /*
  * Initialize the Catweasel and spin up the drive.  Exits on errors.
@@ -100,11 +102,11 @@ static void cw_initialize(int port, int drive)
 #if linux
   if ((cw_mk == 1 && ioperm(port, 8, 1) == -1) ||
       (cw_mk >= 3 && iopl(3) == -1)) {
-    fprintf(stderr, "testhist: No access to I/O ports\n");
+    fprintf(stderr, "cwhisto: No access to I/O ports\n");
     exit(1);
   }
   if (setuid(getuid()) != 0) {
-    fprintf(stderr, "testhist: setuid failed: %s\n", strerror(errno));
+    fprintf(stderr, "cwhisto: setuid failed: %s\n", strerror(errno));
     exit(1);
   }
 #endif
@@ -112,12 +114,12 @@ static void cw_initialize(int port, int drive)
                                   6, 0)
     && catweasel_memtest(&c);
   if (!ret) {
-    fprintf(stderr, "testhist: Failed to detect Catweasel at port 0x%x\n", port);
+    fprintf(stderr, "cwhisto: Failed to detect Catweasel at port 0x%x\n", port);
     exit(1);
   }
   catweasel_detect_drive(&c.drives[drive]);
   if (c.drives[drive].type == 0) {
-    fprintf(stderr, "testhist: Did not detect drive %d, but trying anyway\n",
+    fprintf(stderr, "cwhisto: Did not detect drive %d, but trying anyway\n",
             drive);
   }
 
@@ -160,11 +162,11 @@ static void cw_histo_track(int drive, int track, int side, int passes,
       catweasel_free_controller(&c);
       exit(2);
     }
-    if (f) putc(0x80 + i, f); // mark start of ith read
+    if (binoutf) putc(0x80 + i, binoutf); // mark start of ith read
     while((b = catweasel_get_byte(&c)) != -1 && b < 0x80) {
       b &= 0x7f;
       buf[b]++;
-      if (f) putc(b, f);
+      if (binoutf) putc(b, binoutf);
     }
   }
 }
@@ -265,31 +267,64 @@ static void eval_histo(unsigned int *histogram, int passes)
 void usage(void)
 {
   fprintf(stderr,
-          "Usage: %s port drive track side clock [outfile]\n"
-          "       %s infile clock split\n", progname, progname);
+          "Usage: cwhisto [-p port] [-d drive] [-t track] [-s side]\n"
+          "               [-c clock] [-B binary_output]\n"
+          "or     cwhisto [-R replay_input] [-c clock] [-S split]\n");
   exit(2);
 }
 
 int main(int argc, char **argv)
 {
-  int track, side, port, drive;
+  int ch, track = 0, side = 0, port = 0, drive = 0, split = 1;
+  char *binary_fname = NULL;
+  char *replay_fname = NULL;
   unsigned int buf[128];
 
-  progname = argv[0];
+  opterr = 0;
+  for (;;) {
+    ch = getopt(argc, argv, "p:d:t:s:c:B:R:S:");
+    if (ch == -1) break;
+    switch (ch) {
+    case 'p':
+      port = strtol(optarg, NULL, 16);
+      break;
+    case 'd':
+      drive = strtol(optarg, NULL, 0);
+      if (drive < 0 || drive > 1) usage();
+      break;
+    case 't':
+      track = strtol(optarg, NULL, 0);
+      if (track < 0) usage();
+      break;
+    case 's':
+      side = strtol(optarg, NULL, 0);
+      if (side < 0 || side > 1) usage();
+      break;
+    case 'c':
+      cwclock = strtol(optarg, NULL, 0);
+      if (cwclock != 1 && cwclock != 2 && cwclock != 4) usage();
+      break;
+    case 'B':
+      binary_fname = optarg;
+      break;
+    case 'R':
+      replay_fname = optarg;
+      break;
+    case 'S':
+      split = strtol(optarg, NULL, 0);
+      if (split != 0 && split != 1) usage();
+      break;
+    }
+  }
 
-  if (argc == 6 || argc == 7) {
-    port = strtol(argv[1], NULL, 16);
-    drive = atoi(argv[2]);
-    track = atoi(argv[3]);
-    side = atoi(argv[4]);
-    cwclock = atoi(argv[5]);
-    if (argc == 7) {
-      if (strcmp(argv[6], "-") == 0) {
-        f = stdout;
+  if (replay_fname == NULL) {
+    if (binary_fname != NULL) {
+      if (strcmp(binary_fname, "-") == 0) {
+        binoutf = stdout;
       } else {
-        f = fopen(argv[6], "w");
-        if (f == NULL) {
-          perror(argv[6]);
+        binoutf = fopen(binary_fname, "w");
+        if (binoutf == NULL) {
+          perror(binary_fname);
           exit(1);
         }
       }
@@ -298,26 +333,24 @@ int main(int argc, char **argv)
     cw_initialize(port, drive);
     printf("Reading track %d, side %d...\n", track, side);
     cw_histo_track(drive, track, side, NNN, buf);
-    if (f) fclose(f);
+    if (binoutf) fclose(binoutf);
     cw_finalize(drive);
 
     eval_histo(buf, NNN);
 
-  } else if (argc == 4) {
-    int track, side, pass, split;
+  } else {
+    int pass;
     FILE *infile;
 
-    if (strcmp(argv[1], "-") == 0) {
+    if (strcmp(replay_fname, "-") == 0) {
       infile = stdin;
     } else {
-      infile = fopen(argv[1], "r");
+      infile = fopen(replay_fname, "r");
       if (infile == NULL) {
-        perror(argv[1]);
+        perror(replay_fname);
         exit(1);
       }
     }
-    cwclock = atoi(argv[2]);
-    split = atoi(argv[3]);
 
     /*
      * Read the entire log file and histogram everything in it.  If
@@ -368,8 +401,6 @@ int main(int argc, char **argv)
         buf[sample]++;
       }
     }
-  } else {
-    usage();
   }
 
   return 0;
