@@ -48,7 +48,7 @@ TAR_MSDOS   = $(TAR_PREFIX)-msdos.tar.gz
 TAR_TARGETS = $(TAR_SRC) \
 		$(if $(subst MSDOS,,$(TARGET_OS)),$(TAR_MSDOS),$(TAR_LINUX))
 
-CWEXE = cw2dmk$E dmk2cw$E cwhisto$E
+CWEXE = cw2dmk$E dmk2cw$E cwhist$E
 EXE   = $(CWEXE) dmk2jv3$E jv2dmk$E
 TXT   = cw2dmk.txt dmk2cw.txt dmk2jv3.txt jv2dmk.txt
 NROFFFLAGS = -c -Tascii
@@ -96,7 +96,7 @@ dmk2jv3$E: dmk2jv3.c crc.c dmk.h jv3.h
 jv2dmk$E: jv2dmk.c crc.c dmk.h jv3.h
 	$(CC) $(CFLAGS) -o $@ $<
 
-cwhisto$E: cwhisto.c catweasl.$O cwpci.$O parselog.$O cwfloppy.h
+cwhist$E: cwhist.c catweasl.$O cwpci.$O parselog.$O cwfloppy.h
 	$(CC) $(CFLAGS) -o $@ $< catweasl.$O cwpci.$O parselog.$O $(PCILIB) -lm
 
 crc$E: crc.c
