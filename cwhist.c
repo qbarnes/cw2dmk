@@ -17,15 +17,16 @@
    Usage for direct reads from Catweasel:
 
        cwhisto [-p port] [-d drive] [-t track] [-s side]
-               [-c clock] [-B binary_output]
+               [-X passes] [-c clock] [-B binary_output]
 
-       One track is read 4 times (value of NNN below) and the samples
-       from all passes are accumulated together for analysis.
+       One track is read one or more times and the samples from all
+       passes are accumulated together for analysis.
 
        * port: Catweasel port; see -p in cw2dmk man page
        * drive: Drive unit number; see -d in cw2dmk man page
        * track: physical track number, 0 origin
        * side: physical side number, 0 or 1
+       * passes: number of times to read the track; default 4
        * clock: Catweasel clock; see -c in cw2dmk man page
        * binary_output: Optional file to dump raw samples to.
          When samples are being dumped to a file, each pass over the
@@ -54,6 +55,7 @@
       * Check command line input for errors more carefully.
       * More complete usage message.
       * Maybe a man page.
+      * Provide an easy way to plot the histograms with gnuplot.
       * Direct mode: add an option to loop through the whole disk.
       * Direct mode: add an option to specify the number of passes.
       * Replay mode: add an option to analyze only a specific track.
@@ -61,8 +63,6 @@
       * Replay mode: add ability to deduce the clock from the logged
         cw2dmk output.  This currently isn't logged directly, so, ugh.
 */
-
-#define NNN 4
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -179,12 +179,19 @@ static void eval_histo(unsigned int *histogram, int passes)
     int i, ii, j, pwidth, psamps, psampsw;
     double peak[3], sd[3], ps[3];
 
-    /* Print histogram */
-    for(i=0;i<128;i+=8) {
+#if 1
+    /* Print histogram in a compact but cryptic format */
+    for (i=0; i<128; i+=8) {
 	printf("%3d: %06d %06d %06d %06d %06d %06d %06d %06d\n", i,
 	       histogram[i+0], histogram[i+1], histogram[i+2], histogram[i+3],
 	       histogram[i+4], histogram[i+5], histogram[i+6], histogram[i+7]);
     }
+#else
+    /* Print histogram in an obvious format that gnuplot can parse */
+    for (i=0; i<128; i++) {
+       printf("%d %d\n", i, histogram[i]);
+    }
+#endif
 
     /* Find two or three peaks */
     i = 0;
@@ -275,14 +282,14 @@ void usage(void)
 
 int main(int argc, char **argv)
 {
-  int ch, track = 0, side = 0, port = 0, drive = 0, split = 1;
+  int ch, track = 0, side = 0, port = 0, drive = 0, split = 1, passes = 4;
   char *binary_fname = NULL;
   char *replay_fname = NULL;
   unsigned int buf[128];
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "p:d:t:s:c:B:R:S:");
+    ch = getopt(argc, argv, "p:d:t:s:X:c:B:R:S:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -314,6 +321,9 @@ int main(int argc, char **argv)
       split = strtol(optarg, NULL, 0);
       if (split != 0 && split != 1) usage();
       break;
+    default:
+      usage();
+      break;
     }
   }
 
@@ -332,11 +342,11 @@ int main(int argc, char **argv)
 
     cw_initialize(port, drive);
     printf("Reading track %d, side %d...\n", track, side);
-    cw_histo_track(drive, track, side, NNN, buf);
+    cw_histo_track(drive, track, side, passes, buf);
     if (binoutf) fclose(binoutf);
     cw_finalize(drive);
 
-    eval_histo(buf, NNN);
+    eval_histo(buf, passes);
 
   } else {
     int pass;
