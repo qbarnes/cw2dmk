@@ -16,8 +16,8 @@
 
    Usage for direct reads from Catweasel:
 
-       cwhisto [-p port] [-d drive] [-t track] [-s side]
-               [-X passes] [-c clock] [-B binary_output]
+       cwhisto [-p port] [-d drive] [-t track] [-s side] [-X passes]
+               [-c clock] [-H hist_output] [-B binary_output]
 
        One track is read one or more times and the samples from all
        passes are accumulated together for analysis.
@@ -28,6 +28,8 @@
        * side: physical side number, 0 or 1
        * passes: number of times to read the track; default 4
        * clock: Catweasel clock; see -c in cw2dmk man page
+       * hist_output: Optional file to output the histogram data to,
+         for plotting by gnuplot or other software.
        * binary_output: Optional file to dump raw samples to.
          When samples are being dumped to a file, each pass over the
          track is preceded by a pseudo-sample equal to 0x80 + read
@@ -35,12 +37,14 @@
 
    Usage for replaying a log:
 
-       cwhisto [-R replay_input] [-c clock] [-S split]
+       cwhisto [-R replay_input] [-c clock] [-S split] [-H hist_output]
 
        All tracks in the log are read and analyzed.
 
        * replay_input: the cw2dmk -v7 log to be replayed
        * clock: Catweasel clock; see -c in cw2dmk man page (usually 2).
+       * hist_output: Optional file to output the histogram data to,
+         for plotting by gnuplot or other software.
        * split: If the log contains multiple consecutive passes over
          the same track and split=0, the passes are accumulated
          together for analysis; if split=1, each pass is analyzed
@@ -50,16 +54,29 @@
        drive speed will be nonsensical, but the rest of the analysis
        should be okay.  See comment in the code for why.
 
+   Plotting the histograms with gnuplot:
+
+       After running cwhist with "-H disk.hist", the following gnuplot
+       command produces some nice output.
+
+         plot [0:127] "disk.hist" with fsteps
+
+       If you used the replay feature, "disk.hist" contains output
+       from every track, with a comment in front giving the track,
+       side, and (if split was used) pass number.  You can use these
+       comments with gnuplot's "index" keyword to select which tracks
+       to plot.  Here's an example of plotting two tracks on the same
+       graph:
+
+         plot [0:127] "disk.hist" index "t0s0" with fsteps, \
+           'disk.hist' index "t37s0" with fsteps
+
    Some possible future improvements:
-      * Clean up and refactor a bit more.
       * Check command line input for errors more carefully.
-      * More complete usage message.
       * Maybe a man page.
-      * Provide an easy way to plot the histograms with gnuplot.
       * Direct mode: add an option to loop through the whole disk.
       * Direct mode: add an option to specify the number of passes.
       * Replay mode: add an option to analyze only a specific track.
-      * Replay mode: add ability to replay outfiles from direct mode (?).
       * Replay mode: add ability to deduce the clock from the logged
         cw2dmk output.  This currently isn't logged directly, so, ugh.
 */
@@ -78,6 +95,7 @@
 #include "parselog.h"
 
 FILE *binoutf;
+FILE *histoutf;
 struct catweasel_contr c;
 
 int cwclock = 2; //default
@@ -176,95 +194,97 @@ static void cw_histo_track(int drive, int track, int side, int passes,
  */
 static void eval_histo(unsigned int *histogram, int passes)
 {
-    int i, ii, j, pwidth, psamps, psampsw;
-    double peak[3], sd[3], ps[3];
+  int i, ii, j;
+  long pwidth, psamps, psampsw;
+  double peak[3], sd[3], ps[3];
 
-#if 1
-    /* Print histogram in a compact but cryptic format */
-    for (i=0; i<128; i+=8) {
-	printf("%3d: %06d %06d %06d %06d %06d %06d %06d %06d\n", i,
-	       histogram[i+0], histogram[i+1], histogram[i+2], histogram[i+3],
-	       histogram[i+4], histogram[i+5], histogram[i+6], histogram[i+7]);
-    }
-#else
+  /* Print histogram in a compact but cryptic format */
+  for (i=0; i<128; i+=8) {
+    printf("%3d: %06d %06d %06d %06d %06d %06d %06d %06d\n", i,
+           histogram[i+0], histogram[i+1], histogram[i+2], histogram[i+3],
+           histogram[i+4], histogram[i+5], histogram[i+6], histogram[i+7]);
+  }
+
+  if (histoutf) {
     /* Print histogram in an obvious format that gnuplot can parse */
     for (i=0; i<128; i++) {
-       printf("%d %d\n", i, histogram[i]);
+      fprintf(histoutf, "%d %d\n", i, histogram[i]);
     }
-#endif
+    fprintf(histoutf, "\n\n");
+  }
 
-    /* Find two or three peaks */
-    i = 0;
-    for (j=0; j<3; j++) {
-      pwidth = 0;
-      psamps = 0;
-      psampsw = 0;
-      while (histogram[i] < 64 && i < 128) i++;
-      while (histogram[i] >= 64 && i < 128) {
-	pwidth++;
-	psamps += histogram[i];
-	psampsw += histogram[i] * i;
-	i++;
-      }
-      if (pwidth == 0 || pwidth > 24) {
-	/* Not a real peak */
-	break;
-      } else {
-	peak[j] = ((double) psampsw) / psamps;
-	ps[j] = psamps;
-	sd[j] = 0.0;
-	for (ii = i - pwidth; ii < i; ii++) {
-	  sd[j] += histogram[ii] * pow((double)ii - peak[j], 2);
-	}
-	sd[j] = sqrt(sd[j]/((double)psamps-1));
-	printf("peak %d: mean %.05f, sd %.05f\n", j, peak[j], sd[j]);
-      }
-    }
-
-    /* Guess drive RPM based on total number of cw clock cycles */
-    /* Note that the sample values and histogram bucket numbers
-       are (I believe) 1 less than the actual number of cycles, so
-       we need to add 1 in some places here */
+  /* Find two (FM) or three (MFM) peaks */
+  i = 0;
+  for (j=0; j<3; j++) {
+    pwidth = 0;
     psamps = 0;
     psampsw = 0;
-    for (i=0; i<128; i++) {
+    while (histogram[i] < 64 * passes && i < 128) i++;
+    while (histogram[i] >= 64 * passes && i < 128) {
+      pwidth++;
       psamps += histogram[i];
-      psampsw += histogram[i] * (i + 1);
+      psampsw += histogram[i] * i;
+      i++;
     }
-    printf("drive speed approx    %f RPM\n",
-	   CWHZ * cwclock / psampsw * passes * 60.0);
+    if (pwidth == 0 || pwidth > 24) {
+      /* Not a real peak */
+      break;
+    } else {
+      peak[j] = ((double) psampsw) / psamps;
+      ps[j] = psamps;
+      sd[j] = 0.0;
+      for (ii = i - pwidth; ii < i; ii++) {
+        sd[j] += histogram[ii] * pow((double)ii - peak[j], 2);
+      }
+      sd[j] = sqrt(sd[j]/((double)psamps-1));
+      printf("peak %d: mean %.05f, sd %.05f\n", j, peak[j], sd[j]);
+    }
+  }
 
-    /* Guess bit clock by imputing the expected number of
-       clocks to each peak */
+  /* Guess drive RPM based on total number of cw clock cycles */
+  /* Note that the sample values and histogram bucket numbers
+     are (I believe) 1 less than the actual number of cycles, so
+     we need to add 1 in some places here */
+  psamps = 0;
+  psampsw = 0;
+  for (i=0; i<128; i++) {
+    psamps += histogram[i];
+    psampsw += histogram[i] * (i + 1);
+  }
+  printf("drive speed approx    %f RPM\n",
+         CWHZ * cwclock / psampsw * passes * 60.0);
+
+  /* Guess bit clock by imputing the expected number of
+     clocks to each peak */
 #if 0
-    /* This code weights each peak the same */
-    if (j == 2) {
-      /* FM encoding */
-      printf("FM data clock approx  %f kHz\n",
-	     CWHZ / 1000.0 * cwclock /
-	     ((peak[0]/0.5 + peak[1]/1.0)/2.0 + 1.0));
-    } else if (j == 3) {
-      /* MFM encoding */
-      printf("MFM data clock approx %f kHz\n",
-	     CWHZ / 1000.0 * cwclock /
-	     ((peak[0]/1.0 + peak[1]/1.5 + peak[2]/2.0)/3.0 + 1.0));
-    }
+  /* This code weights each peak the same */
+  if (j == 2) {
+    /* FM encoding */
+    printf("FM data clock approx  %f kHz\n",
+           CWHZ / 1000.0 * cwclock /
+           ((peak[0]/0.5 + peak[1]/1.0)/2.0 + 1.0));
+  } else if (j == 3) {
+    /* MFM encoding */
+    printf("MFM data clock approx %f kHz\n",
+           CWHZ / 1000.0 * cwclock /
+           ((peak[0]/1.0 + peak[1]/1.5 + peak[2]/2.0)/3.0 + 1.0));
+  }
 #else
-    /* This code weights each peak by the number of samples in it;
-       I think that should be a bit more accurate. */
-    if (j == 2) {
-      /* FM encoding */
-      printf("FM data clock approx  %f kHz\n",
-	     CWHZ / 1000.0 * cwclock /
-	     ((peak[0]/0.5*ps[0] + peak[1]/1.0*ps[1])
-	      / (ps[0] + ps[1]) + 1.0));
-    } else if (j == 3) {
-      /* MFM encoding */
-      printf("MFM data clock approx %f kHz\n",
-	     CWHZ / 1000.0 * cwclock /
-	     ((peak[0]/1.0*ps[0] + peak[1]/1.5*ps[1] + peak[2]/2.0*ps[2])
-	      / (ps[0] + ps[1] + ps[2]) + 1.0));
-    }
+  /* This code weights each peak by the number of samples in it;
+     I think that should be a bit more accurate. */
+  if (j == 2) {
+    /* FM encoding */
+    printf("FM data clock approx  %f kHz\n",
+           CWHZ / 1000.0 * cwclock /
+           ((peak[0]/0.5*ps[0] + peak[1]/1.0*ps[1])
+            / (ps[0] + ps[1]) + 1.0));
+  } else if (j == 3) {
+    /* MFM encoding */
+    printf("MFM data clock approx %f kHz\n",
+           CWHZ / 1000.0 * cwclock /
+           ((peak[0]/1.0*ps[0] + peak[1]/1.5*ps[1] + peak[2]/2.0*ps[2])
+            / (ps[0] + ps[1] + ps[2]) + 1.0));
+  }
 #endif
 }
 
@@ -274,22 +294,24 @@ static void eval_histo(unsigned int *histogram, int passes)
 void usage(void)
 {
   fprintf(stderr,
-          "Usage: cwhisto [-p port] [-d drive] [-t track] [-s side]\n"
-          "               [-c clock] [-B binary_output]\n"
-          "or     cwhisto [-R replay_input] [-c clock] [-S split]\n");
+          "Usage: cwhist [-p port] [-d drive] [-t track] [-s side] [-X passes]\n"
+          "              [-c clock] [-H hist_output] [-B binary_output]\n"
+          "or     cwhist [-R replay_input] [-c clock] [-S split]\n"
+          "              [-H hist_output]\n");
   exit(2);
 }
 
 int main(int argc, char **argv)
 {
-  int ch, track = 0, side = 0, port = 0, drive = 0, split = 1, passes = 4;
+  int ch, track = 0, side = 0, port = 0, drive = 0, split = 0, passes = 4;
   char *binary_fname = NULL;
+  char *hist_fname = NULL;
   char *replay_fname = NULL;
   unsigned int buf[128];
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "p:d:t:s:X:c:B:R:S:");
+    ch = getopt(argc, argv, "p:d:t:s:X:c:H:B:R:S:");
     if (ch == -1) break;
     switch (ch) {
     case 'p':
@@ -307,10 +329,16 @@ int main(int argc, char **argv)
       side = strtol(optarg, NULL, 0);
       if (side < 0 || side > 1) usage();
       break;
+    case 'X':
+      passes = strtol(optarg, NULL, 0);
+      break;
     case 'c':
       cwclock = strtol(optarg, NULL, 0);
       if (cwclock != 1 && cwclock != 2 && cwclock != 4) usage();
       break;
+    case 'H':
+       hist_fname = optarg;
+       break;
     case 'B':
       binary_fname = optarg;
       break;
@@ -324,6 +352,18 @@ int main(int argc, char **argv)
     default:
       usage();
       break;
+    }
+  }
+
+  if (hist_fname != NULL) {
+    if (strcmp(hist_fname, "-") == 0) {
+      histoutf = stdout;
+     } else {
+      histoutf = fopen(hist_fname, "w");
+      if (histoutf == NULL) {
+        perror(hist_fname);
+        exit(1);
+      }
     }
   }
 
@@ -341,7 +381,10 @@ int main(int argc, char **argv)
     }
 
     cw_initialize(port, drive);
-    printf("Reading track %d, side %d...\n", track, side);
+    printf("Analyzing track %d, side %d...\n", track, side);
+    if (histoutf) {
+      fprintf(histoutf, "# t%ds%d\n", track, side);
+    }
     cw_histo_track(drive, track, side, passes, buf);
     if (binoutf) fclose(binoutf);
     cw_finalize(drive);
@@ -375,8 +418,21 @@ int main(int argc, char **argv)
         /* Encountered a new track: (rtrack,rside) */
         if (track >= 0) {
           /* Analyze and print data from the previous track: (track,side) */
-          printf("Analyzing track %d, side %d, pass%s %d...\n",
-                 track, side, split ? "" : "es", pass);
+          printf("Analyzing track %d, side %d", track, side);
+          if (split) {
+            printf(", pass %d\n", pass);
+          } else if (pass > 1) {
+            printf(", %d passes\n", pass);
+          } else {
+            printf("\n");
+          }
+          if (histoutf) {
+            fprintf(histoutf, "# t%ds%d", track, side);
+            if (split) {
+              fprintf(histoutf, "p%d", pass);
+            }
+            fprintf(histoutf, "\n");
+          }
           eval_histo(buf, split ? 1 : pass);
         }
         if (rtrack < 0) {
@@ -413,5 +469,6 @@ int main(int argc, char **argv)
     }
   }
 
+  if (histoutf) fclose(histoutf);
   return 0;
 }
