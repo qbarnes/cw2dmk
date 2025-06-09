@@ -455,7 +455,11 @@ int main(int argc, char **argv)
         int sample;
 
         sample = parse_sample(infile);
-        if (sample < 0 || sample >= 0x80) {
+        /*
+         * Stop on parse_sample end of data indication (-1) or
+         * catweasel_read's end of data marker (0x80).
+         */
+        if (sample < 0 || sample == 0x80) {
           break;
         }
         /* Simply ignore the index pulse position.  Thus we may double
