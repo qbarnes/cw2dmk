@@ -197,21 +197,8 @@ static void eval_histo(unsigned int *histogram, int passes)
   int i, ii, j;
   long pwidth, psamps, psampsw;
   double peak[3], sd[3], ps[3];
-
-  /* Print histogram in a compact but cryptic format */
-  for (i=0; i<128; i+=8) {
-    printf("%3d: %06d %06d %06d %06d %06d %06d %06d %06d\n", i,
-           histogram[i+0], histogram[i+1], histogram[i+2], histogram[i+3],
-           histogram[i+4], histogram[i+5], histogram[i+6], histogram[i+7]);
-  }
-
-  if (histoutf) {
-    /* Print histogram in an obvious format that gnuplot can parse */
-    for (i=0; i<128; i++) {
-      fprintf(histoutf, "%d %d\n", i, histogram[i]);
-    }
-    fprintf(histoutf, "\n\n");
-  }
+  char *encoding = NULL;
+  double dataclock = 0.0, rpm;
 
   /* Find two (FM) or three (MFM) peaks */
   i = 0;
@@ -228,6 +215,7 @@ static void eval_histo(unsigned int *histogram, int passes)
     }
     if (pwidth == 0 || pwidth > 24) {
       /* Not a real peak */
+      peak[j] = -1.0;
       break;
     } else {
       peak[j] = ((double) psampsw) / psamps;
@@ -237,7 +225,6 @@ static void eval_histo(unsigned int *histogram, int passes)
         sd[j] += histogram[ii] * pow((double)ii - peak[j], 2);
       }
       sd[j] = sqrt(sd[j]/((double)psamps-1));
-      printf("peak %d: mean %.05f, sd %.05f\n", j, peak[j], sd[j]);
     }
   }
 
@@ -251,41 +238,60 @@ static void eval_histo(unsigned int *histogram, int passes)
     psamps += histogram[i];
     psampsw += histogram[i] * (i + 1);
   }
-  printf("drive speed approx    %f RPM\n",
-         CWHZ * cwclock / psampsw * passes * 60.0);
+  rpm = CWHZ * cwclock / psampsw * passes * 60.0;
 
   /* Guess bit clock by imputing the expected number of
      clocks to each peak */
 #if 0
   /* This code weights each peak the same */
   if (j == 2) {
-    /* FM encoding */
-    printf("FM data clock approx  %f kHz\n",
-           CWHZ / 1000.0 * cwclock /
-           ((peak[0]/0.5 + peak[1]/1.0)/2.0 + 1.0));
+    encoding = "FM ";
+    dataclock = CWHZ / 1000.0 * cwclock /
+      ((peak[0]/0.5 + peak[1]/1.0)/2.0 + 1.0);
   } else if (j == 3) {
-    /* MFM encoding */
-    printf("MFM data clock approx %f kHz\n",
-           CWHZ / 1000.0 * cwclock /
-           ((peak[0]/1.0 + peak[1]/1.5 + peak[2]/2.0)/3.0 + 1.0));
+    encoding = "MFM";
+    dataclock = CWHZ / 1000.0 * cwclock /
+      ((peak[0]/1.0 + peak[1]/1.5 + peak[2]/2.0)/3.0 + 1.0);
   }
 #else
   /* This code weights each peak by the number of samples in it;
      I think that should be a bit more accurate. */
   if (j == 2) {
-    /* FM encoding */
-    printf("FM data clock approx  %f kHz\n",
-           CWHZ / 1000.0 * cwclock /
-           ((peak[0]/0.5*ps[0] + peak[1]/1.0*ps[1])
-            / (ps[0] + ps[1]) + 1.0));
+    encoding = "FM ";
+    dataclock = CWHZ / 1000.0 * cwclock /
+      ((peak[0]/0.5*ps[0] + peak[1]/1.0*ps[1]) / (ps[0] + ps[1]) + 1.0);
   } else if (j == 3) {
-    /* MFM encoding */
-    printf("MFM data clock approx %f kHz\n",
-           CWHZ / 1000.0 * cwclock /
-           ((peak[0]/1.0*ps[0] + peak[1]/1.5*ps[1] + peak[2]/2.0*ps[2])
-            / (ps[0] + ps[1] + ps[2]) + 1.0));
+    encoding = "MFM";
+    dataclock = CWHZ / 1000.0 * cwclock /
+      ((peak[0]/1.0*ps[0] + peak[1]/1.5*ps[1] + peak[2]/2.0*ps[2]) /
+       (ps[0] + ps[1] + ps[2]) + 1.0);
   }
 #endif
+
+  /* Print histogram in a compact but cryptic format */
+  for (i=0; i<128; i+=8) {
+    printf("%3d: %06d %06d %06d %06d %06d %06d %06d %06d\n", i,
+           histogram[i+0], histogram[i+1], histogram[i+2], histogram[i+3],
+           histogram[i+4], histogram[i+5], histogram[i+6], histogram[i+7]);
+  }
+  for (j = 0; j < 3; j++) {
+    if (peak[j] == -1.0) {
+      break;
+    }
+    printf("peak %d: mean %.05f, sd %.05f\n", j, peak[j], sd[j]);
+  }
+  if (encoding != NULL) {
+    printf("%s data clock approx %f kHz\n", encoding, dataclock);
+  }
+  printf("drive speed approx    %f RPM\n", rpm);
+
+  if (histoutf) {
+    /* Print histogram in a format that gnuplot can parse */
+    for (i=0; i<128; i++) {
+      fprintf(histoutf, "%d %d\n", i, histogram[i]);
+    }
+    fprintf(histoutf, "\n\n");
+  }
 }
 
 /*
