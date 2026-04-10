@@ -1,3 +1,8 @@
+* Add -V option to dmk2jv3.  This option turns on recognition of the
+  short sectors used by VTOS 3.0 copy protection.  It adjusts the crc
+  checking and the amount of data expected in each short sector, and
+  flags the short sectors for recognition by xtrs.
+
 4.10.1 -- Sat May  4 19:04:22 UTC 2024 -- Tim Mann, Quentin Barnes
 
 * Fix indefinite looping while guessing head stepping rate when

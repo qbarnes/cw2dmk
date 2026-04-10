@@ -48,6 +48,10 @@ Also print warning messages.
 2
 Also print the sector numbers found.  Print a "?" after each sector
 recorded with a CRC error.
+.TP
+.B \-V
+Recognize short sectors as used in the VTOS 3.0 copy-protection scheme
+and mark them as such in the JV3 file.
 .SH Diagnostics
 .TP
 .B dmk2jv3: Error reading from DMK file

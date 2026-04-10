@@ -35,6 +35,7 @@
 #define OUT_SECTORS 2
 #define OUT_MAX 2
 int out_fmt = OUT_WARNINGS;
+int vtos3 = 0;
 
 void usage()
 {
@@ -44,6 +45,7 @@ void usage()
   printf("               0 = Print only errors\n");
   printf("               1 = Also print warnings\n");
   printf("               2 = Also print sector numbers found\n");
+  printf(" -V            Recognize VTOS 3.0 short sectors\n");
   exit(1);
 }
 
@@ -190,6 +192,10 @@ jv3_id(unsigned char track, unsigned char side,
 
   if (crcerror) id.flags |= JV3_ERROR;
 
+  if (vtos3 && !density && sector >= 0x7c && sector <= 0x7f) {
+     id.flags |= JV3_NONIBM;
+  }
+
   jv3.id[jv3.next++] = id;
 }
 
@@ -210,12 +216,15 @@ main(int argc, char** argv)
 
   opterr = 0;
   for (;;) {
-    ch = getopt(argc, argv, "v:");
+    ch = getopt(argc, argv, "v:V");
     if (ch == -1) break;
     switch (ch) {
     case 'v':
       out_fmt = strtol(optarg, NULL, 0);
       if (out_fmt < OUT_MIN || out_fmt > OUT_MAX) usage();
+      break;
+    case 'V':
+      vtos3 = 1;
       break;
     default:
       usage();
@@ -331,7 +340,7 @@ main(int argc, char** argv)
 	datap = idamp;
 	if (dmk_track[datap] == 0xfe) {
 	  unsigned char ltrack, lside, sector, sizecode, dam = 0;
-	  int crcerror = 0, size;
+	  int crcerror = 0, size, pad;
 	  unsigned short crc;
 #         define DMK_INC(d) dmk_inc(&d, dmk_header.tracklen, density, fmtimes)
 
@@ -354,7 +363,13 @@ main(int argc, char** argv)
 	  DMK_INC(datap);
 	  sizecode = dmk_track[datap];
 	  crc = calc_crc1(crc, sizecode);
-	  size = 128 << (sizecode & 3);
+          size = 128 << (sizecode & 3);
+          pad = 0;
+          if (vtos3 && !density && sector >= 0x7c && sector <= 0x7f) {
+            // Assume non-IBM
+            pad = size - sizecode * 16;
+            size = sizecode * 16;
+          }
 
 	  if (out_fmt >= OUT_SECTORS) {
 	    printf(" %d", sector);
@@ -417,6 +432,9 @@ main(int argc, char** argv)
 	    crc = calc_crc1(crc, dmk_track[datap]);
 	    DMK_INC(datap);
 	  }
+          while (pad--) {
+            putc(0, jv3_file);
+          }
 
 	  /* Check data CRC */
 	  crc = calc_crc1(crc, dmk_track[datap]);
