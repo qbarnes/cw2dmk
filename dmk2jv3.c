@@ -22,7 +22,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
-#include <errno.h>
 
 #include "dmk.h"
 #include "jv3.h"
@@ -106,7 +105,7 @@ jv3_id(unsigned char track, unsigned char side,
 {
   SectorId id;
 
-  if (jv3.next == JV3_SECSMAX) {
+  if (jv3.next >= JV3_SECSMAX) {
     printf("[Too many total sectors (%d)]\n", jv3.next + 1);
     jv3.errcount++;
     jv3.next++;
@@ -305,9 +304,9 @@ main(int argc, char** argv)
       /* Read DMK track data */
       ret = fread(dmk_track, dmk_header.tracklen, 1, dmk_file);
       if (ret != 1) {
-	if (errno == 0) {
+	if (feof(dmk_file)) {
 	  printf("[End of file on input]\n");
-	  break;
+	  goto eof;
 	}
 	fprintf(stderr, "dmk2jv3: Error reading from DMK file\n");
 	perror("dmk2jv3");
@@ -466,6 +465,7 @@ main(int argc, char** argv)
     }
   }
 
+ eof:
   /* Write out id blocks and writeprot flag */
   fseek(jv3_file, 0, 0);
   ret = fwrite(jv3.id, JV3_SECSTART - 1, 1, jv3_file);

@@ -92,6 +92,11 @@ main(int argc, char **argv)
   for (;;) {
     res = scanf("%2x", &c);
     if (res != 1) break;
+    if (count >= (int) sizeof(buf)) {
+      fprintf(stderr, "crc: input too long (max %d bytes)\n",
+	      (int) sizeof(buf));
+      return 1;
+    }
     buf[count++] = c;
   }
   printf("\n%04x\n", calc_crc(preset, buf, count));

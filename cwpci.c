@@ -117,7 +117,7 @@ pci_find(int vendorID, int deviceID, int index,
   if (r.h.ah == 0) {
     *bus = r.h.bh;
     *device = (r.h.bl >> 3) & 0x1f;
-    *func = r.h.bl & 0x03;
+    *func = r.h.bl & 0x07;
     DEBUG_PCI( printf("pci_install_check(0x%x, 0x%x, %d) -> (%d, %d, %d)\n",
 		      vendorID, deviceID, index, *bus, *device, *func); )
   } else {

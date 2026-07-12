@@ -23,7 +23,7 @@ $ make
 ```
 
 The Linux binaries are in the top level directory with the names
-`cw2dmk`, `dmk2cw`, `jv2dmk`, `dmk2jv3`, and `cwtsthst`.
+`cw2dmk`, `dmk2cw`, `jv2dmk`, `dmk2jv3`, and `cwhist`.
 
 ## Cross-building for MS-DOS Using Linux
 
@@ -59,7 +59,7 @@ $ make TARGET_OS=MSDOS CC=/usr/local/djgpp/bin/i586-pc-msdosdjgpp-gcc
 ```
 
 The MS-DOS binaries are in the top level directory with the names
-`cw2dmk.exe`, `dmk2cw.exe`, `jv2dmk.exe`, `dmk2jv3.exe`, `cwtsthst.exe`,
+`cw2dmk.exe`, `dmk2cw.exe`, `jv2dmk.exe`, `dmk2jv3.exe`, `cwhist.exe`,
 and `cwsdpmi.exe`.
 
 ## Cloning the Repo

@@ -45,7 +45,9 @@
 
 /* Bit assignments in IDAM pointers */
 #define DMK_DDEN_FLAG     0x8000
-#define DMK_EXTRA_FLAG    0x4000  /* unused */
+#define DMK_EXTRA_FLAG    0x4000  /* used internally by cw2dmk -j to mark
+                                     sectors with errors; always 0 in
+                                     DMK files it writes */
 #define DMK_IDAMP_BITS    0x3fff
 
 /* Bit assignments in quirks byte (cw2dmk addition) */

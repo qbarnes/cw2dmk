@@ -16,7 +16,7 @@
 
    Usage for direct reads from Catweasel:
 
-       cwhisto [-p port] [-d drive] [-t track] [-s side] [-X passes]
+       cwhist [-p port] [-d drive] [-t track] [-s side] [-X passes]
                [-c clock] [-H hist_output] [-B binary_output]
 
        One track is read one or more times and the samples from all
@@ -37,7 +37,7 @@
 
    Usage for replaying a log:
 
-       cwhisto [-R replay_input] [-c clock] [-S split] [-H hist_output]
+       cwhist [-R replay_input] [-c clock] [-S split] [-H hist_output]
 
        All tracks in the log are read and analyzed.
 
@@ -120,11 +120,11 @@ static void cw_initialize(int port, int drive)
 #if linux
   if ((cw_mk == 1 && ioperm(port, 8, 1) == -1) ||
       (cw_mk >= 3 && iopl(3) == -1)) {
-    fprintf(stderr, "cwhisto: No access to I/O ports\n");
+    fprintf(stderr, "cwhist: No access to I/O ports\n");
     exit(1);
   }
   if (setuid(getuid()) != 0) {
-    fprintf(stderr, "cwhisto: setuid failed: %s\n", strerror(errno));
+    fprintf(stderr, "cwhist: setuid failed: %s\n", strerror(errno));
     exit(1);
   }
 #endif
@@ -132,12 +132,12 @@ static void cw_initialize(int port, int drive)
                                   6, 0)
     && catweasel_memtest(&c);
   if (!ret) {
-    fprintf(stderr, "cwhisto: Failed to detect Catweasel at port 0x%x\n", port);
+    fprintf(stderr, "cwhist: Failed to detect Catweasel at port 0x%x\n", port);
     exit(1);
   }
   catweasel_detect_drive(&c.drives[drive]);
   if (c.drives[drive].type == 0) {
-    fprintf(stderr, "cwhisto: Did not detect drive %d, but trying anyway\n",
+    fprintf(stderr, "cwhist: Did not detect drive %d, but trying anyway\n",
             drive);
   }
 
@@ -206,8 +206,8 @@ static void eval_histo(unsigned int *histogram, int passes)
     pwidth = 0;
     psamps = 0;
     psampsw = 0;
-    while (histogram[i] < 64 * passes && i < 128) i++;
-    while (histogram[i] >= 64 * passes && i < 128) {
+    while (i < 128 && histogram[i] < 64 * passes) i++;
+    while (i < 128 && histogram[i] >= 64 * passes) {
       pwidth++;
       psamps += histogram[i];
       psampsw += histogram[i] * i;
@@ -337,6 +337,7 @@ int main(int argc, char **argv)
       break;
     case 'X':
       passes = strtol(optarg, NULL, 0);
+      if (passes < 1) usage();
       break;
     case 'c':
       cwclock = strtol(optarg, NULL, 0);
@@ -378,7 +379,7 @@ int main(int argc, char **argv)
       if (strcmp(binary_fname, "-") == 0) {
         binoutf = stdout;
       } else {
-        binoutf = fopen(binary_fname, "w");
+        binoutf = fopen(binary_fname, "wb");
         if (binoutf == NULL) {
           perror(binary_fname);
           exit(1);

@@ -1,0 +1,210 @@
+Suspected bugs found during code/documentation review
+=====================================================
+
+All items below were fixed in this pass unless marked "NOT FIXED".
+"Verified" means the behavior was demonstrated with a test; others
+were found by inspection.
+
+cw2dmk.c
+--------
+
+1. parse_tracks() stopped scanning regex groups at the first unmatched
+   optional subexpression ("if (soff == -1) break;").  Because the
+   optional "/side" group precedes the "-end" and end-track groups, the
+   end track of a range like "-x 0:4-12" was never parsed.  With a
+   hyphen present, the range silently became "start track through
+   MAX_TRACKS-1", so "-x 0:4-12" actually disabled retries for tracks
+   4 through 87, not 4 through 12.  Verified with a test harness.
+   Fix: skip unmatched groups (continue) instead of breaking.
+
+2. After fixing (1), the "," terminator group became reachable and was
+   swallowed by the "range_track[1] == -1" catch-all branch, parsing
+   the comma as end track 0 (e.g. "20:30-,0:33/0" failed with a range
+   error).  Verified.  Fix: test for "," before the end-track branch.
+
+3. parse_tracks() performed no bounds check on track numbers, so
+   "-x 5:99" (or any track >= MAX_TRACKS (88)) wrote outside the
+   88-entry retries/min_sectors/min_retries arrays -- memory
+   corruption of adjacent globals.  Verified (err=0 and out-of-bounds
+   stores before the fix).  Fix: reject ranges with tracks >=
+   MAX_TRACKS (returns the existing "out of range" error 3).
+
+4. do_histogram() peak-search loops tested histogram[i] before i < 128:
+   "while (histogram[i] < 64 && i < 128) i++;" reads histogram[128]
+   (out of bounds, one int past the array) whenever the scan runs off
+   the end, e.g. on a blank track.  Fix: test the index first.
+
+5. menu() looped forever if stdin hit EOF (scanf returning EOF just
+   re-prompted).  A redirected/closed stdin with -Mi/-Me would spin.
+   Fix: EOF now quits.  Also, non-numeric input at the "New retry
+   limit?" prompt looped forever because scanf(" %d") never consumes
+   the offending character; now one character is discarded per retry.
+
+6. dmk_merge_sectors() (the -j feature) indexed the merged track's
+   per-sector encoding table with the *current* track's sector index:
+   "tmp_stat.enc_sec[cur] = merged_stat.enc_sec[cur]".  The
+   replacement sector was found at position "prev" in the merged
+   track, which can differ from "cur" (e.g. when a bogus IDAM was
+   detected in one read but not another).  Fix: use enc_sec[prev].
+   Mostly harmless (only affects the FM/MFM statistics report), but
+   wrong.
+
+catweasl.c
+----------
+
+7. MK4 initialization: the "wait until FPGA is active" loop never
+   decremented its countdown:
+       countdown = 1000000000;
+       while (inb(iobase + 0xe8) == 0x13) { ; }
+       if (countdown == 0) { ... timeout error ... }
+   The loop can hang forever if the FPGA never comes up, and the
+   timeout branch was unreachable dead code.  Fix: decrement countdown
+   in the loop condition (matching the firmware-load loop above it).
+
+8. Two "bug:" diagnostics (CWReadPointer, catweasel_read) were missing
+   their trailing newline.
+
+9. DEBUG11-only: the second memory-test pass printed the wrong
+   expected value ((i%4093) instead of ~(i%4093)) and printed a stale
+   "v" left over from the first pass instead of the byte just read.
+
+dmk2cw.c
+--------
+
+10. The "-s maxsides" guard read "if (side > maxsides)".  Since side
+    is 0 or 1 and maxsides is at least 1, the condition could never be
+    true, so the documented protection ("Drive is 1-sided but DMK file
+    is 2-sided") never triggered and dmk2cw would happily overwrite
+    side 0 with side-1 data even with -s1.  Fix: "side >= maxsides".
+
+11. Write precompensation interpolation divided by
+    (dmk_header.ntracks - 1), so a 1-track DMK image caused a
+    division by zero.  Fix: use precomplo when ntracks < 2.
+
+12. RX02 handling wrote the trailing 0xff lead-out byte at
+    dmk_track[fmtimes + datap + rx02_data] without a bounds check --
+    an out-of-bounds heap write if an RX02 sector extends to the end
+    of the track buffer.  Fix: bounds-check against tracklen.
+
+13. RX02 encoding read dmk_encoding[datap+1] to decide when to flush;
+    at the last byte of the track this reads one byte past the end of
+    the malloc'd encoding buffer.  Fix: bounds-check datap+1.
+
+14. Two error messages were prefixed "cw2dmk:" instead of "dmk2cw:"
+    (the setuid failure and atexit failure messages).
+
+dmk2jv3.c
+---------
+
+15. jv3_id() guarded the sector-table overflow with
+    "if (jv3.next == JV3_SECSMAX)" and then incremented jv3.next.  On
+    the *second* overflowing sector, jv3.next was already past
+    JV3_SECSMAX, the guard didn't match, and "jv3.id[jv3.next++]"
+    wrote past the end of the id array.  Fix: use ">=".
+
+16. End-of-file on the input DMK was detected with "errno == 0" after
+    a short fread().  errno is not guaranteed to be 0 on EOF (any
+    earlier library call may have set it), so a truncated DMK file
+    could be misreported as a read error -- or a real error mistaken
+    for EOF.  Also, the EOF "break" only left the sides loop, so
+    "[End of file on input]" was printed again for every remaining
+    track.  Fix: use feof() and jump out of both loops.
+
+jv2dmk.c
+--------
+
+17. dotrack() computed "gap3 = lenleft / secs" before checking secs;
+    a track/side present in the loop range but containing no sectors
+    (possible with a JV3 that skips a track number) crashed with
+    SIGFPE (division by zero).  Fix: gap3 = 0 when secs == 0.
+
+18. The JV1 path faked up (maxtrack+1)*10 + 1 sector ids with no bound
+    check on idbuf[JV3_SECSMAX]; a JV1 file larger than ~1.45 MB
+    overflowed the array.  Fix: reject oversized JV1 files.
+
+cwpci.c
+-------
+
+19. MS-DOS (DJGPP) path: pci_find() extracted the PCI function number
+    with "r.h.bl & 0x03".  The function number is 3 bits; should be
+    "& 0x07".  Functions 4-7 would be misreported, and the subsequent
+    config-space reads would go to the wrong function.
+
+cwhist.c
+--------
+
+20. eval_histo() had the same out-of-bounds histogram[128] read as
+    cw2dmk's do_histogram() (index tested after dereference).  Fixed.
+
+21. The -B binary sample dump file was opened with mode "w" instead of
+    "wb".  Harmless on Linux, but on the MS-DOS (DJGPP) target text
+    mode would corrupt the binary output with LF -> CR/LF translation.
+
+22. "-X passes" accepted 0 or negative values, producing an empty
+    histogram and nonsense analysis (0/0 divisions).  Now requires
+    >= 1.
+
+23. Error messages and usage comments called the program "cwhisto"
+    while the built binary is "cwhist" (and older docs said
+    "cwtsthst").  Unified on "cwhist".
+
+crc.c
+-----
+
+24. TEST-only: the crc test main() read hex bytes into buf[2048] with
+    no bounds check; more than 2048 bytes of input overflowed the
+    stack buffer.  Now checked.
+
+Documentation
+-------------
+
+25. dmk2jv3.man: a missing ".RE" left the -V option nested inside the
+    -v verbosity-level list, so it rendered at the wrong indent as if
+    it were a verbosity value.  Fixed; verified with nroff.
+
+26. dmk2cw.man: the MS-DOS paragraph said "cw2dmk.exe needs ...
+    cwsdpmi.exe ... same directory as cw2dmk.exe" -- copy/paste from
+    the cw2dmk page; should be dmk2cw.exe.  Also "In dw2dmk" typo for
+    "dmk2cw".
+
+27. README, BUILDING.md, cw2dmk.man, and dmk2cw.man all referred to
+    the histogram tool by its old name "cwtsthst"; the Makefile builds
+    it as "cwhist".  All references updated, and the README
+    description updated to mention replay mode and RPM/clock analysis.
+
+28. dmk.h: DMK_EXTRA_FLAG (0x4000) was commented "unused", but cw2dmk
+    uses it internally for the -j sector-merge feature (it is cleared
+    before tracks are written out).  Comment corrected.
+
+Suspected but NOT FIXED (needs decisions or hardware to verify)
+---------------------------------------------------------------
+
+29. catweasel_seek() silently ignores seeks to track >= 85, but cw2dmk
+    allows MAX_TRACKS = 88 and, with -m2, head positions up to 174.
+    When the limit is hit the head is not moved and the same physical
+    track is re-read and written to the DMK under a new track number
+    (usually caught later by the "apparently only N tracks" guess
+    logic, but not when -t is given explicitly).  The seek limit and
+    MAX_TRACKS should be made consistent, or at least a warning
+    printed.
+
+30. cw2dmk -v accepts nonsense digits: "-v 9" or "-v 39" pass
+    validation (bound is out_level <= 77) even though per-digit levels
+    only go to 7.  Harmless (treated as 7) but should be rejected or
+    clamped explicitly.
+
+31. secsize() computes MFM sizes as 128 << (sizecode % (maxsize + 1)).
+    This is only equivalent to the documented "mask to the low-order
+    bits" behavior when maxsize is 2^n - 1 (3 or 7).  -z allows any
+    value 0-255; e.g. -z5 gives a modulus of 6, which matches no real
+    controller.  Consider restricting -z or documenting the behavior.
+
+32. dmk2cw with fill=1 on MK1/MK3 prints "does not support fill type"
+    but then proceeds anyway (the message reads like an error but
+    nothing is changed).  Should either exit or fall back to another
+    fill type explicitly.
+
+33. dmk_read_header()/dmk_write_header() note "assumes this machine is
+    little-endian".  True for all currently supported targets, but a
+    portability trap; reading/writing the header field-by-field would
+    remove the assumption.

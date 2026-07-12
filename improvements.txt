@@ -1,0 +1,115 @@
+Suggested improvements (not bugs; none of these were applied)
+=============================================================
+
+Robustness / error handling
+---------------------------
+
+1. Check malloc()/calloc() return values.  cw2dmk, dmk2cw, dmk2jv3,
+   and jv2dmk all dereference allocation results unchecked (track
+   buffers, generated file names).  Failures are unlikely at these
+   sizes but a small xmalloc() wrapper would make it cheap.
+
+2. Check fwrite()/fseek() return values in dmk2jv3's second id-block
+   write and in jv2dmk's header/track writes.  A full disk currently
+   produces a silently truncated output image.
+
+3. jv2dmk reads sector data with getc() and never checks for EOF, so
+   a truncated JV3 file quietly fills sectors with 0xff bytes.
+   Detecting EOF and warning would help users notice damaged inputs.
+
+4. jv2dmk does no validation that the JV3 id block's offsets fit the
+   file, and readidblock() ignores mid-record EOF.  A malformed .dsk
+   file should be diagnosed rather than converted to garbage.
+
+5. cw2dmk's -p usage text prints the port with %d although the value
+   is parsed as hex ("-p 320" means 0x320); printing with %#x would
+   avoid confusion.
+
+6. parse_tracks() conflates error codes: unparsable text and regcomp
+   failure both surface as a bare usage() message.  Printing which
+   range element failed (and why) would make -x/-S/-X typos much
+   easier to spot.
+
+Build / test infrastructure
+---------------------------
+
+7. There is no test suite.  The two hardware-independent converters
+   (dmk2jv3, jv2dmk) and the pure functions (crc, secsize,
+   parse_tracks, parselog) are easily testable; a "make check" doing
+   a JV1 -> DMK -> JV3 round-trip and a few golden-file comparisons
+   would catch regressions in the decoder-adjacent logic.  (A
+   round-trip of exactly that kind was used to validate this review's
+   changes.)
+
+8. A CI workflow (GitHub Actions) building both the Linux and DJGPP
+   targets would catch bit-rot in the MS-DOS path, which is easy to
+   break unnoticed (e.g. text/binary fopen modes, DJGPP-only code
+   under #if __DJGPP__).
+
+9. The Makefile hard-codes hexdump for generating firmware.h; xxd -i
+   or od are alternatives, but at minimum BUILDING.md could note the
+   util-linux dependency is for hexdump.
+
+Code cleanups
+-------------
+
+10. ToDo item 24 ("Factor out common code in testhist.c and cw2dmk's
+    detect_kind()") is still valid, and the file is now cwhist.c: the
+    histogram peak-finding code exists in three slightly different
+    copies (cw2dmk.c do_histogram/detect_kind, cwhist.c eval_histo).
+    The out-of-bounds scan bug fixed in this review existed in two of
+    them independently -- a good argument for sharing the code.
+    ToDo still refers to "testhist.c"; update the name.
+
+11. dmk2cw and cw2dmk duplicate strtol_strict(), the DMK header
+    read/write helpers, PCI/port detection, and the setuid dance.
+    A small shared cwutil.c would remove several near-identical
+    blocks (and would have prevented the "cw2dmk:" prefixes in
+    dmk2cw's messages).
+
+12. JV3State has warnIDCRC and warnMissingDAM fields that are never
+    used, and jv3_reset() resets neither them nor warnSize's siblings
+    consistently.  Delete the dead fields.
+
+13. The msg() level scheme in cw2dmk (OUT_RAW logged only when level
+    is exactly OUT_RAW, OUT_HEX suppressed at OUT_RAW, etc.) is subtle
+    and duplicated for the screen and logfile branches; a small
+    helper taking the destination's level would halve it.
+
+14. cwhist.c's giant leading comment documents usage; converting it
+    into a real cwhist man page (ToDo already suggests one) would let
+    "make manpages" ship it alongside the others, and the README
+    could then point at cwhist.txt.
+
+15. kinds[] uses parallel comment/value initialization per entry;
+    designated initializers would make the threshold table easier to
+    read and harder to misalign.
+
+Feature ideas already tracked in ToDo
+-------------------------------------
+
+The ToDo file remains a good source of larger improvements (real
+device-driver support, smarter -h0 gap detection, threshold
+auto-tuning from histograms, averaging multiple passes, config file
+support).  Items 32/33 in ToDo (keep the best read; merge sectors
+across retries) are now partially DONE via the -j option and could be
+marked as such.
+
+Documentation
+-------------
+
+16. cw2dmk.man's -v7 description and the cwhist comments both explain
+    the sample letters (s/m/l), but the "t" (tiny, QUIRK_MFM_CLOCK)
+    classification printed by process_sample() is undocumented in the
+    man page.
+
+17. The URLs in README and the man pages are largely dead
+    (discover-net.net, soundtracker.org/raw, ftp.simtel.net,
+    ftp.delorie.com).  Pointing at archive.org copies or current
+    equivalents (e.g. https://www.tim-mann.org/trs80/dmk.html for the
+    DMK format) would help new users.
+
+18. BUILDING.md documents cloning with ssh as "necessary for the way
+    submodules are referenced" -- consider switching .gitmodules to
+    an https URL so anonymous users can clone recursively without a
+    GitHub account.

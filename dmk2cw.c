@@ -549,7 +549,7 @@ main(int argc, char** argv)
   /* Start Catweasel */
 #if linux
   if (geteuid() != 0) {
-    fprintf(stderr, "cw2dmk: Must be setuid to root or be run as root\n");
+    fprintf(stderr, "dmk2cw: Must be setuid to root or be run as root\n");
     exit(1);
   }
 #endif
@@ -597,7 +597,7 @@ main(int argc, char** argv)
   catweasel_detect_drive(&c.drives[drive]);
 
   if (atexit(cleanup)) {
-    fprintf(stderr, "cw2dmk: Can't establish atexit() call.\n");
+    fprintf(stderr, "dmk2cw: Can't establish atexit() call.\n");
     exit(1);
   }
 
@@ -704,8 +704,12 @@ main(int argc, char** argv)
   for (track=0; track<dmk_header.ntracks; track++) {
     catweasel_seek(&c.drives[drive], track * steps);
 
-    precomp = ((dmk_header.ntracks - 1 - track) * precomplo +
-	       track * precomphi) / (dmk_header.ntracks - 1);
+    if (dmk_header.ntracks > 1) {
+      precomp = ((dmk_header.ntracks - 1 - track) * precomplo +
+		 track * precomphi) / (dmk_header.ntracks - 1);
+    } else {
+      precomp = precomplo;
+    }
 
     /* Loop through sides */
     for (side=0; side<sides; side++) {
@@ -748,7 +752,7 @@ main(int argc, char** argv)
       encoding = next_encoding;
 
       /* Check if writing to side 1 (the second side) of a 1-sided drive */
-      if (side > maxsides) {
+      if (side >= maxsides) {
 	if (first_idamp == 0) {
 	  /* No problem; there is nothing to write here */
 	  break;
@@ -860,7 +864,10 @@ main(int argc, char** argv)
 		       dmk_track[datap] == 0xfd)) {
 	    rx02_data = 2 + (256 << dmk_track[idamp+4]);
 	    /* Follow CRC with one RX02-MFM FF */
-	    dmk_track[fmtimes + datap + rx02_data++] = 0xff;
+	    if (fmtimes + datap + rx02_data < tracklen) {
+	      dmk_track[fmtimes + datap + rx02_data] = 0xff;
+	    }
+	    rx02_data++;
 	  } else {
             /* Compute expected sector size, including CRC and any extra
              * bytes after the CRC.  This matters only for warning if
@@ -1020,7 +1027,7 @@ main(int argc, char** argv)
 	      rx02_bitpair(bit, mult);
 	      byte <<= 1;
 	    }
-	    if (enc(dmk_encoding[datap+1]) != RX02) {
+	    if (datap + 1 >= tracklen || enc(dmk_encoding[datap+1]) != RX02) {
 	      rx02_bitpair(RX02_BITPAIR_FLUSH, mult);
 	    }
 	    break;

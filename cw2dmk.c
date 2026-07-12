@@ -708,8 +708,9 @@ dmk_merge_sectors(void)
 	tmp_data_p += seclen;
 	replaced = 1;
 	tmp_stat.reused_sectors++;
-	tmp_stat.enc_sec[cur] = merged_stat.enc_sec[cur];
-	tmp_stat.enc_count[merged_stat.enc_sec[cur]]++;
+	/* The replacement sector is at position prev in the merged track. */
+	tmp_stat.enc_sec[cur] = merged_stat.enc_sec[prev];
+	tmp_stat.enc_count[merged_stat.enc_sec[prev]]++;
 	// There should be an error for every bad sector, but just
 	// to be careful.
 	if (tmp_stat.errcount > 0)
@@ -1430,8 +1431,8 @@ do_histogram(int drive, int track, int side, int histogram[128],
   pwidth = 0;
   psamps = 0;
   psampsw = 0;
-  while (histogram[i] < 64 && i < 128) i++;
-  while (histogram[i] >= 64 && i < 128) {
+  while (i < 128 && histogram[i] < 64) i++;
+  while (i < 128 && histogram[i] >= 64) {
     pwidth++;
     psamps += histogram[i];
     psampsw += histogram[i] * i;
@@ -1657,6 +1658,8 @@ menu(int failing)
     fflush(stdout);
 
     ret = scanf(" %c", &inc);
+    if (ret == EOF)
+      return MENU_QUIT;
     if (ret != 1)
       continue;
     switch(inc) {
@@ -1671,6 +1674,10 @@ menu(int failing)
 	printf("New retry limit? ");
 	fflush(stdout);
 	ret = scanf(" %d", &rnum);
+	if (ret == EOF)
+	  return MENU_QUIT;
+	if (ret == 0)
+	  (void) getchar(); /* discard non-numeric input to avoid looping */
 	if (ret == 1 && rnum >= 0) {
 	  for (int i = 0; i < COUNT_OF(retries); ++i) {
 	    retries[i][0] = rnum;
@@ -1735,8 +1742,14 @@ parse_tracks(const char *ss, int opt_matrix[MAX_TRACKS][2])
       const char	*p  = ss + soff;
       char		*eip;
 
+      /*
+       * Skip unmatched optional subexpressions.  A later group can
+       * still match when an earlier one didn't (e.g. the end track in
+       * "N:A-B" when no "/side" was given), so keep scanning rather
+       * than stopping at the first unmatched group.
+       */
       if (soff == -1)
-        break;
+        continue;
 
       /*
        * Skip if its a null entry or if it's an
@@ -1754,12 +1767,12 @@ parse_tracks(const char *ss, int opt_matrix[MAX_TRACKS][2])
         range_side[0] = strtol(&p[1], &eip, 0);
       } else if (p[0] == '-') {
         range_hyphen = 1;
+      } else if (p[0] == ',') {
+        break;
       } else if (range_track[1] == -1) {
         range_track[1] = strtol(&p[0], &eip, 0);
       } else if (range_side[1] == -1 && p[0] == '/') {
         range_side[1] = strtol(&p[1], &eip, 0);
-      } else if (p[0] == ',') {
-        break;
       } else {
         fprintf(stderr, "track parse list failure.\n");
         err = 2;
@@ -1788,7 +1801,12 @@ parse_tracks(const char *ss, int opt_matrix[MAX_TRACKS][2])
         range_side[1] = range_hyphen ? 1 : range_side[0];
     }
 
-    /* Check to make sure tracks and sides are in order. */
+    /* Check to make sure tracks and sides are in order and in range. */
+
+    if (range_track[0] >= MAX_TRACKS || range_track[1] >= MAX_TRACKS) {
+      err = 3;
+      break;
+    }
 
     if (range_track[1] < range_track[0] ||
         (range_track[1] == range_track[0] &&

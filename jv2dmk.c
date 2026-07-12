@@ -198,7 +198,7 @@ dotrack(FILE* fin, SectorId** curidp, int track, int side,
 	    track, -lenleft);
     exit(1);
   }
-  gap3 = lenleft / secs;
+  gap3 = secs ? lenleft / secs : 0;
 
   while (secs--) {
     /* Write sync and IDAM */
@@ -404,6 +404,11 @@ main(int argc, char *argv[])
     totalsectors = ftell(fin) / 256;
     maxside = 0;
     maxtrack = (totalsectors + 9) / 10 - 1;
+    if ((maxtrack + 1) * 10 + 1 > JV3_SECSMAX) {
+      fprintf(stderr, "jv2dmk: JV1 file has too many sectors (%d)\n",
+	      totalsectors);
+      exit(1);
+    }
     offset = 0;
     curid = idbuf;
     for (track=0; track<=maxtrack; track++) {

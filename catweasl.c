@@ -221,7 +221,7 @@ CWReadPointer(catweasel_contr *c)
     int pointer;
 
     if (c->mk < 4) {
-        fprintf(stderr, "bug: MK%d can't read memory pointer", c->mk);
+        fprintf(stderr, "bug: MK%d can't read memory pointer\n", c->mk);
 	return -1;
     }
 
@@ -284,10 +284,11 @@ catweasel_memtest(catweasel_contr *c)
     }
     catweasel_reset_pointer(c);
     for (i=0; i<MEMSIZE; i++) {
-	if (INREG(c, CatMem) != (unsigned char) ~(i%4093)) {
+	v = INREG(c, CatMem);
+	if (v != (unsigned char) ~(i%4093)) {
 #if DEBUG11
 	    printf("at offset %d: expected 0x%02x, got 0x%02x\n",
-		   i, (unsigned char) (i%4093), v);
+		   i, (unsigned char) ~(i%4093), v);
 #else
 	    return i;
 #endif
@@ -468,7 +469,7 @@ catweasel_init_controller(catweasel_contr *c, int iobase, int mk, char *fwname,
 	 * open data bus when reading the floppy status register
 	 */
 	countdown = 1000000000;
-	while (inb(iobase + 0xe8) == 0x13) {
+	while (inb(iobase + 0xe8) == 0x13 && --countdown) {
 	    ;
 	}
 	if (countdown == 0) {
@@ -697,7 +698,7 @@ catweasel_read(catweasel_drive *d, int side, int clockmult, int time, int idx)
      * index to index read instead does a read starting at the
      * next MFM sync sequence!  Ugh. */
     if (c->mk >= 3 && idx && time == 0) {
-        fprintf(stderr, "bug: MK%d can't index-to-index read with index store",
+        fprintf(stderr, "bug: MK%d can't index-to-index read with index store\n",
 		c->mk);
     }
 

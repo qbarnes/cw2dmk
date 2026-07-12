@@ -48,6 +48,7 @@ Also print warning messages.
 2
 Also print the sector numbers found.  Print a "?" after each sector
 recorded with a CRC error.
+.RE
 .TP
 .B \-V
 Recognize short sectors as used in the VTOS 3.0 copy-protection scheme
